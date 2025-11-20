@@ -10,14 +10,15 @@ services:
     restart: unless-stopped
     volumes:
       - ./user_data:/freqtrade/user_data
+      - ./user_data/strategies:/freqtrade/strategies
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"  # Bind to localhost only for security
     command: >
       trade
       --logfile /freqtrade/user_data/logs/freqtrade.log
       --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite
       --config /freqtrade/user_data/config/config_production.json
-      --strategy StoicEnsembleStrategy
+      --strategy StoicStrategyV1
     networks:
       - stoic_network
     environment:
@@ -35,7 +36,7 @@ services:
     container_name: stoic_frequi
     restart: unless-stopped
     ports:
-      - "3000:8080"
+      - "127.0.0.1:3000:8080"  # Bind to localhost only for security
     environment:
       - VITE_API_URL=http://freqtrade:8080
     depends_on:
@@ -54,10 +55,11 @@ services:
     restart: unless-stopped
     volumes:
       - ./research:/home/jovyan/research
-      - ./user_data:/home/jovyan/user_data
+      - ./user_data:/home/jovyan/user_data:ro  # Read-only access to data
       - ./scripts:/home/jovyan/scripts
+      - ./user_data/strategies:/home/jovyan/strategies  # Read-write for strategy development
     ports:
-      - "8888:8888"
+      - "127.0.0.1:8888:8888"  # Bind to localhost only for security
     environment:
       - JUPYTER_ENABLE_LAB=yes
       - GRANT_SUDO=yes
@@ -75,7 +77,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # Bind to localhost only for security
     environment:
       - POSTGRES_USER=stoic_trader
       - POSTGRES_PASSWORD=StoicDB2024!ChangeMe
@@ -94,8 +96,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
     ports:
-      - "9443:9443"
-      - "9000:9000"
+      - "127.0.0.1:9443:9443"  # Bind to localhost only for security
+      - "127.0.0.1:9000:9000"  # Bind to localhost only for security
     networks:
       - stoic_network
 

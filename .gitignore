@@ -1,0 +1,104 @@
+# Stoic Citadel - Git Ignore Rules
+# ==================================
+
+# Environment variables (NEVER commit!)
+.env
+*.env
+!.env.example
+
+# Sensitive data
+user_data/config/config_production.json
+user_data/config/config_live.json
+**/secrets/
+**/credentials/
+*.key
+*.pem
+*.p12
+
+# Trading data
+user_data/data/
+user_data/logs/
+user_data/notebooks/
+user_data/plot/
+user_data/tradesv3.sqlite
+user_data/tradesv3.dryrun.sqlite
+user_data/*.sqlite
+user_data/*.db
+
+# Research artifacts
+research/**/*.png
+research/**/*.jpg
+research/**/*.pdf
+research/**/*.html
+research/.ipynb_checkpoints/
+research/**/.ipynb_checkpoints/
+
+# ML models
+models/
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.pth
+*.onnx
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.cache
+
+# Backtest results
+user_data/backtest_results/
+backtest-result-*.json
+
+# Keep important configs (templates)
+!user_data/config/config_dryrun.json
+!user_data/config/config_production.json

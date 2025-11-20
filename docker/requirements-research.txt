@@ -1,0 +1,29 @@
+# Stoic Citadel - Research Environment Dependencies
+# Additional libraries not included in base Dockerfile
+
+# Alternative data sources
+yfinance==0.2.48
+alpha-vantage==2.3.1
+
+# Advanced statistics
+arch==7.2.0
+pymc==5.18.1
+
+# Time series analysis
+prophet==1.1.6
+statsforecast==1.7.8
+
+# Portfolio optimization
+PyPortfolioOpt==1.5.5
+riskfolio-lib==6.3.1
+
+# Feature engineering
+featuretools==1.31.0
+tsfresh==0.20.3
+
+# Market microstructure
+lobster==0.1.0 || echo "LOBSTER not available via pip"
+
+# Additional utilities
+numba==0.60.0
+cython==3.0.11

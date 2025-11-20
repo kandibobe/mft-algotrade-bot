@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # FREQTRADE - Execution Engine
+  # ==========================================
+  freqtrade:
+    image: freqtradeorg/freqtrade:2024.11
+    container_name: stoic_freqtrade
+    restart: unless-stopped
+    volumes:
+      - ./user_data:/freqtrade/user_data
+    ports:
+      - "8080:8080"
+    command: >
+      trade
+      --logfile /freqtrade/user_data/logs/freqtrade.log
+      --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite
+      --config /freqtrade/user_data/config/config_production.json
+      --strategy StoicEnsembleStrategy
+    networks:
+      - stoic_network
+    environment:
+      - FREQTRADE__API_SERVER__ENABLED=true
+      - FREQTRADE__API_SERVER__LISTEN_IP_ADDRESS=0.0.0.0
+      - FREQTRADE__API_SERVER__LISTEN_PORT=8080
+      - FREQTRADE__API_SERVER__USERNAME=stoic_admin
+      - FREQTRADE__API_SERVER__PASSWORD=StoicGuard2024!ChangeMe
+
+  # ==========================================
+  # FREQUI - Web Dashboard
+  # ==========================================
+  frequi:
+    image: freqtradeorg/frequi:latest
+    container_name: stoic_frequi
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    environment:
+      - VITE_API_URL=http://freqtrade:8080
+    depends_on:
+      - freqtrade
+    networks:
+      - stoic_network
+
+  # ==========================================
+  # JUPYTER LAB - Research Environment
+  # ==========================================
+  jupyter:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.jupyter
+    container_name: stoic_jupyter
+    restart: unless-stopped
+    volumes:
+      - ./research:/home/jovyan/research
+      - ./user_data:/home/jovyan/user_data
+      - ./scripts:/home/jovyan/scripts
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - GRANT_SUDO=yes
+    command: start-notebook.sh --NotebookApp.token='stoic2024' --NotebookApp.password=''
+    networks:
+      - stoic_network
+
+  # ==========================================
+  # POSTGRESQL - Analytics Database (Optional)
+  # ==========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: stoic_postgres
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=stoic_trader
+      - POSTGRES_PASSWORD=StoicDB2024!ChangeMe
+      - POSTGRES_DB=trading_analytics
+    networks:
+      - stoic_network
+
+  # ==========================================
+  # PORTAINER - Container Management (Optional)
+  # ==========================================
+  portainer:
+    image: portainer/portainer-ce:2.19.4
+    container_name: stoic_portainer
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    ports:
+      - "9443:9443"
+      - "9000:9000"
+    networks:
+      - stoic_network
+
+networks:
+  stoic_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  portainer_data:
+    driver: local

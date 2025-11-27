@@ -129,7 +129,16 @@ git clone https://github.com/yourusername/stoic-citadel.git
 cd stoic-citadel
 ```
 
-### 2. Initial Setup
+### 2. Initial Setup (Recommended - Interactive Wizard)
+
+```bash
+# Run interactive setup wizard
+make setup
+# OR
+python3 scripts/setup_wizard.py
+```
+
+**Alternative - Manual Setup:**
 
 ```bash
 # Make control script executable
@@ -179,9 +188,34 @@ Access dashboard: `http://localhost:3000`
 
 ## 💻 Usage
 
-### Master Control Script
+### Makefile Commands (Recommended)
 
-All operations are managed through `citadel.sh`:
+Stoic Citadel now includes a comprehensive Makefile for streamlined development:
+
+```bash
+make help  # Show all available commands
+```
+
+**Common Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `make setup` | Run interactive setup wizard |
+| `make start` | Start all services |
+| `make stop` | Stop all services |
+| `make test` | Run full test suite |
+| `make lint` | Check code quality |
+| `make format` | Auto-format code |
+| `make trade-dry` | Start paper trading |
+| `make backtest STRATEGY=MyStrategy` | Run backtest |
+| `make research` | Start Jupyter Lab |
+| `make monitoring` | Start monitoring stack |
+| `make logs SERVICE=freqtrade` | View logs |
+| `make clean` | Remove containers |
+
+### Master Control Script (Alternative)
+
+All operations can also be managed through `citadel.sh`:
 
 ```bash
 ./scripts/citadel.sh [command]
@@ -259,8 +293,13 @@ docker-compose run --rm freqtrade backtesting \
 
 ```
 stoic-citadel/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                      # CI/CD pipeline
+│
 ├── docker/
 │   ├── Dockerfile.jupyter              # Research environment
+│   ├── Dockerfile.test                 # Test container
 │   └── requirements-research.txt       # Python dependencies
 │
 ├── user_data/
@@ -273,15 +312,36 @@ stoic-citadel/
 │   ├── logs/                           # Bot logs
 │   └── notebooks/                      # Saved notebooks
 │
+├── tests/                              # ⭐ NEW: Test suite
+│   ├── conftest.py                     # Test fixtures
+│   ├── test_strategies/                # Strategy tests
+│   │   ├── test_indicators.py
+│   │   └── test_stoic_ensemble.py
+│   └── test_integration/               # Integration tests
+│       └── test_trading_flow.py
+│
+├── monitoring/                         # ⭐ NEW: Monitoring stack
+│   ├── prometheus/                     # Metrics collection
+│   ├── grafana/                        # Dashboards
+│   └── alertmanager/                   # Alert management
+│
 ├── research/
 │   └── 01_research_template.ipynb      # Research notebook template
 │
 ├── scripts/
 │   ├── citadel.sh                      # Master control script
+│   ├── setup_wizard.py                 # ⭐ NEW: Interactive setup
 │   ├── download_data.sh                # Data downloader
-│   └── verify_data.py                  # Data quality checker
+│   ├── verify_data.py                  # Data quality checker
+│   ├── validate_config.py              # Config validator
+│   └── walk_forward.py                 # Walk-forward validation
 │
+├── Makefile                            # ⭐ NEW: Build automation
+├── pyproject.toml                      # ⭐ NEW: Project config
+├── .pre-commit-config.yaml             # ⭐ NEW: Pre-commit hooks
 ├── docker-compose.yml                  # Infrastructure definition
+├── docker-compose.test.yml             # ⭐ NEW: Test environment
+├── docker-compose.monitoring.yml       # ⭐ NEW: Monitoring stack
 ├── .env.example                        # Environment template
 ├── .gitignore                          # Git ignore rules
 └── README.md                           # This file
@@ -387,6 +447,96 @@ Critical settings in `config_production.json`:
 ### Example Research Workflow
 
 Open `research/01_research_template.ipynb` in Jupyter Lab and follow the guided workflow.
+
+---
+
+## 🧪 Testing & Quality Assurance
+
+### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Run unit tests only
+make test-unit
+
+# Run integration tests
+make test-integration
+
+# Run with coverage report
+make test-coverage
+```
+
+### Code Quality
+
+```bash
+# Check code quality
+make lint
+
+# Auto-format code
+make format
+
+# Run pre-commit hooks
+make pre-commit
+```
+
+### Test Structure
+
+- **Unit Tests**: `tests/test_strategies/` - Test individual components
+- **Integration Tests**: `tests/test_integration/` - Test complete workflows
+- **Fixtures**: `tests/conftest.py` - Reusable test data and mocks
+
+### Continuous Integration
+
+Every push and PR automatically runs:
+- ✅ Code formatting checks (Black)
+- ✅ Linting (Flake8)
+- ✅ Type checking (MyPy)
+- ✅ Security scanning (Bandit)
+- ✅ Unit tests
+- ✅ Integration tests
+- ✅ Docker build validation
+- ✅ Strategy validation
+- ✅ Configuration validation
+
+View CI/CD status in `.github/workflows/ci.yml`
+
+---
+
+## 📊 Monitoring & Observability
+
+### Starting the Monitoring Stack
+
+```bash
+# Start Prometheus + Grafana
+make monitoring
+
+# Stop monitoring
+make monitoring-stop
+```
+
+### Access Dashboards
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **Grafana** | http://localhost:3001 | admin/admin |
+| **Prometheus** | http://localhost:9090 | - |
+| **Alertmanager** | http://localhost:9093 | - |
+
+### Pre-built Dashboards
+
+- **Trading Overview** - P&L, win rate, open trades, drawdown
+- **System Metrics** - CPU, memory, disk usage
+- **Container Metrics** - Docker resource usage
+- **Custom Metrics** - Add your own!
+
+### Setting Up Alerts
+
+Edit `monitoring/alertmanager/config.yml` to configure:
+- Telegram notifications
+- Email alerts
+- Webhook integrations
 
 ---
 

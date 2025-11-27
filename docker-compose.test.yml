@@ -1,0 +1,107 @@
+version: '3.8'
+
+# ==============================================================================
+# Stoic Citadel - Test Environment
+# ==============================================================================
+# Isolated Docker Compose configuration for running tests
+#
+# Usage:
+#   docker-compose -f docker-compose.test.yml up test
+#   make test  # Uses this file automatically
+#
+# Features:
+#   - Isolated test database
+#   - No persistent volumes
+#   - Fast startup optimized for CI/CD
+# ==============================================================================
+
+services:
+  # ==============================================================================
+  # TEST RUNNER
+  # ==============================================================================
+
+  test:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.test
+    container_name: stoic_test_runner
+    volumes:
+      - ./tests:/app/tests:ro
+      - ./user_data/strategies:/app/user_data/strategies:ro
+      - ./scripts:/app/scripts:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      # Coverage output
+      - ./htmlcov:/app/htmlcov
+      - ./.coverage:/app/.coverage
+    environment:
+      - PYTHONPATH=/app
+      - TESTING=1
+      - CI=${CI:-false}
+    command: >
+      pytest tests/
+      --verbose
+      --tb=short
+      --cov=user_data/strategies
+      --cov-report=html
+      --cov-report=term
+      -m "not slow"
+    networks:
+      - test_network
+    depends_on:
+      test_db:
+        condition: service_healthy
+
+  # ==============================================================================
+  # TEST DATABASE (PostgreSQL)
+  # ==============================================================================
+
+  test_db:
+    image: postgres:16-alpine
+    container_name: stoic_test_db
+    environment:
+      - POSTGRES_USER=test_user
+      - POSTGRES_PASSWORD=test_password
+      - POSTGRES_DB=test_trading
+    ports:
+      - "127.0.0.1:5433:5432"  # Different port to avoid conflicts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d test_trading"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test_network
+    tmpfs:
+      - /var/lib/postgresql/data  # In-memory database for speed
+
+  # ==============================================================================
+  # MOCK EXCHANGE (for integration tests)
+  # ==============================================================================
+
+  mock_exchange:
+    image: python:3.11-slim
+    container_name: stoic_mock_exchange
+    volumes:
+      - ./tests/mocks:/app/mocks:ro
+    environment:
+      - MOCK_MODE=1
+    command: >
+      sh -c "
+      pip install fastapi uvicorn &&
+      python /app/mocks/exchange_mock.py
+      "
+    ports:
+      - "127.0.0.1:8888:8888"
+    networks:
+      - test_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  test_network:
+    driver: bridge
+
+# No persistent volumes for testing - everything is ephemeral

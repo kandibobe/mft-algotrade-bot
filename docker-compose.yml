@@ -27,6 +27,12 @@ services:
       - FREQTRADE__API_SERVER__LISTEN_PORT=8080
       - FREQTRADE__API_SERVER__USERNAME=stoic_admin
       - FREQTRADE__API_SERVER__PASSWORD=StoicGuard2024!ChangeMe
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # ==========================================
   # FREQUI - Web Dashboard
@@ -40,9 +46,16 @@ services:
     environment:
       - VITE_API_URL=http://freqtrade:8080
     depends_on:
-      - freqtrade
+      freqtrade:
+        condition: service_healthy
     networks:
       - stoic_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   # ==========================================
   # JUPYTER LAB - Research Environment
@@ -66,6 +79,12 @@ services:
     command: start-notebook.sh --NotebookApp.token='stoic2024' --NotebookApp.password=''
     networks:
       - stoic_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/api"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ==========================================
   # POSTGRESQL - Analytics Database (Optional)
@@ -84,6 +103,12 @@ services:
       - POSTGRES_DB=trading_analytics
     networks:
       - stoic_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stoic_trader -d trading_analytics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # ==========================================
   # PORTAINER - Container Management (Optional)
@@ -100,6 +125,12 @@ services:
       - "127.0.0.1:9000:9000"  # Bind to localhost only for security
     networks:
       - stoic_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
 networks:
   stoic_network:

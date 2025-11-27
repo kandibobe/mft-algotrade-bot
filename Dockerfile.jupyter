@@ -1,0 +1,46 @@
+FROM jupyter/scipy-notebook:python-3.11
+
+USER root
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    curl \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+USER jovyan
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    freqtrade \
+    vectorbt \
+    pandas-ta \
+    ta-lib \
+    technical \
+    ccxt \
+    python-binance \
+    scikit-learn \
+    xgboost \
+    lightgbm \
+    catboost \
+    pandas \
+    numpy \
+    plotly \
+    matplotlib \
+    seaborn \
+    mplfinance \
+    optuna \
+    hyperopt \
+    scipy \
+    statsmodels \
+    python-telegram-bot \
+    requests \
+    pyyaml \
+    python-dotenv \
+    tqdm \
+    joblib
+
+WORKDIR /projects
+
+CMD ["start-notebook.sh", "--NotebookApp.token='stoic2024'", "--NotebookApp.ip='0.0.0.0'"]

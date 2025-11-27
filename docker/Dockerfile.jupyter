@@ -74,8 +74,7 @@ RUN mkdir -p /home/jovyan/{research,user_data,scripts,models}
 WORKDIR /home/jovyan
 
 # Copy requirements.txt for additional dependencies (if needed)
-COPY requirements-research.txt /tmp/requirements-research.txt 2>/dev/null || echo "# No additional requirements" > /tmp/requirements-research.txt
-RUN pip install --no-cache-dir -r /tmp/requirements-research.txt || true
+COPY requirements-research.txt /tmp/requirements-research.txt
 
 # Configure Jupyter Lab
 RUN jupyter lab --generate-config && \

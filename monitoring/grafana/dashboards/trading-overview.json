@@ -1,0 +1,56 @@
+{
+  "dashboard": {
+    "title": "Stoic Citadel - Trading Overview",
+    "tags": ["trading", "stoic-citadel"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "Open Trades",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "freqtrade_open_trades",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "Total Profit %",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "freqtrade_total_profit_percent",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "Win Rate",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "freqtrade_win_rate",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "Current Drawdown",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "freqtrade_drawdown_percent",
+            "refId": "A"
+          }
+        ]
+      }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 16,
+    "version": 1
+  }
+}

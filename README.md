@@ -1,26 +1,52 @@
-# Stoic Citadel 🏛️
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
+  <img src="https://img.shields.io/badge/Freqtrade-Powered-orange?style=for-the-badge" alt="Freqtrade">
+  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
+</p>
 
-**Professional HFT-lite Algorithmic Trading Infrastructure**
+<p align="center">
+  <img src="https://github.com/kandibobe/hft-algotrade-bot/workflows/Stoic%20Citadel%20CI%2FCD/badge.svg" alt="CI/CD">
+  <img src="https://img.shields.io/github/last-commit/kandibobe/hft-algotrade-bot?style=flat-square" alt="Last Commit">
+  <img src="https://img.shields.io/github/issues/kandibobe/hft-algotrade-bot?style=flat-square" alt="Issues">
+  <img src="https://img.shields.io/github/stars/kandibobe/hft-algotrade-bot?style=flat-square" alt="Stars">
+</p>
 
-> *"In research, we seek truth. In trading, we execute truth."*
+<h1 align="center">🏛️ Stoic Citadel</h1>
+
+<p align="center">
+  <strong>Professional HFT-lite Algorithmic Trading Infrastructure</strong>
+  <br>
+  <em>"In research, we seek truth. In trading, we execute truth."</em>
+</p>
+
+<p align="center">
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-features">Features</a> •
+  <a href="#-architecture">Architecture</a> •
+  <a href="docs/QUICKSTART_RU.md">Документация RU</a> •
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
 
 ---
 
 ## 📋 Table of Contents
 
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Usage](#usage)
-- [Project Structure](#project-structure)
-- [Configuration](#configuration)
-- [Strategy Development Workflow](#strategy-development-workflow)
-- [Risk Management](#risk-management)
-- [Deployment](#deployment)
-- [Troubleshooting](#troubleshooting)
-- [License](#license)
+- [Overview](#-overview)
+- [Architecture](#️-architecture)
+- [Features](#-features)
+- [Prerequisites](#-prerequisites)
+- [Quick Start](#-quick-start)
+- [Usage](#-usage)
+- [Project Structure](#-project-structure)
+- [Configuration](#️-configuration)
+- [Strategy Development Workflow](#-strategy-development-workflow)
+- [Testing & Quality Assurance](#-testing--quality-assurance)
+- [Monitoring & Observability](#-monitoring--observability)
+- [Risk Management](#️-risk-management)
+- [Deployment](#-deployment)
+- [Troubleshooting](#-troubleshooting)
+- [License](#-license)
 
 ---
 
@@ -64,6 +90,7 @@ Unlike typical trading bots that execute random strategies, Stoic Citadel separa
 │  │          ──────────────                   │             │
 │  │  • PostgreSQL (Analytics DB)              │             │
 │  │  • Telegram Bot (Alerts)                  │             │
+│  │  • Prometheus + Grafana (Monitoring)      │             │
 │  │  • Portainer (Container Management)       │             │
 │  └───────────────────────────────────────────┘             │
 │                                                             │
@@ -78,6 +105,8 @@ Unlike typical trading bots that execute random strategies, Stoic Citadel separa
 | **FreqUI** | Web dashboard for monitoring | 3000 |
 | **Jupyter Lab** | Research environment | 8888 |
 | **PostgreSQL** | Trade analytics database | 5432 |
+| **Prometheus** | Metrics collection | 9090 |
+| **Grafana** | Dashboards & visualization | 3001 |
 | **Portainer** | Docker management UI | 9000 |
 
 ---
@@ -103,6 +132,13 @@ Unlike typical trading bots that execute random strategies, Stoic Citadel separa
 - 🔐 **Security First** - API keys encrypted, no plaintext secrets
 - 📦 **One-Command Deploy** - Setup in minutes, not hours
 - 🛡️ **Production Ready** - Designed for 24/7 operation
+- 📊 **Full Observability** - Prometheus + Grafana monitoring
+
+### Developer Experience
+- ✅ **CI/CD Pipeline** - Automated testing on every push
+- 🧪 **Comprehensive Tests** - Unit, integration, and strategy validation
+- 🎨 **Code Quality** - Black, Flake8, MyPy pre-configured
+- 📝 **Pre-commit Hooks** - Catch issues before commit
 
 ---
 
@@ -125,8 +161,8 @@ Unlike typical trading bots that execute random strategies, Stoic Citadel separa
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/stoic-citadel.git
-cd stoic-citadel
+git clone https://github.com/kandibobe/hft-algotrade-bot.git
+cd hft-algotrade-bot
 ```
 
 ### 2. Initial Setup (Recommended - Interactive Wizard)
@@ -163,6 +199,8 @@ nano .env
 
 ```bash
 # Download 90 days of 5-minute candles
+make download
+# OR
 ./scripts/citadel.sh download
 ```
 
@@ -170,7 +208,7 @@ nano .env
 
 ```bash
 # Launch Jupyter Lab
-./scripts/citadel.sh research
+make research
 ```
 
 Open your browser: `http://localhost:8888` (token: `stoic2024`)
@@ -179,7 +217,7 @@ Open your browser: `http://localhost:8888` (token: `stoic2024`)
 
 ```bash
 # Start bot with fake money
-./scripts/citadel.sh trade
+make trade-dry
 ```
 
 Access dashboard: `http://localhost:3000`
@@ -190,7 +228,7 @@ Access dashboard: `http://localhost:3000`
 
 ### Makefile Commands (Recommended)
 
-Stoic Citadel now includes a comprehensive Makefile for streamlined development:
+Stoic Citadel includes a comprehensive Makefile for streamlined development:
 
 ```bash
 make help  # Show all available commands
@@ -239,54 +277,6 @@ All operations can also be managed through `citadel.sh`:
 | `verify` | Verify data quality |
 | `clean` | Remove containers and volumes |
 
-#### Examples
-
-```bash
-# Setup environment
-./scripts/citadel.sh setup
-
-# Download data
-./scripts/citadel.sh download
-
-# Start research
-./scripts/citadel.sh research
-
-# Run backtest
-./scripts/citadel.sh backtest StoicEnsembleStrategy
-
-# View logs
-./scripts/citadel.sh logs freqtrade
-
-# Start dry-run trading
-./scripts/citadel.sh trade
-```
-
-### Manual Docker Commands
-
-If you prefer direct Docker control:
-
-```bash
-# Build containers
-docker-compose build
-
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f freqtrade
-
-# Stop all services
-docker-compose down
-
-# Enter Jupyter container
-docker-compose exec jupyter bash
-
-# Run backtest
-docker-compose run --rm freqtrade backtesting \
-  --strategy StoicEnsembleStrategy \
-  --timerange 20240101-
-```
-
 ---
 
 ## 📁 Project Structure
@@ -294,8 +284,11 @@ docker-compose run --rm freqtrade backtesting \
 ```
 stoic-citadel/
 ├── .github/
-│   └── workflows/
-│       └── ci.yml                      # CI/CD pipeline
+│   ├── workflows/
+│   │   └── ci.yml                      # CI/CD pipeline
+│   ├── ISSUE_TEMPLATE/                 # Issue templates
+│   ├── PULL_REQUEST_TEMPLATE.md        # PR template
+│   └── dependabot.yml                  # Auto-updates
 │
 ├── docker/
 │   ├── Dockerfile.jupyter              # Research environment
@@ -307,43 +300,44 @@ stoic-citadel/
 │   │   ├── config_production.json      # Production config
 │   │   └── config_dryrun.json          # Testing config
 │   ├── strategies/
-│   │   └── StoicEnsembleStrategy.py    # Template strategy
+│   │   ├── StoicEnsembleStrategy.py    # Main strategy
+│   │   └── StoicStrategyV1.py          # Alternative strategy
 │   ├── data/                           # Historical data
-│   ├── logs/                           # Bot logs
-│   └── notebooks/                      # Saved notebooks
+│   └── logs/                           # Bot logs
 │
-├── tests/                              # ⭐ NEW: Test suite
+├── tests/                              # Test suite
 │   ├── conftest.py                     # Test fixtures
 │   ├── test_strategies/                # Strategy tests
-│   │   ├── test_indicators.py
-│   │   └── test_stoic_ensemble.py
 │   └── test_integration/               # Integration tests
-│       └── test_trading_flow.py
 │
-├── monitoring/                         # ⭐ NEW: Monitoring stack
+├── monitoring/                         # Monitoring stack
 │   ├── prometheus/                     # Metrics collection
 │   ├── grafana/                        # Dashboards
 │   └── alertmanager/                   # Alert management
 │
-├── research/
-│   └── 01_research_template.ipynb      # Research notebook template
-│
 ├── scripts/
 │   ├── citadel.sh                      # Master control script
-│   ├── setup_wizard.py                 # ⭐ NEW: Interactive setup
+│   ├── setup_wizard.py                 # Interactive setup
+│   ├── health_check.py                 # System health check
 │   ├── download_data.sh                # Data downloader
 │   ├── verify_data.py                  # Data quality checker
-│   ├── validate_config.py              # Config validator
 │   └── walk_forward.py                 # Walk-forward validation
 │
-├── Makefile                            # ⭐ NEW: Build automation
-├── pyproject.toml                      # ⭐ NEW: Project config
-├── .pre-commit-config.yaml             # ⭐ NEW: Pre-commit hooks
-├── docker-compose.yml                  # Infrastructure definition
-├── docker-compose.test.yml             # ⭐ NEW: Test environment
-├── docker-compose.monitoring.yml       # ⭐ NEW: Monitoring stack
-├── .env.example                        # Environment template
-├── .gitignore                          # Git ignore rules
+├── docs/                               # Documentation
+│   ├── QUICKSTART_RU.md                # Quick start (Russian)
+│   ├── API_SETUP_RU.md                 # API setup guide
+│   └── TELEGRAM_SETUP_RU.md            # Telegram setup
+│
+├── Makefile                            # Build automation
+├── pyproject.toml                      # Project config
+├── .pre-commit-config.yaml             # Pre-commit hooks
+├── docker-compose.yml                  # Main infrastructure
+├── docker-compose.test.yml             # Test environment
+├── docker-compose.monitoring.yml       # Monitoring stack
+├── CONTRIBUTING.md                     # Contribution guide
+├── SECURITY.md                         # Security policy
+├── CODE_OF_CONDUCT.md                  # Code of conduct
+├── LICENSE                             # MIT License
 └── README.md                           # This file
 ```
 
@@ -377,18 +371,6 @@ Edit `user_data/config/config_production.json`:
 ```env
 TELEGRAM_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 TELEGRAM_CHAT_ID=123456789
-```
-
-4. Enable in config:
-
-```json
-{
-  "telegram": {
-    "enabled": true,
-    "token": "${TELEGRAM_TOKEN}",
-    "chat_id": "${TELEGRAM_CHAT_ID}"
-  }
-}
 ```
 
 ### Risk Management Settings
@@ -444,10 +426,6 @@ Critical settings in `config_production.json`:
    - Monitor closely
    - Scale up gradually
 
-### Example Research Workflow
-
-Open `research/01_research_template.ipynb` in Jupyter Lab and follow the guided workflow.
-
 ---
 
 ## 🧪 Testing & Quality Assurance
@@ -476,16 +454,7 @@ make lint
 
 # Auto-format code
 make format
-
-# Run pre-commit hooks
-make pre-commit
 ```
-
-### Test Structure
-
-- **Unit Tests**: `tests/test_strategies/` - Test individual components
-- **Integration Tests**: `tests/test_integration/` - Test complete workflows
-- **Fixtures**: `tests/conftest.py` - Reusable test data and mocks
 
 ### Continuous Integration
 
@@ -499,8 +468,6 @@ Every push and PR automatically runs:
 - ✅ Docker build validation
 - ✅ Strategy validation
 - ✅ Configuration validation
-
-View CI/CD status in `.github/workflows/ci.yml`
 
 ---
 
@@ -524,25 +491,17 @@ make monitoring-stop
 | **Prometheus** | http://localhost:9090 | - |
 | **Alertmanager** | http://localhost:9093 | - |
 
-### Pre-built Dashboards
+### Health Check
 
-- **Trading Overview** - P&L, win rate, open trades, drawdown
-- **System Metrics** - CPU, memory, disk usage
-- **Container Metrics** - Docker resource usage
-- **Custom Metrics** - Add your own!
-
-### Setting Up Alerts
-
-Edit `monitoring/alertmanager/config.yml` to configure:
-- Telegram notifications
-- Email alerts
-- Webhook integrations
+```bash
+python3 scripts/health_check.py
+```
 
 ---
 
 ## 🛡️ Risk Management
 
-### The Stoic Guard (Built-in Protections)
+### Built-in Protections
 
 | Protection | Purpose | Configuration |
 |------------|---------|---------------|
@@ -551,31 +510,21 @@ Edit `monitoring/alertmanager/config.yml` to configure:
 | **Stoploss Guard** | Prevent revenge trading | Stop after 3 losses |
 | **Max Drawdown** | Circuit breaker | Stop at 15% drawdown |
 | **Cooldown Period** | Forced break | 2-4 hours after losses |
-| **Position Sizing** | Volatility-adjusted | Based on ATR |
 
-### Emergency Procedures
-
-#### Panic Button (Immediate Stop)
+### Emergency Stop
 
 ```bash
 # Stop all trading immediately
+make stop
+# OR
 ./scripts/citadel.sh stop
-
-# Or force kill all positions
-docker-compose down
 ```
 
 ---
 
 ## 🚀 Deployment
 
-### Local Development
-
-Already covered in [Quick Start](#quick-start).
-
-### VPS Deployment (Production)
-
-See detailed deployment guide in the README for production setup on Hetzner Cloud or any VPS provider.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed production deployment guide.
 
 ---
 
@@ -587,31 +536,33 @@ See detailed deployment guide in the README for production setup on Hetzner Clou
 
 ```bash
 # Check logs
-./scripts/citadel.sh logs [service]
+make logs SERVICE=freqtrade
 
 # Rebuild container
-docker-compose build --no-cache [service]
+docker-compose build --no-cache
 ```
 
 #### No Data Available
 
 ```bash
 # Re-download data
-./scripts/citadel.sh download
+make download
 
 # Check data quality
-./scripts/citadel.sh verify
+python3 scripts/verify_data.py
 ```
 
-#### Strategy Not Loading
+---
 
-```bash
-# List available strategies
-docker-compose run --rm freqtrade list-strategies
+## 🤝 Contributing
 
-# Test strategy
-./scripts/citadel.sh backtest StoicEnsembleStrategy
-```
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+---
+
+## 🔒 Security
+
+For security concerns, please read [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -627,18 +578,18 @@ docker-compose run --rm freqtrade list-strategies
 - **Always test extensively** in dry-run mode first
 - **Never invest more than you can afford to lose**
 
-By using this software, you acknowledge that you understand these risks.
-
 ---
 
 ## 📄 License
 
-MIT License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-**Built with discipline. Traded with wisdom. Executed with precision.**
-
-*"The wise trader knows that the best trade is often no trade at all."*
-
-🏛️ **Stoic Citadel** - Where reason rules, not emotion.
+<p align="center">
+  <strong>Built with discipline. Traded with wisdom. Executed with precision.</strong>
+  <br><br>
+  <em>"The wise trader knows that the best trade is often no trade at all."</em>
+  <br><br>
+  🏛️ <strong>Stoic Citadel</strong> - Where reason rules, not emotion.
+</p>

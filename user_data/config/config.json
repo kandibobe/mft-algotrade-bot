@@ -1,0 +1,136 @@
+{
+  "max_open_trades": 3,
+  "stake_currency": "USDT",
+  "stake_amount": "unlimited",
+  "tradable_balance_ratio": 0.99,
+  "fiat_display_currency": "USD",
+  "dry_run": true,
+  "dry_run_wallet": 10000,
+  "cancel_open_orders_on_exit": false,
+  
+  "timeframe": "5m",
+  
+  "entry_pricing": {
+    "price_side": "same",
+    "use_order_book": true,
+    "order_book_top": 1,
+    "check_depth_of_market": {
+      "enabled": false,
+      "bids_to_ask_delta": 1
+    }
+  },
+  
+  "exit_pricing": {
+    "price_side": "same",
+    "use_order_book": true,
+    "order_book_top": 1
+  },
+  
+  "exchange": {
+    "name": "binance",
+    "key": "",
+    "secret": "",
+    "ccxt_config": {},
+    "ccxt_async_config": {},
+    "pair_whitelist": [
+      "BTC/USDT",
+      "ETH/USDT",
+      "BNB/USDT",
+      "SOL/USDT",
+      "XRP/USDT"
+    ],
+    "pair_blacklist": []
+  },
+  
+  "pairlists": [
+    {
+      "method": "StaticPairList"
+    }
+  ],
+  
+  "stoploss": -0.05,
+  "trailing_stop": true,
+  "trailing_stop_positive": 0.01,
+  "trailing_stop_positive_offset": 0.015,
+  "trailing_only_offset_is_reached": false,
+  
+  "minimal_roi": {
+    "0": 0.10,
+    "30": 0.05,
+    "60": 0.03,
+    "120": 0.01
+  },
+  
+  "protections": [
+    {
+      "method": "StoplossGuard",
+      "lookback_period_candles": 60,
+      "trade_limit": 3,
+      "stop_duration_candles": 24,
+      "required_profit": 0.0
+    },
+    {
+      "method": "MaxDrawdown",
+      "lookback_period_candles": 200,
+      "trade_limit": 20,
+      "stop_duration_candles": 40,
+      "max_allowed_drawdown": 0.15
+    },
+    {
+      "method": "CooldownPeriod",
+      "stop_duration_candles": 12
+    }
+  ],
+  
+  "telegram": {
+    "enabled": false,
+    "token": "",
+    "chat_id": "",
+    "notification_settings": {
+      "status": "on",
+      "warning": "on",
+      "startup": "on",
+      "entry": "on",
+      "entry_cancel": "on",
+      "entry_fill": "on",
+      "exit": {
+        "roi": "on",
+        "emergency_exit": "on",
+        "force_exit": "on",
+        "exit_signal": "on",
+        "trailing_stop_loss": "on",
+        "stop_loss": "on",
+        "stoploss_on_exchange": "on",
+        "custom_exit": "on",
+        "partial_exit": "on"
+      },
+      "exit_cancel": "on",
+      "exit_fill": "on",
+      "protection_trigger": "on",
+      "protection_trigger_global": "on",
+      "show_candle": "on",
+      "strategy_msg": "on"
+    },
+    "reload": true,
+    "balance_dust_level": 0.01
+  },
+  
+  "api_server": {
+    "enabled": true,
+    "listen_ip_address": "0.0.0.0",
+    "listen_port": 8080,
+    "verbosity": "info",
+    "enable_openapi": true,
+    "jwt_secret_key": "stoic_citadel_secret_change_me_in_production",
+    "CORS_origins": ["http://localhost:3000"],
+    "username": "stoic_admin",
+    "password": "StoicGuard2024"
+  },
+  
+  "bot_name": "stoic_citadel",
+  "initial_state": "running",
+  "force_entry_enable": false,
+  "internals": {
+    "process_throttle_secs": 5
+  }
+}

@@ -1,467 +1,604 @@
 # 📁 Stoic Citadel - Структура проекта
 
-## Общий обзор
+Детальное описание архитектуры, файлов и директорий HFT торгового бота.
+
+---
+
+## 🏗️ Общая структура
 
 ```
-hft-algotrade-bot/
-├── 📁 docker/                      # Docker образы
-├── 📁 scripts/                     # Автоматизация
-├── 📁 user_data/                   # Данные пользователя (не коммитится)
-├── 📁 research/                    # Jupyter ноутбуки для R&D
-├── 📄 docker-compose.yml           # Оркестрация сервисов
-├── 📄 .env                         # Переменные окружения
-├── 📄 .gitignore                   # Игнорируемые файлы
-├── 📄 README.md                    # Главная документация
-├── 📄 QUICKSTART.md                # Быстрый старт (Windows)
-├── 📄 STRUCTURE.md                 # Этот файл
-└── 📄 LOGS.md                      # Гайд по логам
+C:\hft-algotrade-bot\
+├── 📂 docker/                    # Docker конфигурация
+├── 📂 scripts/                   # Автоматизация
+│   └── 📂 windows/               # PowerShell скрипты
+├── 📂 user_data/                 # Данные пользователя
+│   ├── 📂 config/                # Конфигурация
+│   ├── 📂 data/                  # Исторические данные
+│   ├── 📂 logs/                  # Логи
+│   ├── 📂 strategies/            # Торговые стратегии
+│   └── 📂 backtest_results/      # Результаты бэктестов
+├── 📂 research/                  # Jupyter notebooks
+├── 📄 docker-compose.yml         # Оркестрация сервисов
+├── 📄 .env                       # Переменные окружения
+├── 📄 QUICKSTART.md              # Быстрый старт
+├── 📄 LOGS.md                    # Руководство по логам
+├── 📄 STRUCTURE.md               # Этот файл
+└── 📄 README.md                  # Главная документация
 ```
 
 ---
 
-## 🐳 Docker конфигурация
+## 📂 Детальное описание директорий
 
-### `/docker/`
-
-Содержит Dockerfile'ы для кастомных образов.
+### `/docker` - Docker конфигурация
 
 ```
 docker/
-└── Dockerfile.jupyter              # Jupyter Lab + TA-Lib + quant libs
+└── Dockerfile.jupyter          # Сборка Jupyter Lab с quant библиотеками
 ```
 
 **Dockerfile.jupyter**:
 - **Базовый образ**: `jupyter/scipy-notebook:python-3.11`
-- **Установлено**:
-  - TA-Lib (компилируется из исходников)
+- **TA-Lib**: Компиляция из исходников (v0.4.0)
+- **Библиотеки**:
   - Freqtrade 2024.11
-  - Библиотеки ML: scikit-learn, xgboost, lightgbm
-  - Библиотеки визуализации: plotly, matplotlib, seaborn
-  - Backtesting.py, optuna, и другие quant tools
+  - pandas-ta 0.3.14
+  - scikit-learn, xgboost, lightgbm
+  - polars, plotly, matplotlib
+  - backtesting, optuna
 - **Порт**: 8888
 - **Token**: stoic2024
 
 ---
 
-## 🎛️ Оркестрация сервисов
-
-### `/docker-compose.yml`
-
-Определяет все сервисы проекта:
-
-| Сервис | Образ | Порты | Статус | Описание |
-|--------|-------|-------|--------|----------|
-| **freqtrade** | freqtradeorg/freqtrade:2024.11 | 8080 | Required | Торговый движок |
-| **frequi** | freqtradeorg/frequi:latest | 3000 | Required | Web dashboard |
-| **jupyter** | custom build | 8888 | Optional | Research lab |
-| **postgres** | postgres:16-alpine | 5432 | Optional | Analytics DB |
-| **portainer** | portainer/portainer-ce:2.19.4 | 9443, 9000 | Optional | Container mgmt |
-
-#### Зависимости между сервисами:
+### `/scripts/windows` - PowerShell автоматизация
 
 ```
-frequi ─depends_on→ freqtrade (healthcheck)
+scripts/windows/
+├── deploy.ps1           # Полное развертывание
+├── backtest.ps1         # Запуск бэктестов
+├── download-data.ps1    # Загрузка данных
+└── logs.ps1             # Просмотр логов
 ```
 
-Все остальные сервисы независимы.
+#### **deploy.ps1**
+**Назначение**: Автоматизированное развертывание всего проекта
 
-#### Volumes (постоянное хранилище):
+**Параметры**:
+- `-SkipData`: Пропустить загрузку данных
+- `-SkipBacktest`: Пропустить бэктест
+- `-WithJupyter`: Запустить Jupyter Lab
+- `-AllServices`: Запустить все сервисы
+- `-DataDays <int>`: Количество дней данных (по умолчанию 90)
+- `-Strategy <string>`: Стратегия для бэктеста
 
-- `./user_data` → `/freqtrade/user_data` (Freqtrade)
-- `./research` → `/home/jovyan/research` (Jupyter)
-- `postgres_data` → `/var/lib/postgresql/data` (PostgreSQL)
-- `portainer_data` → `/data` (Portainer)
+**Примеры**:
+```powershell
+# Полное развертывание
+.\scripts\windows\deploy.ps1
 
-#### Networks:
+# Без загрузки данных
+.\scripts\windows\deploy.ps1 -SkipData
 
-- **stoic_network**: bridge network для всех сервисов
+# Со всеми сервисами
+.\scripts\windows\deploy.ps1 -AllServices
+```
+
+#### **backtest.ps1**
+**Назначение**: Гибкий запуск бэктестов
+
+**Параметры**:
+- `-Strategy <string>`: Имя стратегии
+- `-Timerange <string>`: Период (YYYYMMDD-YYYYMMDD)
+- `-StartDaysAgo <int>`: Дней назад от сегодня
+- `-Pairs <string>`: Торговые пары
+- `-MaxOpenTrades <int>`: Макс открытых позиций
+- `-EnablePositionStacking`: Стекинг позиций
+- `-ExportTrades`: Экспорт результатов
+- `-Breakdown`: Детализация по дням/неделям
+
+**Примеры**:
+```powershell
+# Базовый бэктест
+.\scripts\windows\backtest.ps1 -Strategy "SimpleTestStrategy"
+
+# С экспортом и детализацией
+.\scripts\windows\backtest.ps1 -Strategy "StoicStrategyV1" -ExportTrades -Breakdown
+
+# Кастомный период
+.\scripts\windows\backtest.ps1 -Timerange "20241001-20241201"
+```
+
+#### **download-data.ps1**
+**Назначение**: Загрузка исторических данных
+
+**Параметры**:
+- `-Days <int>`: Количество дней (по умолчанию 90)
+- `-Timeframe <string>`: Таймфрейм (по умолчанию "5m")
+- `-Exchange <string>`: Биржа (по умолчанию "binance")
+- `-Pairs <string>`: Список пар
+- `-WithBTC1d`: Загрузить BTC 1d для фильтра
+- `-TradingViewFormat`: Формат TradingView JSON
+
+**Примеры**:
+```powershell
+# Стандартная загрузка (90 дней, 5m)
+.\scripts\windows\download-data.ps1
+
+# Больше данных
+.\scripts\windows\download-data.ps1 -Days 180
+
+# Часовой таймфрейм
+.\scripts\windows\download-data.ps1 -Timeframe "1h" -Days 365
+
+# С BTC 1d для продвинутых стратегий
+.\scripts\windows\download-data.ps1 -WithBTC1d
+```
+
+#### **logs.ps1**
+**Назначение**: Просмотр и анализ логов
+
+**Параметры**:
+- `-Service <string>`: Сервис (freqtrade/frequi/jupyter/all)
+- `-Lines <int>`: Количество строк (по умолчанию 50)
+- `-Follow`: Следование за логами
+- `-Timestamps`: Показать временные метки
+- `-Level <string>`: Фильтр (ERROR/WARNING/INFO/DEBUG)
+- `-Search <string>`: Поиск по тексту
+- `-FileLog`: Просмотр файловых логов
+- `-Export`: Экспорт в файл
+
+**Примеры**:
+```powershell
+# Базовый просмотр
+.\scripts\windows\logs.ps1
+
+# Следование за логами
+.\scripts\windows\logs.ps1 -Follow
+
+# Только ошибки
+.\scripts\windows\logs.ps1 -Level ERROR -Lines 200
+
+# Файловые логи
+.\scripts\windows\logs.ps1 -FileLog -Search "Strategy"
+```
 
 ---
 
-## 📊 Пользовательские данные
+### `/user_data` - Данные пользователя
 
-### `/user_data/`
+Главная директория с конфигурацией, данными и результатами.
 
-**Главная директория** для всех торговых данных, стратегий, конфигов.
+#### `/user_data/config` - Конфигурация
 
 ```
-user_data/
-├── config/
-│   └── config.json                 # Главный конфиг Freqtrade
-├── strategies/                     # Торговые стратегии (.py)
-│   ├── SimpleTestStrategy.py       # Базовый RSI (по умолчанию)
-│   ├── StoicStrategyV1.py          # Продвинутая стратегия
-│   ├── StoicEnsembleStrategy.py    # Ансамбль стратегий
-│   ├── StoicCitadelV2.py           # В разработке
-│   └── __init__.py
-├── data/
-│   └── binance/                    # Исторические данные по парам
-│       ├── BTC_USDT-5m.feather
-│       ├── BTC_USDT-1d.feather
-│       └── ...
-├── logs/
-│   └── freqtrade.log               # Основной лог файл
-├── plot/                           # Графики (если используется plotting)
-├── notebooks/                      # Пользовательские ноутбуки
-└── tradesv3.sqlite                 # SQLite база сделок
+user_data/config/
+└── config.json          # Главный конфигурационный файл
 ```
 
-#### `/user_data/config/config.json`
-
-**Ключевые секции**:
+**config.json** - основные параметры:
 
 ```json
 {
-  "dry_run": true,                  // Режим симуляции
-  "dry_run_wallet": 10000,          // Виртуальный баланс
-  "max_open_trades": 3,             // Лимит открытых позиций
-  "stake_currency": "USDT",
-  "stake_amount": "unlimited",      // Автоматический sizing
-  "tradable_balance_ratio": 0.99,   // Использовать 99% баланса
-  "timeframe": "5m",
+  "dry_run": true,                    // Бумажная торговля
+  "dry_run_wallet": 10000,            // Виртуальный баланс USDT
+  "max_open_trades": 3,               // Макс позиций
+  "stake_currency": "USDT",           // Валюта стейка
+  "stake_amount": "unlimited",        // Размер позиции
+  "tradable_balance_ratio": 0.99,     // % баланса для торговли
+  "timeframe": "5m",                  // Таймфрейм свечей
+  
   "exchange": {
-    "name": "binance",
-    "key": "",                      // Пусто для dry_run
-    "secret": ""
+    "name": "binance",                // Биржа
+    "key": "",                        // API ключ (опционально)
+    "secret": "",                     // API secret
+    "ccxt_config": {},
+    "ccxt_async_config": {}
   },
-  "pair_whitelist": [...],          // Список торговых пар
-  "stoploss": -0.05,                // Глобальный стоплосс -5%
-  "trailing_stop": false,
-  "api_server": {                   // Настройки API (для FreqUI)
+  
+  "pair_whitelist": [                 // Торговые пары
+    "BTC/USDT",
+    "ETH/USDT",
+    "BNB/USDT",
+    "SOL/USDT",
+    "XRP/USDT"
+  ],
+  
+  "stoploss": -0.05,                  // Стоплосс -5%
+  
+  "minimal_roi": {                    // ROI targets
+    "0": 0.05,
+    "150": 0.03,
+    "300": 0.01
+  },
+  
+  "api_server": {
     "enabled": true,
     "listen_ip_address": "0.0.0.0",
     "listen_port": 8080,
-    "username": "stoic_admin",
-    "password": "StoicGuard2024"
+    "username": "stoic_admin",        // API логин
+    "password": "StoicGuard2024"      // API пароль
   }
 }
 ```
 
-#### `/user_data/strategies/`
+**Важные настройки для изменения**:
+- `dry_run`: `false` для реальной торговли (⚠️ ОПАСНО!)
+- `max_open_trades`: Количество позиций
+- `pair_whitelist`: Список торгуемых пар
+- `stoploss`: Уровень стоплосса
 
-**Доступные стратегии**:
+#### `/user_data/data` - Исторические данные
 
-1. **SimpleTestStrategy.py** ⭐
-   - RSI(14) oscillator
-   - Buy: RSI < 30, Sell: RSI > 70
-   - Timeframe: 5m
-   - ROI: 5% immediate, 3% @150min, 1% @300min
-   - Stoploss: -5%
-   - **Статус**: Production-ready, по умолчанию
+```
+user_data/data/
+└── binance/
+    ├── BTC_USDT-5m.feather      # Парные данные 5m
+    ├── BTC_USDT-1d.feather      # Парные данные 1d
+    ├── ETH_USDT-5m.feather
+    └── ...
+```
 
-2. **StoicStrategyV1.py** 🚀
-   - Market regime filter (BTC/USDT 1d EMA200)
-   - Entry: RSI, MACD, ADX, volume
-   - Exit: RSI extremes, MACD divergence
-   - ATR-based position sizing
-   - HyperOpt compatible
-   - **Требует**: BTC/USDT 1d данные
-   - **Статус**: Production-ready
+**Формат**: Apache Feather (быстрый бинарный формат)  
+**Размер**: ~0.5-1 MB на пару за 90 дней
 
-3. **StoicEnsembleStrategy.py** 💎
-   - Композиция из нескольких sub-strategies
-   - Voting mechanism
-   - **Статус**: Beta
-
-4. **StoicCitadelV2.py** ⚠️
-   - Advanced ML features
-   - **Статус**: В разработке (import errors)
-
-#### `/user_data/data/binance/`
-
-Формат данных: **Feather** (Apache Arrow)
-
-Пример файлов:
-- `BTC_USDT-5m.feather` - 5-минутные свечи
-- `BTC_USDT-1d.feather` - дневные свечи
-- `ETH_USDT-5m.feather`
-- и т.д.
-
-**Загрузка**:
+**Управление**:
 ```powershell
-docker-compose run --rm freqtrade download-data \
-  --config /freqtrade/user_data/config/config.json \
-  --exchange binance \
-  --pairs BTC/USDT ETH/USDT \
-  --timeframe 5m \
-  --days 90
+# Посмотреть размер
+Get-ChildItem -Path .\user_data\data\binance\ -Recurse | Measure-Object -Property Length -Sum
+
+# Удалить старые данные
+Remove-Item .\user_data\data\binance\* -Recurse
+
+# Загрузить новые
+.\scripts\windows\download-data.ps1
 ```
 
-#### `/user_data/logs/freqtrade.log`
+#### `/user_data/logs` - Логи
 
-**Уровни логирования**:
-- `INFO` - Обычные события
-- `WARNING` - Предупреждения
-- `ERROR` - Ошибки
-- `CRITICAL` - Критичные сбои
-
-**Ротация логов**: Автоматическая (ежедневно)
-
-#### `/user_data/tradesv3.sqlite`
-
-**SQLite база** со всеми сделками.
-
-**Таблицы**:
-- `trades` - История сделок
-- `orders` - Ордера
-- `pairlocks` - Блокировки пар
-
-**Запросы**:
-```sql
--- Все прибыльные сделки
-SELECT * FROM trades WHERE close_profit_abs > 0;
-
--- Топ-10 пар по профиту
-SELECT pair, SUM(close_profit_abs) as profit 
-FROM trades 
-GROUP BY pair 
-ORDER BY profit DESC 
-LIMIT 10;
 ```
+user_data/logs/
+└── freqtrade.log        # Основной лог файл
+```
+
+**Ротация**: Автоматически управляется Freqtrade  
+**Формат**: Plain text с временными метками  
+**Размер**: Растет со временем, рекомендуется периодическая очистка
+
+**Управление**:
+```powershell
+# Архивировать
+Copy-Item .\user_data\logs\freqtrade.log ".\backups\logs\freqtrade_$(Get-Date -Format 'yyyyMMdd').log"
+
+# Очистить
+Clear-Content .\user_data\logs\freqtrade.log
+```
+
+#### `/user_data/strategies` - Торговые стратегии
+
+```
+user_data/strategies/
+├── SimpleTestStrategy.py         # ⭐ Базовая (по умолчанию)
+├── StoicStrategyV1.py            # 🚀 Продвинутая
+├── StoicEnsembleStrategy.py      # 💎 Ансамбль
+└── StoicCitadelV2.py             # ⚠️ В разработке
+```
+
+**SimpleTestStrategy.py**:
+- **Индикаторы**: RSI
+- **Логика**: Buy RSI<30, Sell RSI>70
+- **Зависимости**: Нет
+- **Статус**: ✅ Работает
+- **Использование**: Тестирование инфраструктуры
+
+**StoicStrategyV1.py**:
+- **Индикаторы**: EMA, RSI, MACD, Bollinger Bands, ATR
+- **Режимный фильтр**: BTC/USDT 1d EMA200
+- **Логика**: Мульти-индикаторные сигналы
+- **ROI**: Динамический на основе ATR
+- **Зависимости**: Требует BTC/USDT 1d данные
+- **HyperOpt**: Поддерживается
+- **Статус**: ✅ Работает
+- **Использование**: Продакшн-торговля
+
+**StoicEnsembleStrategy.py**:
+- **Тип**: Композиция из нескольких стратегий
+- **Логика**: Голосование между стратегиями
+- **Статус**: ⚠️ Экспериментальная
+
+**StoicCitadelV2.py**:
+- **Статус**: ❌ Требует исправления импортов
+- **Проблема**: `No module named 'signals.indicators'`
+
+**Создание своей стратегии**:
+```powershell
+# Копировать шаблон
+Copy-Item .\user_data\strategies\SimpleTestStrategy.py .\user_data\strategies\MyStrategy.py
+
+# Редактировать
+code .\user_data\strategies\MyStrategy.py
+
+# Изменить класс:
+class MyStrategy(IStrategy):
+    # Ваша логика
+```
+
+#### `/user_data/backtest_results` - Результаты бэктестов
+
+```
+user_data/backtest_results/
+├── backtest-result-20241201-143022.json
+└── backtest-result-20241202-091545.json
+```
+
+**Формат**: JSON с детальной статистикой  
+**Содержит**:
+- Общую прибыльность
+- Статистику по парам
+- Детали каждой сделки
+- Метрики (Sharpe, Sortino, max drawdown)
 
 ---
 
-## 🔬 Research & Development
-
-### `/research/`
-
-Jupyter ноутбуки для анализа и разработки стратегий.
+### `/research` - Jupyter notebooks
 
 ```
 research/
-├── 01_strategy_template.ipynb      # Шаблон для новых стратегий
-├── 02_data_exploration.ipynb       # (пример) Исследование данных
-├── 03_backtest_analysis.ipynb      # (пример) Анализ результатов
-└── README.md                       # Инструкции по R&D
+├── 01_strategy_template.ipynb    # Шаблон разработки стратегий
+├── README.md                     # Руководство по исследованиям
+└── (пользовательские notebooks)
 ```
 
-**Доступ**: http://localhost:8888 (token: stoic2024)
+**Использование**:
+1. Запустить Jupyter: `docker-compose up -d jupyter`
+2. Открыть: http://localhost:8888 (token: stoic2024)
+3. Создать новый notebook для анализа
 
-**Пример использования**:
+**Доступные данные в Jupyter**:
+- `/home/jovyan/user_data` - данные бота (read-only)
+- `/home/jovyan/strategies` - стратегии
+- `/home/jovyan/research` - рабочая директория
 
-```python
-import pandas as pd
-from freqtrade.data.history import load_pair_history
+---
 
-# Загрузить исторические данные
-df = load_pair_history(
-    datadir='/home/jovyan/user_data/data',
-    timeframe='5m',
-    pair='BTC/USDT',
-    exchange='binance'
-)
+## 🐳 Docker сервисы
 
-# Анализировать
-df['RSI'] = ta.RSI(df['close'], timeperiod=14)
-df.plot(y=['close', 'RSI'], subplots=True)
+### `freqtrade` - Торговый движок
+
+**Image**: freqtradeorg/freqtrade:2024.11  
+**Container**: stoic_freqtrade  
+**Порты**: 8080 (API)  
+**Volumes**:
+- `./user_data:/freqtrade/user_data`
+
+**Command**:
+```bash
+trade \
+  --logfile /freqtrade/user_data/logs/freqtrade.log \
+  --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite \
+  --config /freqtrade/user_data/config/config.json \
+  --strategy SimpleTestStrategy
+```
+
+**Health Check**: `curl -f http://localhost:8080/api/v1/ping`
+
+### `frequi` - Web Dashboard
+
+**Image**: freqtradeorg/frequi:latest  
+**Container**: stoic_frequi  
+**Порты**: 3000 → 8080  
+**Depends**: freqtrade (healthy)
+
+**Доступ**: http://localhost:3000  
+**Credentials**: stoic_admin / StoicGuard2024
+
+### `jupyter` - Research Lab
+
+**Image**: Custom (build from docker/Dockerfile.jupyter)  
+**Container**: stoic_jupyter  
+**Порты**: 8888  
+**Volumes**:
+- `./research:/home/jovyan/research`
+- `./user_data:/home/jovyan/user_data:ro`
+- `./scripts:/home/jovyan/scripts`
+- `./user_data/strategies:/home/jovyan/strategies`
+
+**Доступ**: http://localhost:8888  
+**Token**: stoic2024
+
+**Библиотеки**:
+- freqtrade, pandas, numpy, polars
+- TA-Lib, pandas-ta, technical
+- scikit-learn, xgboost, lightgbm
+- matplotlib, seaborn, plotly
+- optuna, backtesting
+
+### `postgres` - Analytics DB (Optional)
+
+**Image**: postgres:16-alpine  
+**Container**: stoic_postgres  
+**Порты**: 5432  
+**Credentials**: stoic_trader / StoicDB2024  
+**Database**: trading_analytics
+
+**Использование**: Для продвинутой аналитики и ML фич
+
+### `portainer` - Container Management (Optional)
+
+**Image**: portainer/portainer-ce:2.19.4  
+**Container**: stoic_portainer  
+**Порты**: 9443 (HTTPS), 9000 (HTTP)
+
+**Доступ**: http://localhost:9443  
+**Настройка**: При первом запуске
+
+---
+
+## 📄 Конфигурационные файлы
+
+### `docker-compose.yml`
+
+Главный файл оркестрации всех сервисов.
+
+**Структура**:
+```yaml
+services:
+  freqtrade:      # Торговый движок
+  frequi:         # Web UI
+  jupyter:        # Research
+  postgres:       # Analytics DB
+  portainer:      # Management
+
+networks:
+  stoic_network:  # Изолированная сеть
+
+volumes:
+  postgres_data:  # Данные PostgreSQL
+  portainer_data: # Данные Portainer
+```
+
+### `.env`
+
+Переменные окружения (опционально).
+
+**Пример**:
+```bash
+# API Credentials
+FREQTRADE_API_USERNAME=stoic_admin
+FREQTRADE_API_PASSWORD=StoicGuard2024
+
+# Jupyter
+JUPYTER_TOKEN=stoic2024
+
+# PostgreSQL
+POSTGRES_PASSWORD=StoicDB2024
+
+# Binance API (для реальной торговли)
+BINANCE_API_KEY=your_key_here
+BINANCE_API_SECRET=your_secret_here
 ```
 
 ---
 
-## 🤖 Автоматизация
+## 🗄️ База данных
 
-### `/scripts/windows/`
+### `tradesv3.sqlite`
 
-PowerShell скрипты для Windows.
+**Расположение**: `user_data/tradesv3.sqlite`  
+**Тип**: SQLite3  
+**Назначение**: Хранение истории сделок
 
-```
-scripts/windows/
-├── deploy.ps1                      # Полное развертывание
-├── backtest.ps1                    # Запуск бэктестов
-├── download-data.ps1               # Загрузка данных
-├── logs.ps1                        # Просмотр логов
-└── README.md                       # Документация скриптов
-```
+**Таблицы**:
+- `trades` - Открытые и закрытые сделки
+- `orders` - История ордеров
+- `pairlocks` - Блокировки пар
 
-#### `deploy.ps1`
-
-**Полная автоматизация**:
-1. Pull последних изменений
-2. Build Jupyter (опционально)
-3. Запуск Freqtrade + FreqUI
-4. Health check
-5. Загрузка тестовых данных
-6. Запуск первого бэктеста
-
-**Использование**:
+**Запросы**:
 ```powershell
-.\scripts\windows\deploy.ps1
+# Установить SQLite (если нет)
+winget install SQLite.SQLite
+
+# Подключиться
+sqlite3 .\user_data\tradesv3.sqlite
+
+# Примеры запросов:
+SELECT COUNT(*) FROM trades;
+SELECT * FROM trades WHERE is_open=1;
+SELECT pair, profit_ratio FROM trades ORDER BY profit_ratio DESC LIMIT 10;
 ```
 
-#### `backtest.ps1`
+---
 
-**Параметры**:
-- `-Strategy` - Имя стратегии (default: SimpleTestStrategy)
-- `-Timerange` - Период (default: 20241001-)
-- `-Config` - Путь к конфигу
+## 📊 Workflow диаграмма
 
-**Использование**:
-```powershell
-.\scripts\windows\backtest.ps1 -Strategy "StoicStrategyV1" -Timerange "20241001-20241201"
 ```
-
-#### `download-data.ps1`
-
-**Параметры**:
-- `-Days` - Количество дней (default: 90)
-- `-Timeframe` - Таймфрейм (default: 5m)
-- `-Pairs` - Список пар (default: BTC/USDT ETH/USDT ...)
-
-**Использование**:
-```powershell
-.\scripts\windows\download-data.ps1 -Days 180 -Timeframe "1h"
-```
-
-#### `logs.ps1`
-
-**Параметры**:
-- `-Service` - Имя сервиса (default: freqtrade)
-- `-Lines` - Количество строк (default: 100)
-- `-Follow` - Следить в реальном времени
-
-**Использование**:
-```powershell
-# Последние 100 строк
-.\scripts\windows\logs.ps1 -Service "freqtrade"
-
-# Следить в реальном времени
-.\scripts\windows\logs.ps1 -Service "freqtrade" -Follow
+┌─────────────┐
+│   Docker    │
+│  Compose    │
+└──────┬──────┘
+       │
+       ├─────────────────────────────────────────┐
+       │                                         │
+       ▼                                         ▼
+┌─────────────┐                          ┌─────────────┐
+│ Freqtrade   │◄────────────────────────►│   FreqUI    │
+│   Engine    │         API              │  Dashboard  │
+└──────┬──────┘                          └─────────────┘
+       │
+       │ reads/writes
+       ▼
+┌─────────────┐
+│ user_data/  │
+│ ├─config    │
+│ ├─data      │
+│ ├─logs      │
+│ └─strategies│
+└─────────────┘
+       ▲
+       │ analyzes
+       │
+┌──────┴──────┐
+│   Jupyter   │
+│     Lab     │
+└─────────────┘
 ```
 
 ---
 
 ## 🔐 Безопасность
 
-### Файлы, НЕ попадающие в Git (`.gitignore`):
+### Чувствительные данные
 
+**НЕ коммитить в Git**:
+- `.env` - переменные окружения
+- `user_data/tradesv3.sqlite` - база сделок
+- `user_data/logs/` - логи
+- Файлы с API ключами
+
+**.gitignore** должен содержать:
 ```
-user_data/
-!user_data/strategies/
-!user_data/config/config.json
 .env
-*.sqlite
-*.log
+user_data/tradesv3.sqlite
+user_data/logs/
+user_data/data/
+user_data/backtest_results/
 __pycache__/
-.ipynb_checkpoints/
+*.pyc
 ```
 
-**Важно**:
-- **API ключи** хранятся в `user_data/config/config.json` (не коммитится)
-- **Переменные окружения** в `.env` (не коммитится)
-- **Логи и данные** в `user_data/` (не коммитится)
+### Хранение API ключей
 
-### Рекомендации:
-
-1. **Никогда не коммитить**:
-   - API ключи и секреты
-   - Файлы баз данных (*.sqlite)
-   - Исторические данные (*.feather)
-   - Логи (*.log)
-
-2. **Использовать `.env` для secrets**:
-   ```bash
-   BINANCE_API_KEY=your_key_here
-   BINANCE_API_SECRET=your_secret_here
-   ```
-
-3. **Dry run по умолчанию**:
-   - Всегда начинать с `"dry_run": true`
-   - Переключать на `false` только после тщательного тестирования
-
----
-
-## 📈 Workflow разработки
-
-### 1. Разработка новой стратегии
-
-```
-1. Jupyter Lab → Исследование данных
-   ├── Загрузить исторические данные
-   ├── Анализировать индикаторы
-   └── Прототипировать логику
-
-2. user_data/strategies/ → Создать .py файл
-   ├── Скопировать SimpleTestStrategy.py
-   ├── Реализовать populate_indicators()
-   ├── Реализовать populate_entry_trend()
-   └── Реализовать populate_exit_trend()
-
-3. Backtesting → Тестировать
-   ├── backtest.ps1 -Strategy "MyStrategy"
-   ├── Анализировать метрики
-   └── Итерировать
-
-4. HyperOpt → Оптимизировать
-   ├── docker-compose run --rm freqtrade hyperopt ...
-   └── Применить лучшие параметры
-
-5. Paper trading → Проверить на реальном рынке
-   ├── dry_run: true
-   ├── Мониторить 1-2 недели
-   └── Анализировать расхождения с бэктестом
-
-6. Production → Запуск с реальными деньгами
-   └── dry_run: false (ОСТОРОЖНО!)
-```
-
-### 2. Обновление конфигурации
-
-```
-1. Редактировать user_data/config/config.json
-2. Валидация: docker-compose config
-3. Restart: docker-compose restart freqtrade
-4. Проверка: docker-compose logs -f freqtrade
-```
-
-### 3. Добавление новых пар
-
-```
-1. Редактировать config.json → pair_whitelist
-2. Загрузить данные: download-data.ps1
-3. Бэктест с новыми парами
-4. Restart: docker-compose restart freqtrade
-```
-
----
-
-## 🎓 Образовательные ресурсы
-
-### Внутри проекта:
-
-- `README.md` - Обзор проекта
-- `QUICKSTART.md` - Быстрый старт для Windows
-- `STRUCTURE.md` - Этот файл (детальная структура)
-- `LOGS.md` - Гайд по логам и отладке
-- `research/README.md` - Инструкции по R&D
-
-### Внешние:
-
-- [Freqtrade Docs](https://www.freqtrade.io/en/stable/)
-- [TA-Lib Documentation](https://ta-lib.org/)
-- [CCXT Exchange Support](https://github.com/ccxt/ccxt)
-
----
-
-## 🔄 Обновления и поддержка
-
-### Получение последних изменений:
-
+**Безопасный способ (переменные окружения)**:
 ```powershell
-git pull origin simplify-architecture
-docker-compose pull  # Обновить образы
-docker-compose up -d --force-recreate
+# Установить временно
+$env:BINANCE_API_KEY="your_key"
+$env:BINANCE_API_SECRET="your_secret"
+
+# Или в .env файл (НЕ коммитить!)
+BINANCE_API_KEY=your_key_here
+BINANCE_API_SECRET=your_secret_here
 ```
 
-### Резервное копирование:
-
-```powershell
-# Бэкап пользовательских данных
-Compress-Archive -Path .\user_data -DestinationPath backup_$(Get-Date -Format 'yyyyMMdd').zip
-
-# Бэкап базы данных
-copy .\user_data\tradesv3.sqlite .\backups\tradesv3_$(Get-Date -Format 'yyyyMMdd').sqlite
+**В config.json**:
+```json
+{
+  "exchange": {
+    "name": "binance",
+    "key": "${BINANCE_API_KEY}",
+    "secret": "${BINANCE_API_SECRET}"
+  }
+}
 ```
 
 ---
 
-**Вопросы?** Создайте issue на GitHub: https://github.com/kandibobe/hft-algotrade-bot/issues
+## 📚 Дополнительные ресурсы
+
+- **QUICKSTART.md**: Быстрый старт
+- **LOGS.md**: Руководство по логам
+- **README.md**: Главная документация
+- **Freqtrade Docs**: https://www.freqtrade.io/en/stable/
+
+---
+
+**Успешной разработки! 🚀💻**

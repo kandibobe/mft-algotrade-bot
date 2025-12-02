@@ -1,21 +1,36 @@
 ﻿FROM jupyter/scipy-notebook:python-3.11
 
 USER root
+
+# 1. Устанавливаем системные зависимости и TA-Lib (C-библиотека)
+# Без этого ta-lib (Python) не установится!
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     curl \
     wget \
     vim \
+    && cd /tmp \
+    && wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz \
+    && tar -xvzf ta-lib-0.4.0-src.tar.gz \
+    && cd ta-lib \
+    && ./configure --prefix=/usr \
+    && make \
+    && make install \
+    && rm -rf /tmp/ta-lib* \
     && rm -rf /var/lib/apt/lists/*
 
 USER jovyan
 
-# Чистая установка без лишних условий
-RUN pip install --no-cache-dir \
+RUN pip install --upgrade pip
+
+# 2. Устанавливаем Python-библиотеки
+# Используем флаг --pre для поддержки бета-версий
+# Используем main ветку для pandas-ta через ZIP
+RUN pip install --no-cache-dir --pre \
     freqtrade==2024.11 \
     vectorbt==0.26.2 \
-    pandas-ta==0.3.14b0 \
+    https://github.com/twopirllc/pandas-ta/archive/refs/heads/main.zip \
     ta-lib==0.4.28 \
     technical==1.4.2 \
     ccxt==4.4.23 \
@@ -32,7 +47,7 @@ RUN pip install --no-cache-dir \
     plotly==5.24.1 \
     matplotlib==3.9.2 \
     seaborn==0.13.2 \
-    mplfinance==0.12.10b0 \
+    mplfinance \
     optuna==4.1.0 \
     hyperopt==0.2.7 \
     backtesting==0.3.3 \

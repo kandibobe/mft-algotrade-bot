@@ -1,165 +1,240 @@
-# 📋 Stoic Citadel - Логи и отладка
+# 📋 Stoic Citadel - Руководство по логам и отладке
 
-## 🎯 Где находятся логи
+Комплексный гайд по мониторингу, диагностике и решению проблем в HFT боте.
 
-### 1. Docker контейнеры (stdout/stderr)
+---
+
+## 📍 Где находятся логи?
+
+### Docker логи (в памяти контейнеров)
 
 ```powershell
-# Все логи Freqtrade
+# Просмотр логов Freqtrade
 docker-compose logs freqtrade
+
+# Следование за логами в реальном времени
+docker-compose logs -f freqtrade
 
 # Последние 100 строк
 docker-compose logs --tail=100 freqtrade
 
-# Следить в реальном времени
-docker-compose logs -f freqtrade
+# С временными метками
+docker-compose logs --timestamps freqtrade
 
-# Логи с временными метками
-docker-compose logs -f -t freqtrade
-
-# Логи всех сервисов
+# Все сервисы
 docker-compose logs -f
 ```
 
-### 2. Файловые логи
+### Файловые логи (постоянное хранение)
+
+**Расположение**: `user_data/logs/freqtrade.log`
 
 ```powershell
-# Основной лог Freqtrade
-cat .\user_data\logs\freqtrade.log
+# Просмотр последних 50 строк
+Get-Content .\user_data\logs\freqtrade.log -Tail 50
 
-# Последние 100 строк
-Get-Content .\user_data\logs\freqtrade.log -Tail 100
+# Следование за логами
+Get-Content .\user_data\logs\freqtrade.log -Wait
 
-# Следить в реальном времени
-Get-Content .\user_data\logs\freqtrade.log -Wait -Tail 50
-
-# Фильтр по ERROR
+# Поиск ошибок
 Get-Content .\user_data\logs\freqtrade.log | Select-String "ERROR"
 
-# Фильтр по WARNING
-Get-Content .\user_data\logs\freqtrade.log | Select-String "WARNING|ERROR"
+# Поиск по паттерну
+Get-Content .\user_data\logs\freqtrade.log | Select-String "Strategy"
+
+# Экспорт ошибок в файл
+Get-Content .\user_data\logs\freqtrade.log | Select-String "ERROR" > errors.txt
 ```
 
 ---
 
-## 📊 Уровни логирования
+## 🎯 Использование PowerShell скриптов
 
-| Уровень | Описание | Пример |
-|---------|----------|--------|
-| `INFO` | Нормальная работа | "Starting worker", "Trade opened" |
-| `WARNING` | Предупреждения | "Could not import strategy", "Rate limit" |
-| `ERROR` | Ошибки | "Impossible to load Strategy", "Connection failed" |
-| `CRITICAL` | Критичные сбои | "Cannot connect to exchange", "Database corrupted" |
+### Скрипт logs.ps1
 
-### Изменить уровень логирования:
+**Базовое использование**:
 
-**В config.json**:
-```json
-{
-  "verbosity": 0,  // 0=INFO, 1=DEBUG, 2=TRACE (очень подробно)
-}
+```powershell
+# Последние 50 строк Freqtrade
+.\scripts\windows\logs.ps1
+
+# Последние 100 строк
+.\scripts\windows\logs.ps1 -Lines 100
+
+# Следование за логами
+.\scripts\windows\logs.ps1 -Follow
+
+# Другой сервис
+.\scripts\windows\logs.ps1 -Service frequi -Lines 30
 ```
 
-**Через docker-compose.yml**:
-```yaml
-command: >
-  trade
-  --verbosity 1  # DEBUG уровень
+**Фильтрация**:
+
+```powershell
+# Только ошибки
+.\scripts\windows\logs.ps1 -Level ERROR
+
+# Только предупреждения
+.\scripts\windows\logs.ps1 -Level WARNING
+
+# Поиск по тексту
+.\scripts\windows\logs.ps1 -Search "Strategy"
+
+# Комбинация
+.\scripts\windows\logs.ps1 -Level ERROR -Lines 200
+```
+
+**Файловые логи**:
+
+```powershell
+# Просмотр freqtrade.log
+.\scripts\windows\logs.ps1 -FileLog
+
+# С фильтром по уровню
+.\scripts\windows\logs.ps1 -FileLog -Level ERROR
+
+# Экспорт в файл
+.\scripts\windows\logs.ps1 -FileLog -Level ERROR -Export
+```
+
+**Все сервисы**:
+
+```powershell
+# Логи всех контейнеров
+.\scripts\windows\logs.ps1 -Service all -Lines 50
 ```
 
 ---
 
-## 🔍 Частые сообщения и их значение
+## 🔍 Типовые сообщения и что они означают
 
-### ✅ Нормальная работа (INFO)
-
-```
-2025-12-02 13:48:18 - freqtrade - INFO - freqtrade 2024.11
-```
-**Что это**: Версия Freqtrade при старте
-**Действие**: Нормально
+### ✅ Успешные операции (INFO)
 
 ```
-2025-12-02 13:48:18 - freqtrade.worker - INFO - Starting worker 2024.11
+freqtrade.worker - INFO - Starting worker 2024.11
 ```
-**Что это**: Рабочий процесс запустился
-**Действие**: Нормально
+**Значение**: Freqtrade запускается нормально
 
 ```
-2025-12-02 13:48:18 - freqtrade.configuration.configuration - INFO - Runmode set to dry_run.
+freqtrade.exchange.exchange - INFO - Using Exchange "Binance"
 ```
-**Что это**: Режим бумажной торговли активен
-**Действие**: Нормально (безопасный режим)
+**Значение**: Подключение к бирже установлено
 
 ```
-2025-12-02 13:48:18 - freqtrade.exchange.check_exchange - INFO - Exchange "binance" is officially supported
+freqtrade.rpc.telegram - INFO - Telegram is listening for following commands
 ```
-**Что это**: Биржа Binance поддерживается официально
-**Действие**: Нормально
+**Значение**: Telegram бот активен и готов к командам
 
 ```
-2025-12-02 13:52:01 - freqtrade.data.history.history_utils - INFO - Download history data for "BTC/USDT"
+freqtrade.strategy.interface - INFO - Strategy 'SimpleTestStrategy' successfully loaded
 ```
-**Что это**: Загружаются исторические данные
-**Действие**: Нормально, подождите завершения
-
----
+**Значение**: Стратегия загружена успешно
 
 ### ⚠️ Предупреждения (WARNING)
 
 ```
-WARNING - Could not import /freqtrade/user_data/strategies/StoicCitadelV2.py due to 'No module named ...'
+freqtrade.resolvers.iresolver - WARNING - Could not import /freqtrade/user_data/strategies/StoicCitadelV2.py
 ```
-**Что это**: Стратегия имеет ошибки импорта  
-**Причина**: Отсутствует модуль или синтаксическая ошибка  
-**Действие**: 
-- Если используете эту стратегию → исправить импорты
-- Если НЕ используете → игнорировать (не влияет на работу)
+**Причина**: Стратегия содержит ошибки импорта  
+**Решение**: Проверить импорты в стратегии или использовать SimpleTestStrategy
 
 ```
-time="2025-12-02T14:42:30+01:00" level=warning msg="docker-compose.yml: the attribute `version` is obsolete"
+freqtrade.exchange.exchange - WARNING - Pair BTC/USDT not available
 ```
-**Что это**: Docker Compose предупреждает о deprecated атрибуте  
-**Причина**: `version: '3.8'` устарел  
-**Действие**: Удалить первую строку из docker-compose.yml (уже исправлено)
+**Причина**: Пара недоступна на бирже или неверное название  
+**Решение**: Проверить список пар в config.json
 
----
+```
+freqtrade.persistence.models - WARNING - Trade using more than 1x stake amount
+```
+**Причина**: Активная сделка использует больше стейка чем обычно  
+**Решение**: Проверить параметр `stake_amount` в конфиге
 
 ### ❌ Ошибки (ERROR)
 
 ```
-ERROR - Impossible to load Strategy 'StoicStrategyV1'. This class does not exist or contains Python code errors.
+freqtrade - ERROR - Impossible to load Strategy 'StoicStrategyV1'. This class does not exist or contains Python code errors.
 ```
-**Что это**: Стратегия не может быть загружена  
-**Причины**:
-1. Файл стратегии не существует
-2. Имя класса не совпадает
-3. Синтаксическая ошибка в коде
-4. Отсутствуют зависимости
-
+**Причина**: Стратегия не найдена или содержит ошибки Python  
 **Решение**:
-```powershell
-# Проверить наличие файла
-docker-compose exec freqtrade ls /freqtrade/user_data/strategies/
+1. Убедиться что файл существует: `docker-compose exec freqtrade ls /freqtrade/user_data/strategies/`
+2. Проверить имя класса в файле стратегии
+3. Использовать SimpleTestStrategy как fallback
 
-# Проверить содержимое
-docker-compose exec freqtrade cat /freqtrade/user_data/strategies/StoicStrategyV1.py | Select-String "class"
+```
+freqtrade - ERROR - Configuration error: DEPRECATED: Setting 'protections' in the configuration is deprecated.
+```
+**Причина**: Устаревшая конфигурация в config.json  
+**Решение**: Удалить секцию `"protections"` из user_data/config/config.json
 
-# Тест импорта
-docker-compose exec freqtrade python -c "from user_data.strategies.StoicStrategyV1 import StoicStrategyV1"
+```
+freqtrade.exchange.exchange - ERROR - DDosProtection: binance GET https://api.binance.com/api/v3/exchangeInfo 429
+```
+**Причина**: Превышен лимит запросов к API биржи  
+**Решение**: Подождать 1-2 минуты, биржа автоматически разблокирует
 
-# Переключиться на рабочую стратегию
-# Редактировать docker-compose.yml:
-  --strategy SimpleTestStrategy  # <- Использовать SimpleTestStrategy
+```
+freqtrade.persistence.models - ERROR - Unable to create trade with stake_amount=0
+```
+**Причина**: Недостаточно средств или неверная конфигурация  
+**Решение**: Проверить `dry_run_wallet` в config.json
+
+---
+
+## 🚨 Распространенные проблемы и решения
+
+### Проблема 1: Контейнер постоянно перезапускается
+
+**Симптомы**:
+```
+stoic_freqtrade exited with code 2 (restarting)
 ```
 
+**Диагностика**:
+```powershell
+# Посмотреть логи с самого начала
+docker-compose logs freqtrade | Select-String "ERROR"
+
+# Проверить статус
+docker-compose ps
+```
+
+**Частые причины**:
+
+1. **Стратегия не найдена**
+   ```powershell
+   # Проверить доступные стратегии
+   docker-compose exec freqtrade ls /freqtrade/user_data/strategies/
+   
+   # Изменить стратегию в docker-compose.yml на SimpleTestStrategy
+   ```
+
+2. **Ошибки в config.json**
+   ```powershell
+   # Валидация JSON
+   Get-Content .\user_data\config\config.json | ConvertFrom-Json
+   
+   # Если ошибка - исправить синтаксис JSON
+   ```
+
+3. **Недостаточно RAM**
+   ```powershell
+   # Проверить использование памяти
+   docker stats --no-stream
+   
+   # Увеличить лимиты в Docker Desktop Settings
+   ```
+
+### Проблема 2: "Config file not found" при backtesting
+
+**Ошибка**:
 ```
 ERROR - Config file "config.json" not found!
 ```
-**Что это**: Конфиг не найден при запуске команды  
-**Причина**: `docker-compose run` не использует правильную рабочую директорию  
-**Решение**: Всегда указывать полный путь
 
+**Причина**: Не указан полный путь к конфигу
+
+**Решение**:
 ```powershell
 # НЕПРАВИЛЬНО:
 docker-compose run --rm freqtrade backtesting --strategy SimpleTestStrategy
@@ -170,283 +245,307 @@ docker-compose run --rm freqtrade backtesting `
   --strategy SimpleTestStrategy
 ```
 
-```
-ERROR - Configuration error: DEPRECATED: Setting 'protections' in the configuration is deprecated.
-```
-**Что это**: Секция `protections` устарела в Freqtrade 2024.11  
-**Решение**: Удалить секцию из config.json (уже исправлено)
+### Проблема 3: FreqUI не подключается к API
 
----
+**Симптомы**:
+- FreqUI показывает "Connection failed"
+- API не отвечает на http://localhost:8080
 
-### 🔥 Критичные ошибки (CRITICAL)
-
-```
-CRITICAL - Cannot connect to exchange 'binance'
-```
-**Что это**: Не удается подключиться к бирже  
-**Причины**:
-1. Нет интернета
-2. Binance недоступен
-3. API ключи неверны (для live режима)
-
-**Решение**:
+**Диагностика**:
 ```powershell
-# Проверить интернет
-Test-Connection -ComputerName www.binance.com -Count 4
-
-# Проверить статус Binance
-curl https://api.binance.com/api/v3/ping
-
-# Должен вернуть: {}
-```
-
----
-
-## 🔧 Диагностика проблем
-
-### Проблема: Контейнер постоянно перезапускается
-
-```powershell
-# 1. Проверить статус
-docker-compose ps
-
-# Если видите "Restarting" или "Exit 1/2":
-
-# 2. Посмотреть полные логи
-docker-compose logs freqtrade
-
-# 3. Посмотреть последние 50 строк перед крашем
-docker-compose logs --tail=50 freqtrade
-
-# 4. Инспекция контейнера
-docker inspect stoic_freqtrade
-```
-
-**Частые причины**:
-
-| Симптом | Причина | Решение |
-|---------|---------|--------|
-| `ERROR - Impossible to load Strategy` | Стратегия не найдена | Использовать SimpleTestStrategy |
-| `ERROR - Config file not found` | Неправильный путь к config | Указать `/freqtrade/user_data/config/config.json` |
-| `CRITICAL - Cannot connect to exchange` | Нет интернета | Проверить подключение |
-| Exit code 137 | Недостаточно RAM | Увеличить лимиты Docker |
-
-### Проблема: API недоступен (FreqUI не подключается)
-
-```powershell
-# 1. Проверить, что Freqtrade запущен
-docker-compose ps
-
-# Должен быть "Up" и "healthy"
-
-# 2. Проверить API напрямую
+# Проверить API
 curl http://localhost:8080/api/v1/ping
 
 # Должен вернуть: {"status":"pong"}
 
-# 3. Если не отвечает - посмотреть логи API
-docker-compose logs freqtrade | Select-String "API"
-
-# 4. Проверить environment variables
-docker-compose config | Select-String "API"
+# Проверить логи FreqUI
+docker-compose logs frequi
 ```
 
-### Проблема: Данные не загружаются / долго грузятся
+**Решения**:
 
-```powershell
-# 1. Проверить доступность Binance
-curl https://api.binance.com/api/v3/exchangeInfo
+1. **API не запущен**
+   ```powershell
+   # Проверить environment variables в docker-compose.yml
+   # FREQTRADE__API_SERVER__ENABLED=true
+   
+   # Перезапустить
+   docker-compose restart freqtrade
+   ```
 
-# 2. Посмотреть прогресс загрузки
-docker-compose logs -f freqtrade
+2. **Неверные credentials**
+   ```yaml
+   # В docker-compose.yml должно быть:
+   - FREQTRADE__API_SERVER__USERNAME=stoic_admin
+   - FREQTRADE__API_SERVER__PASSWORD=StoicGuard2024
+   ```
 
-# Поиск:
-# "Downloaded data for BTC/USDT with length 26087" - успешно
-# "Rate limit exceeded" - слишком много запросов, подождать
+3. **Freqtrade не здоров**
+   ```powershell
+   docker-compose ps
+   # Если status не "healthy" - смотреть логи
+   docker-compose logs freqtrade
+   ```
 
-# 3. Уменьшить нагрузку
-# Загружать меньше дней:
-  --days 30  # Вместо 90
+### Проблема 4: Долгая загрузка стратегии
 
-# Или меньше пар:
-  --pairs BTC/USDT ETH/USDT  # Только 2 пары
+**Симптомы**:
+```
+Starting worker 2024.11
+[30 секунд тишины]
+Strategy loaded
 ```
 
-### Проблема: Бэктест падает с ошибкой
+**Причины**:
+- Стратегия загружает большие datasets
+- Медленные библиотеки (TA-Lib, ML models)
 
-```powershell
-# 1. Проверить наличие данных
-docker-compose exec freqtrade ls -lh /freqtrade/user_data/data/binance/
+**Решение**:
+```python
+# В стратегии использовать ленивую загрузку:
+def __init__(self, config: dict) -> None:
+    super().__init__(config)
+    self.model = None  # Не загружать сразу
 
-# Должны быть файлы *.feather
-
-# 2. Проверить временной диапазон
-# Убедиться что timerange соответствует доступным данным
-# Например, если данных с 2024-09-03:
-  --timerange 20240903-  # Правильно
-  --timerange 20240801-  # Неправильно - нет данных за август
-
-# 3. Запустить с --dry-run-wallet (если ошибка с балансом)
-docker-compose run --rm freqtrade backtesting `
-  --config /freqtrade/user_data/config/config.json `
-  --strategy SimpleTestStrategy `
-  --dry-run-wallet 10000
+def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+    if self.model is None:
+        self.model = self.load_model()  # Загрузить при первом использовании
 ```
+
+### Проблема 5: "No module named 'signals.indicators'"
+
+**Ошибка**:
+```
+WARNING - Could not import /freqtrade/user_data/strategies/StoicCitadelV2.py 
+due to 'No module named 'signals.indicators'; 'signals' is not a package'
+```
+
+**Причина**: Неправильная структура импортов в стратегии
+
+**Решение**:
+1. **Использовать SimpleTestStrategy** (гарантированно работает)
+2. **Исправить импорты** в проблемной стратегии:
+   ```python
+   # Заменить относительные импорты на абсолютные
+   # Было:
+   from signals.indicators import custom_indicator
+   
+   # Стало:
+   from user_data.strategies.signals.indicators import custom_indicator
+   ```
 
 ---
 
-## 📈 Мониторинг производительности
+## 📊 Мониторинг производительности
 
-### CPU и память контейнеров
+### Проверка статуса контейнеров
 
 ```powershell
-# Использование ресурсов в реальном времени
+# Быстрая проверка
+docker-compose ps
+
+# Детальная статистика
+docker stats --no-stream
+
+# Health check конкретного контейнера
+docker inspect stoic_freqtrade --format='{{.State.Health.Status}}'
+```
+
+### Использование ресурсов
+
+```powershell
+# Память и CPU всех контейнеров
 docker stats
 
-# Для конкретного контейнера
+# Только Freqtrade
 docker stats stoic_freqtrade
 
-# Лимиты и использование
-docker inspect stoic_freqtrade | Select-String "Memory"
+# Экспорт статистики
+docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}" > stats.txt
 ```
 
-### Размер логов
+### Дисковое пространство
 
 ```powershell
-# Размер файлового лога
-Get-ChildItem .\user_data\logs\freqtrade.log | Select-Object Name, Length
+# Размер Docker images
+docker images | Select-String "freqtrade"
 
-# Если лог очень большой (>100MB), ротировать:
-move .\user_data\logs\freqtrade.log .\user_data\logs\freqtrade_$(Get-Date -Format 'yyyyMMdd').log.old
-```
+# Размер данных
+Get-ChildItem -Path .\user_data\data\ -Recurse | Measure-Object -Property Length -Sum
 
-### Health checks
-
-```powershell
-# Статус всех сервисов
-docker-compose ps
-
-# Детальная информация о health
-docker inspect stoic_freqtrade --format='{{json .State.Health}}' | ConvertFrom-Json
-
-# API health
-curl http://localhost:8080/api/v1/ping
-curl http://localhost:8080/api/v1/show_config
+# Очистка неиспользуемых данных
+docker system prune -a
 ```
 
 ---
 
-## 🛠️ Продвинутая отладка
+## 🔧 Продвинутая диагностика
 
-### Войти в контейнер
+### Вход в контейнер
 
 ```powershell
-# Bash в Freqtrade контейнере
+# Bash в Freqtrade
 docker-compose exec freqtrade bash
 
-# Теперь внутри:
-cd /freqtrade/user_data
-ls -la
-python -c "from strategies.SimpleTestStrategy import SimpleTestStrategy; print('OK')"
+# После входа можно:
+ls /freqtrade/user_data/strategies/
+cat /freqtrade/user_data/config/config.json
+python -c "from user_data.strategies.SimpleTestStrategy import SimpleTestStrategy"
 ```
 
-### Проверить версии библиотек
+### Проверка Python зависимостей
 
 ```powershell
-docker-compose exec freqtrade pip list | Select-String "freqtrade|ccxt|pandas"
+# Список установленных пакетов
+docker-compose exec freqtrade pip list
+
+# Проверка конкретного пакета
+docker-compose exec freqtrade pip show freqtrade
+
+# Версии ключевых библиотек
+docker-compose exec freqtrade python -c "import freqtrade; print(freqtrade.__version__)"
 ```
 
-### Тестировать стратегию без запуска бота
+### Проверка подключения к бирже
 
 ```powershell
-# Сухой прогон (dry-run test)
+# Тест API Binance
 docker-compose exec freqtrade python -c "
-import sys
-sys.path.insert(0, '/freqtrade/user_data/strategies')
-from SimpleTestStrategy import SimpleTestStrategy
-s = SimpleTestStrategy()
-print('Strategy loaded successfully!')
-print(f'Timeframe: {s.timeframe}')
-print(f'Stoploss: {s.stoploss}')
+import ccxt
+exchange = ccxt.binance()
+markets = exchange.load_markets()
+print(f'Connected! Available pairs: {len(markets)}')
 "
 ```
 
-### Проверить конфиг на валидность
+### Дебаг стратегии
 
 ```powershell
-# JSON валидация
-docker-compose exec freqtrade python -c "
-import json
-with open('/freqtrade/user_data/config/config.json') as f:
-    config = json.load(f)
-print('Config valid!')
-print(f'Strategy: {config.get(\"strategy\", \"not set\")}')
-"
+# Dry-run тест стратегии
+docker-compose run --rm freqtrade test-strategy \
+  --config /freqtrade/user_data/config/config.json \
+  --strategy SimpleTestStrategy
+
+# Проверка синтаксиса стратегии
+docker-compose exec freqtrade python -m py_compile /freqtrade/user_data/strategies/SimpleTestStrategy.py
 ```
 
 ---
 
-## 📋 Cheat Sheet
+## 📈 Анализ торговых логов
 
-### Быстрые команды для копипасты
+### Поиск сигналов входа/выхода
 
 ```powershell
-# === ПРОСМОТР ЛОГОВ ===
-docker-compose logs -f --tail=100 freqtrade
-Get-Content .\user_data\logs\freqtrade.log -Wait -Tail 50
+# Поиск BUY сигналов
+Get-Content .\user_data\logs\freqtrade.log | Select-String "Buy signal found"
 
-# === ФИЛЬТРЫ ===
-docker-compose logs freqtrade | Select-String "ERROR|WARNING"
-Get-Content .\user_data\logs\freqtrade.log | Select-String "ERROR" | Select-Object -Last 20
+# Поиск SELL сигналов
+Get-Content .\user_data\logs\freqtrade.log | Select-String "Sell signal found"
 
-# === ДИАГНОСТИКА ===
-docker-compose ps
-docker stats stoic_freqtrade --no-stream
-curl http://localhost:8080/api/v1/ping
+# Экспорт в файл для анализа
+Get-Content .\user_data\logs\freqtrade.log | Select-String "signal found" > signals.txt
+```
 
-# === РЕСТАРТ ===
-docker-compose restart freqtrade
-docker-compose down && docker-compose up -d freqtrade frequi
+### Анализ прибыльности
 
-# === ОЧИСТКА ===
-docker-compose down
-docker system prune -af --volumes
+```powershell
+# Поиск закрытых сделок
+Get-Content .\user_data\logs\freqtrade.log | Select-String "Selling.*profit"
 
-# === BACKUP ЛОГОВ ===
-move .\user_data\logs\freqtrade.log .\user_data\logs\backup_$(Get-Date -Format 'yyyyMMdd_HHmmss').log
+# Убыточные сделки
+Get-Content .\user_data\logs\freqtrade.log | Select-String "Selling.*loss"
+```
+
+### Ротация логов
+
+```powershell
+# Архивирование старых логов
+$date = Get-Date -Format "yyyyMMdd"
+Copy-Item .\user_data\logs\freqtrade.log ".\user_data\logs\freqtrade_$date.log"
+
+# Очистка текущего лога
+Clear-Content .\user_data\logs\freqtrade.log
 ```
 
 ---
 
 ## 🆘 Когда обращаться за помощью
 
-Если после проверки всех логов и диагностики проблема не решена:
+### Подготовка информации для issue
 
-1. **Соберите информацию**:
+1. **Соберите логи**:
    ```powershell
-   # Версия Docker
-   docker --version
-   docker-compose --version
+   # Экспорт всех логов
+   docker-compose logs > full_logs.txt
    
-   # Логи контейнеров
-   docker-compose logs --tail=200 > logs_output.txt
-   
-   # Конфигурация
-   docker-compose config > compose_config.txt
-   
-   # Статус
-   docker-compose ps > containers_status.txt
+   # Только ошибки
+   .\scripts\windows\logs.ps1 -Level ERROR -Export
    ```
 
-2. **Создайте GitHub Issue**:
-   - URL: https://github.com/kandibobe/hft-algotrade-bot/issues
-   - Приложите:
-     - Описание проблемы
-     - Шаги для воспроизведения
-     - Логи (logs_output.txt)
-     - Версии ПО
-     - Скриншоты (если применимо)
+2. **Информация о системе**:
+   ```powershell
+   # Версии
+   docker --version > system_info.txt
+   docker-compose --version >> system_info.txt
+   git --version >> system_info.txt
+   
+   # Конфигурация (удалите API ключи!)
+   Get-Content .\user_data\config\config.json >> system_info.txt
+   ```
+
+3. **Статус контейнеров**:
+   ```powershell
+   docker-compose ps > container_status.txt
+   docker stats --no-stream >> container_status.txt
+   ```
+
+4. **Создайте GitHub Issue** с:
+   - Описанием проблемы
+   - Шагами для воспроизведения
+   - Прикрепленными логами
+   - Информацией о системе
 
 ---
 
-**Удачной отладки! 🔧🐛**
+## 💡 Лучшие практики
+
+1. **Регулярно проверяйте логи**:
+   ```powershell
+   .\scripts\windows\logs.ps1 -Level WARNING -Lines 100
+   ```
+
+2. **Мониторьте здоровье**:
+   ```powershell
+   docker-compose ps  # Каждые 30 минут
+   ```
+
+3. **Архивируйте важные логи**:
+   ```powershell
+   # Еженедельный бэкап
+   $week = Get-Date -UFormat "%V"
+   Copy-Item .\user_data\logs\freqtrade.log ".\backups\logs\week_$week.log"
+   ```
+
+4. **Используйте уровни логирования**:
+   ```json
+   // В config.json
+   {
+     "logging": {
+       "level": "INFO"  // DEBUG для детального анализа
+     }
+   }
+   ```
+
+---
+
+## 📚 Дополнительные ресурсы
+
+- **QUICKSTART.md**: Быстрый старт и основные команды
+- **STRUCTURE.md**: Описание структуры проекта
+- **Официальная документация Freqtrade**: https://www.freqtrade.io/en/stable/
+- **Discord сообщество**: https://discord.gg/freqtrade
+
+---
+
+**Успешного мониторинга! 🚀📊**

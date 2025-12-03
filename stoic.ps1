@@ -1,8 +1,5 @@
-# ==============================================================================
-# STOIC CITADEL - PowerShell Management Script v2.0
-# ==============================================================================
-# Complete rewrite with monitoring and security features
-# ==============================================================================
+# Stoic Citadel - PowerShell Management Script
+# Clean version without emoji - Windows compatible
 
 param(
     [Parameter(Position=0)]
@@ -18,12 +15,7 @@ param(
 $ErrorActionPreference = "Stop"
 $PROJECT_DIR = "C:\hft-algotrade-bot"
 
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
-
-function Write-ColorOutput {
-    param([string]$ForegroundColor, [string]$Message)
+function Write-ColorOutput($ForegroundColor, $Message) {
     $fc = $host.UI.RawUI.ForegroundColor
     $host.UI.RawUI.ForegroundColor = $ForegroundColor
     Write-Output $Message
@@ -32,26 +24,22 @@ function Write-ColorOutput {
 
 function Show-Header {
     Write-Host ""
-    Write-ColorOutput "Cyan" "╔════════════════════════════════════════════════════════════╗"
-    Write-ColorOutput "Cyan" "║            STOIC CITADEL - TRADING BOT v2.0            ║"
-    Write-ColorOutput "Cyan" "╚════════════════════════════════════════════════════════════╝"
+    Write-ColorOutput "Cyan" "============================================================"
+    Write-ColorOutput "Cyan" "            STOIC CITADEL - TRADING BOT v2.0            "
+    Write-ColorOutput "Cyan" "============================================================"
     Write-Host ""
 }
 
 function Test-EnvFile {
     if (-not (Test-Path ".env")) {
-        Write-ColorOutput "Yellow" "⚠️  .env файл не найден. Создаю из шаблона..."
+        Write-ColorOutput "Yellow" "[!] .env file not found. Creating from template..."
         Copy-Item ".env.example" ".env"
-        Write-ColorOutput "Green" "✅ Создан .env файл"
-        Write-ColorOutput "Yellow" "⚠️  ВАЖНО: Настройте .env файл перед продолжением!"
+        Write-ColorOutput "Green" "[OK] Created .env file"
+        Write-ColorOutput "Yellow" "[!] IMPORTANT: Configure .env before continuing!"
         return $false
     }
     return $true
 }
-
-# ==============================================================================
-# SECURITY FUNCTIONS
-# ==============================================================================
 
 function New-SecurePassword {
     param([int]$Length = 32)
@@ -65,76 +53,62 @@ function New-SecurePassword {
 
 function Invoke-GenerateSecrets {
     Show-Header
-    Write-ColorOutput "Cyan" "🔐 Генерация безопасных паролей..."
+    Write-ColorOutput "Cyan" "[*] Generating secure passwords..."
     
     $freqtradePass = New-SecurePassword -Length 32
     $postgresPass = New-SecurePassword -Length 32
-    $telegramToken = "<YOUR_TELEGRAM_BOT_TOKEN>"
-    $telegramChatId = "<YOUR_TELEGRAM_CHAT_ID>"
     
-    Write-ColorOutput "Green" "✅ Пароли сгенерированы!"
+    Write-ColorOutput "Green" "[OK] Passwords generated!"
     Write-Host ""
-    Write-ColorOutput "Yellow" "📋 Скопируйте эти значения в .env файл:"
+    Write-Host "Copy these values to your .env file:"
     Write-Host ""
     Write-Host "FREQTRADE_API_PASSWORD=$freqtradePass"
     Write-Host "POSTGRES_PASSWORD=$postgresPass"
     Write-Host ""
-    Write-ColorOutput "Cyan" "💾 Сохраню в .env.generated для справки..."
     
-    $envContent = @"
-FREQTRADE_API_PASSWORD=$freqtradePass
-POSTGRES_PASSWORD=$postgresPass
-TELEGRAM_TOKEN=$telegramToken
-TELEGRAM_CHAT_ID=$telegramChatId
-"@
+    $envContent = "FREQTRADE_API_PASSWORD=$freqtradePass`nPOSTGRES_PASSWORD=$postgresPass`n"
+    $envContent | Out-File -FilePath ".env.generated" -Encoding ASCII
     
-    $envContent | Out-File -FilePath ".env.generated" -Encoding UTF8
-    Write-ColorOutput "Green" "✅ Пароли сохранены в .env.generated"
-    Write-ColorOutput "Yellow" "⚠️  Скопируйте их в .env вручную!"
+    Write-ColorOutput "Green" "[OK] Passwords saved to .env.generated"
+    Write-ColorOutput "Yellow" "[!] Copy them to .env manually!"
 }
-
-# ==============================================================================
-# MONITORING FUNCTIONS
-# ==============================================================================
 
 function Invoke-HealthCheck {
     Show-Header
-    Write-ColorOutput "Cyan" "🏥 Проверка здоровья всех сервисов..."
+    Write-ColorOutput "Cyan" "[*] Checking container health..."
     Write-Host ""
     
     Set-Location $PROJECT_DIR
     
-    # Check Docker
     try {
         docker ps | Out-Null
-        Write-ColorOutput "Green" "✅ Docker работает"
+        Write-ColorOutput "Green" "[OK] Docker is running"
     } catch {
-        Write-ColorOutput "Red" "❌ Docker не запущен"
+        Write-ColorOutput "Red" "[ERROR] Docker not running"
         return
     }
     
-    # Check containers
     $containers = @("stoic_freqtrade", "stoic_frequi", "stoic_postgres", "stoic_jupyter")
     
     foreach ($container in $containers) {
         $status = docker inspect -f '{{.State.Health.Status}}' $container 2>$null
         if ($status -eq "healthy") {
-            Write-ColorOutput "Green" "✅ $container - HEALTHY"
+            Write-ColorOutput "Green" "[OK] $container - HEALTHY"
         } elseif ($status -eq "starting") {
-            Write-ColorOutput "Yellow" "⏳ $container - STARTING"
+            Write-ColorOutput "Yellow" "[WAIT] $container - STARTING"
         } else {
-            Write-ColorOutput "Red" "❌ $container - UNHEALTHY or NOT RUNNING"
+            Write-ColorOutput "Red" "[ERROR] $container - UNHEALTHY or NOT RUNNING"
         }
     }
     
     Write-Host ""
-    Write-ColorOutput "Cyan" "📊 Использование ресурсов:"
-    docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}" $containers
+    Write-ColorOutput "Cyan" "[*] Resource usage:"
+    docker stats --no-stream --format "table {{.Container}}`t{{.CPUPerc}}`t{{.MemUsage}}" $containers
 }
 
 function Invoke-WatchHealth {
     Show-Header
-    Write-ColorOutput "Cyan" "👀 Непрерывный мониторинг (Ctrl+C для выхода)..."
+    Write-ColorOutput "Cyan" "[*] Continuous monitoring (Ctrl+C to exit)..."
     
     while ($true) {
         Clear-Host
@@ -143,32 +117,25 @@ function Invoke-WatchHealth {
     }
 }
 
-# ==============================================================================
-# SETUP AND MANAGEMENT
-# ==============================================================================
-
 function Invoke-Setup {
     Show-Header
-    Write-ColorOutput "Cyan" "🚀 Запуск мастера настройки Stoic Citadel..."
+    Write-ColorOutput "Cyan" "[*] Running Stoic Citadel setup wizard..."
     
     Set-Location $PROJECT_DIR
     
-    # Check Docker
-    Write-ColorOutput "Cyan" "📋 Проверка Docker..."
+    Write-ColorOutput "Cyan" "[*] Checking Docker..."
     try {
         docker --version | Out-Null
         docker-compose --version | Out-Null
-        Write-ColorOutput "Green" "✅ Docker установлен"
+        Write-ColorOutput "Green" "[OK] Docker installed"
     } catch {
-        Write-ColorOutput "Red" "❌ Docker не найден. Установите Docker Desktop"
+        Write-ColorOutput "Red" "[ERROR] Docker not found. Install Docker Desktop"
         exit 1
     }
     
-    # Create .env if not exists
     Test-EnvFile | Out-Null
     
-    # Create directories
-    Write-ColorOutput "Cyan" "📁 Создание необходимых директорий..."
+    Write-ColorOutput "Cyan" "[*] Creating directories..."
     $dirs = @(
         "user_data/data/binance",
         "user_data/logs", 
@@ -184,20 +151,20 @@ function Invoke-Setup {
             New-Item -ItemType Directory -Path $dir -Force | Out-Null
         }
     }
-    Write-ColorOutput "Green" "✅ Директории созданы"
+    Write-ColorOutput "Green" "[OK] Directories created"
     
-    Write-ColorOutput "Green" "✅ Настройка завершена!"
+    Write-ColorOutput "Green" "[OK] Setup complete!"
     Write-Host ""
-    Write-ColorOutput "Cyan" "📊 Следующие шаги:"
-    Write-Host "  1. .\stoic.ps1 generate-secrets  # Генерация паролей"
-    Write-Host "  2. .\stoic.ps1 download-data     # Скачать данные"
-    Write-Host "  3. .\stoic.ps1 trade-dry         # Запустить бота"
+    Write-Host "Next steps:"
+    Write-Host "  1. .\stoic.ps1 generate-secrets"
+    Write-Host "  2. .\stoic.ps1 download-data"
+    Write-Host "  3. .\stoic.ps1 trade-dry"
     Write-Host ""
 }
 
 function Invoke-Start {
     Show-Header
-    Write-ColorOutput "Cyan" "🚀 Запуск Stoic Citadel сервисов..."
+    Write-ColorOutput "Cyan" "[*] Starting Stoic Citadel services..."
     
     Set-Location $PROJECT_DIR
     if (-not (Test-EnvFile)) { return }
@@ -205,25 +172,25 @@ function Invoke-Start {
     docker-compose up -d
     Start-Sleep -Seconds 5
     
-    Write-ColorOutput "Green" "✅ Все сервисы запущены!"
+    Write-ColorOutput "Green" "[OK] All services started!"
     Write-Host ""
-    Write-ColorOutput "Cyan" "📊 Точки доступа:"
-    Write-Host "  FreqUI:    http://localhost:3000"
-    Write-Host "  Jupyter:   http://localhost:8888 (token: stoic2024)"
-    Write-Host "  Portainer: http://localhost:9000"
+    Write-Host "Access points:"
+    Write-Host "  FreqUI:     http://localhost:3000"
+    Write-Host "  Jupyter:    http://localhost:8888 (token: stoic2024)"
+    Write-Host "  Portainer:  http://localhost:9000"
     Write-Host "  PostgreSQL: localhost:5433"
     Write-Host ""
 }
 
 function Invoke-Stop {
-    Write-ColorOutput "Yellow" "⏹️  Остановка всех сервисов..."
+    Write-ColorOutput "Yellow" "[*] Stopping all services..."
     Set-Location $PROJECT_DIR
     docker-compose down
-    Write-ColorOutput "Green" "✅ Все сервисы остановлены"
+    Write-ColorOutput "Green" "[OK] All services stopped"
 }
 
 function Invoke-Restart {
-    Write-ColorOutput "Cyan" "🔄 Перезапуск сервисов..."
+    Write-ColorOutput "Cyan" "[*] Restarting services..."
     Invoke-Stop
     Start-Sleep -Seconds 2
     Invoke-Start
@@ -231,26 +198,22 @@ function Invoke-Restart {
 
 function Invoke-Status {
     Show-Header
-    Write-ColorOutput "Cyan" "📊 Статус сервисов:"
+    Write-ColorOutput "Cyan" "[*] Service status:"
     Write-Host ""
     Set-Location $PROJECT_DIR
     docker-compose ps
 }
 
 function Invoke-Logs {
-    Write-ColorOutput "Cyan" "📋 Логи для $Service (Ctrl+C для выхода):"
+    Write-ColorOutput "Cyan" "[*] Logs for $Service (Ctrl+C to exit):"
     Write-Host ""
     Set-Location $PROJECT_DIR
     docker-compose logs -f --tail=100 $Service
 }
 
-# ==============================================================================
-# TRADING FUNCTIONS
-# ==============================================================================
-
 function Invoke-TradeDry {
     Show-Header
-    Write-ColorOutput "Cyan" "📈 Запуск trading бота в DRY-RUN режиме..."
+    Write-ColorOutput "Cyan" "[*] Starting trading bot in DRY-RUN mode..."
     
     Set-Location $PROJECT_DIR
     if (-not (Test-EnvFile)) { return }
@@ -258,27 +221,26 @@ function Invoke-TradeDry {
     docker-compose up -d freqtrade frequi postgres
     Start-Sleep -Seconds 5
     
-    Write-ColorOutput "Green" "✅ Trading бот запущен (dry-run режим)"
+    Write-ColorOutput "Green" "[OK] Trading bot started (dry-run mode)"
     Write-Host ""
-    Write-ColorOutput "Cyan" "📊 Мониторинг:"
+    Write-Host "Monitoring:"
     Write-Host "  Dashboard: http://localhost:3000"
-    Write-Host "  Логи:      .\stoic.ps1 logs freqtrade"
+    Write-Host "  Logs:      .\stoic.ps1 logs freqtrade"
     Write-Host "  Health:    .\stoic.ps1 health"
     Write-Host ""
 }
 
 function Invoke-TradeLive {
     Show-Header
-    Write-ColorOutput "Red" "╔════════════════════════════════════════════════════════════╗"
-    Write-ColorOutput "Red" "║              ⚠️  LIVE TRADING MODE ⚠️                       ║"
-    Write-ColorOutput "Red" "║                                                            ║"
-    Write-ColorOutput "Red" "║  THIS WILL USE REAL MONEY!                                 ║"
-    Write-ColorOutput "Red" "╚════════════════════════════════════════════════════════════╝"
+    Write-ColorOutput "Red" "============================================================"
+    Write-ColorOutput "Red" "              [!] LIVE TRADING MODE [!]"
+    Write-ColorOutput "Red" "                THIS WILL USE REAL MONEY!"
+    Write-ColorOutput "Red" "============================================================"
     Write-Host ""
     
-    $confirm = Read-Host "Введите 'Я ПОНИМАЮ РИСКИ' для продолжения"
-    if ($confirm -ne "Я ПОНИМАЮ РИСКИ") {
-        Write-ColorOutput "Yellow" "⚠️  Live trading отменён"
+    $confirm = Read-Host "Type 'I UNDERSTAND THE RISKS' to continue"
+    if ($confirm -ne "I UNDERSTAND THE RISKS") {
+        Write-ColorOutput "Yellow" "[!] Live trading cancelled"
         return
     }
     
@@ -287,12 +249,12 @@ function Invoke-TradeLive {
     
     docker-compose up -d freqtrade frequi postgres
     
-    Write-ColorOutput "Green" "✅ Live trading запущен!"
-    Write-ColorOutput "Red" "⚠️  МОНИТОРЬТЕ ПОСТОЯННО!"
+    Write-ColorOutput "Green" "[OK] Live trading started!"
+    Write-ColorOutput "Red" "[!] MONITOR CONSTANTLY!"
 }
 
 function Invoke-Backtest {
-    Write-ColorOutput "Cyan" "🧪 Запуск бэктеста для стратегии: $Strategy"
+    Write-ColorOutput "Cyan" "[*] Running backtest for strategy: $Strategy"
     Set-Location $PROJECT_DIR
     
     docker-compose run --rm freqtrade backtesting `
@@ -300,15 +262,11 @@ function Invoke-Backtest {
         --timerange 20240101- `
         --enable-protections
     
-    Write-ColorOutput "Green" "✅ Бэктест завершён!"
+    Write-ColorOutput "Green" "[OK] Backtest complete!"
 }
 
-# ==============================================================================
-# DATA FUNCTIONS
-# ==============================================================================
-
 function Invoke-DownloadData {
-    Write-ColorOutput "Cyan" "📥 Скачивание исторических данных..."
+    Write-ColorOutput "Cyan" "[*] Downloading historical data..."
     Set-Location $PROJECT_DIR
     
     docker-compose run --rm freqtrade download-data `
@@ -317,89 +275,77 @@ function Invoke-DownloadData {
         --timeframes 5m 15m 1h `
         --days 90
     
-    Write-ColorOutput "Green" "✅ Данные скачаны!"
+    Write-ColorOutput "Green" "[OK] Data downloaded!"
 }
 
-# ==============================================================================
-# UTILITY FUNCTIONS
-# ==============================================================================
-
 function Invoke-Dashboard {
-    Write-ColorOutput "Cyan" "📊 Открытие FreqUI Dashboard..."
+    Write-ColorOutput "Cyan" "[*] Opening FreqUI Dashboard..."
     Start-Process "http://localhost:3000"
-    Write-ColorOutput "Green" "✅ Dashboard открыт"
+    Write-ColorOutput "Green" "[OK] Dashboard opened"
 }
 
 function Invoke-Research {
     Show-Header
-    Write-ColorOutput "Cyan" "🔬 Запуск Jupyter Lab..."
+    Write-ColorOutput "Cyan" "[*] Starting Jupyter Lab..."
     
     Set-Location $PROJECT_DIR
     docker-compose up -d jupyter
     Start-Sleep -Seconds 5
     
-    Write-ColorOutput "Green" "✅ Jupyter Lab запущен!"
+    Write-ColorOutput "Green" "[OK] Jupyter Lab started!"
     Write-Host ""
-    Write-ColorOutput "Cyan" "🌐 http://localhost:8888"
-    Write-ColorOutput "Cyan" "🔑 Token: stoic2024"
+    Write-Host "URL: http://localhost:8888"
+    Write-Host "Token: stoic2024"
     
     Start-Process "http://localhost:8888"
 }
 
 function Invoke-Clean {
-    Write-ColorOutput "Yellow" "⚠️  Это удалит все контейнеры..."
-    $confirm = Read-Host "Продолжить? (yes/no)"
+    Write-ColorOutput "Yellow" "[!] This will remove all containers..."
+    $confirm = Read-Host "Continue? (yes/no)"
     
     if ($confirm -eq "yes") {
-        Write-ColorOutput "Cyan" "🧹 Очистка..."
+        Write-ColorOutput "Cyan" "[*] Cleaning..."
         Set-Location $PROJECT_DIR
         docker-compose down
-        Write-ColorOutput "Green" "✅ Очистка завершена"
+        Write-ColorOutput "Green" "[OK] Cleanup complete"
     }
 }
 
-# ==============================================================================
-# HELP
-# ==============================================================================
-
 function Show-Help {
     Show-Header
-    Write-ColorOutput "Green" "📋 ДОСТУПНЫЕ КОМАНДЫ:"
+    Write-ColorOutput "Green" "[*] AVAILABLE COMMANDS:"
     Write-Host ""
-    Write-ColorOutput "Yellow" "Управление:"
-    Write-Host "  help              - Показать справку"
-    Write-Host "  setup             - Первоначальная настройка"
-    Write-Host "  start             - Запустить все сервисы"
-    Write-Host "  stop              - Остановить сервисы"
-    Write-Host "  restart           - Перезапустить"
-    Write-Host "  status            - Статус сервисов"
-    Write-Host "  logs [service]    - Показать логи"
+    Write-ColorOutput "Yellow" "Management:"
+    Write-Host "  help              - Show this help"
+    Write-Host "  setup             - Initial setup"
+    Write-Host "  start             - Start all services"
+    Write-Host "  stop              - Stop services"
+    Write-Host "  restart           - Restart services"
+    Write-Host "  status            - Service status"
+    Write-Host "  logs [service]    - Show logs"
     Write-Host ""
-    Write-ColorOutput "Yellow" "Безопасность:"
-    Write-Host "  generate-secrets  - Генерация паролей"
+    Write-ColorOutput "Yellow" "Security:"
+    Write-Host "  generate-secrets  - Generate passwords"
     Write-Host ""
-    Write-ColorOutput "Yellow" "Мониторинг:"
-    Write-Host "  health            - Проверка здоровья"
-    Write-Host "  health-watch      - Непрерывный мониторинг"
-    Write-Host "  dashboard         - Открыть dashboard"
+    Write-ColorOutput "Yellow" "Monitoring:"
+    Write-Host "  health            - Health check"
+    Write-Host "  health-watch      - Continuous monitoring"
+    Write-Host "  dashboard         - Open dashboard"
     Write-Host ""
-    Write-ColorOutput "Yellow" "Трейдинг:"
+    Write-ColorOutput "Yellow" "Trading:"
     Write-Host "  trade-dry         - Paper trading"
-    Write-Host "  trade-live        - Live trading (ОСТОРОЖНО!)"
-    Write-Host "  backtest [strat]  - Бэктест"
+    Write-Host "  trade-live        - Live trading (CAUTION!)"
+    Write-Host "  backtest [strat]  - Backtest"
     Write-Host ""
-    Write-ColorOutput "Yellow" "Данные:"
-    Write-Host "  download-data     - Скачать исторические данные"
-    Write-Host "  research          - Запустить Jupyter"
+    Write-ColorOutput "Yellow" "Data:"
+    Write-Host "  download-data     - Download historical data"
+    Write-Host "  research          - Start Jupyter"
     Write-Host ""
-    Write-ColorOutput "Yellow" "Обслуживание:"
-    Write-Host "  clean             - Очистить контейнеры"
+    Write-ColorOutput "Yellow" "Maintenance:"
+    Write-Host "  clean             - Clean containers"
     Write-Host ""
 }
-
-# ==============================================================================
-# MAIN SWITCH
-# ==============================================================================
 
 Set-Location $PROJECT_DIR
 
@@ -428,7 +374,7 @@ switch ($Command.ToLower()) {
     "clean" { Invoke-Clean }
     
     default {
-        Write-ColorOutput "Red" "❌ Неизвестная команда: $Command"
+        Write-ColorOutput "Red" "[ERROR] Unknown command: $Command"
         Write-Host ""
         Show-Help
         exit 1
@@ -436,5 +382,5 @@ switch ($Command.ToLower()) {
 }
 
 Write-Host ""
-Write-ColorOutput "Cyan" "🏛️  Stoic Citadel - Trade with wisdom, not emotion."
+Write-ColorOutput "Cyan" "Stoic Citadel - Trade with wisdom, not emotion."
 Write-Host ""

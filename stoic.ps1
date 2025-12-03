@@ -91,19 +91,32 @@ function Invoke-HealthCheck {
     $containers = @("stoic_freqtrade", "stoic_frequi", "stoic_postgres", "stoic_jupyter")
     
     foreach ($container in $containers) {
-        $status = docker inspect -f '{{.State.Health.Status}}' $container 2>$null
-        if ($status -eq "healthy") {
-            Write-ColorOutput "Green" "[OK] $container - HEALTHY"
-        } elseif ($status -eq "starting") {
-            Write-ColorOutput "Yellow" "[WAIT] $container - STARTING"
+        # Check if container exists and is running
+        $running = docker ps --filter "name=$container" --format "{{.Names}}" 2>$null
+        
+        if ($running) {
+            # Try to get health status
+            $healthStatus = docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' $container 2>$null
+            
+            if ($healthStatus -eq "healthy") {
+                Write-ColorOutput "Green" "[OK] $container - HEALTHY"
+            } elseif ($healthStatus -eq "starting") {
+                Write-ColorOutput "Yellow" "[WAIT] $container - STARTING"
+            } elseif ($healthStatus -eq "no-healthcheck") {
+                Write-ColorOutput "Green" "[OK] $container - RUNNING (no healthcheck)"
+            } elseif ($healthStatus -eq "unhealthy") {
+                Write-ColorOutput "Red" "[ERROR] $container - UNHEALTHY"
+            } else {
+                Write-ColorOutput "Yellow" "[?] $container - UNKNOWN STATUS"
+            }
         } else {
-            Write-ColorOutput "Red" "[ERROR] $container - UNHEALTHY or NOT RUNNING"
+            Write-ColorOutput "Red" "[ERROR] $container - NOT RUNNING"
         }
     }
     
     Write-Host ""
     Write-ColorOutput "Cyan" "[*] Resource usage:"
-    docker stats --no-stream --format "table {{.Container}}`t{{.CPUPerc}}`t{{.MemUsage}}" $containers
+    docker stats --no-stream --format "table {{.Container}}`t{{.CPUPerc}}`t{{.MemUsage}}" $containers 2>$null
 }
 
 function Invoke-WatchHealth {
@@ -180,6 +193,8 @@ function Invoke-Start {
     Write-Host "  Portainer:  http://localhost:9000"
     Write-Host "  PostgreSQL: localhost:5433"
     Write-Host ""
+    Write-ColorOutput "Yellow" "[!] Run '.\stoic.ps1 health' to check status"
+    Write-ColorOutput "Yellow" "[!] Run '.\stoic.ps1 logs freqtrade' to see logs"
 }
 
 function Invoke-Stop {
@@ -209,6 +224,19 @@ function Invoke-Logs {
     Write-Host ""
     Set-Location $PROJECT_DIR
     docker-compose logs -f --tail=100 $Service
+}
+
+function Invoke-LogsAll {
+    Write-ColorOutput "Cyan" "[*] All logs (last 50 lines each):"
+    Write-Host ""
+    Set-Location $PROJECT_DIR
+    
+    $services = @("freqtrade", "frequi", "postgres", "jupyter")
+    foreach ($svc in $services) {
+        Write-ColorOutput "Yellow" "=== $svc ==="
+        docker-compose logs --tail=50 $svc
+        Write-Host ""
+    }
 }
 
 function Invoke-TradeDry {
@@ -312,6 +340,22 @@ function Invoke-Clean {
     }
 }
 
+function Invoke-FullReset {
+    Write-ColorOutput "Red" "[!] This will remove EVERYTHING including data!"
+    $confirm = Read-Host "Type 'DELETE EVERYTHING' to confirm"
+    
+    if ($confirm -eq "DELETE EVERYTHING") {
+        Write-ColorOutput "Cyan" "[*] Full reset in progress..."
+        Set-Location $PROJECT_DIR
+        
+        docker-compose down -v
+        docker system prune -f
+        
+        Write-ColorOutput "Green" "[OK] Full reset complete"
+        Write-ColorOutput "Yellow" "[!] Run '.\stoic.ps1 setup' to start fresh"
+    }
+}
+
 function Show-Help {
     Show-Header
     Write-ColorOutput "Green" "[*] AVAILABLE COMMANDS:"
@@ -323,7 +367,8 @@ function Show-Help {
     Write-Host "  stop              - Stop services"
     Write-Host "  restart           - Restart services"
     Write-Host "  status            - Service status"
-    Write-Host "  logs [service]    - Show logs"
+    Write-Host "  logs [service]    - Show logs for specific service"
+    Write-Host "  logs-all          - Show logs for all services"
     Write-Host ""
     Write-ColorOutput "Yellow" "Security:"
     Write-Host "  generate-secrets  - Generate passwords"
@@ -344,6 +389,7 @@ function Show-Help {
     Write-Host ""
     Write-ColorOutput "Yellow" "Maintenance:"
     Write-Host "  clean             - Clean containers"
+    Write-Host "  full-reset        - Delete everything and start fresh"
     Write-Host ""
 }
 
@@ -357,6 +403,7 @@ switch ($Command.ToLower()) {
     "restart" { Invoke-Restart }
     "status" { Invoke-Status }
     "logs" { Invoke-Logs }
+    "logs-all" { Invoke-LogsAll }
     
     "generate-secrets" { Invoke-GenerateSecrets }
     
@@ -372,6 +419,7 @@ switch ($Command.ToLower()) {
     "research" { Invoke-Research }
     
     "clean" { Invoke-Clean }
+    "full-reset" { Invoke-FullReset }
     
     default {
         Write-ColorOutput "Red" "[ERROR] Unknown command: $Command"

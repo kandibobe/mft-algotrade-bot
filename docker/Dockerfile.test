@@ -4,7 +4,7 @@
 # Lightweight container optimized for running tests
 # ==============================================================================
 
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 # Set working directory
 WORKDIR /app

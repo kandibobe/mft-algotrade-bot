@@ -13,43 +13,50 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget \
     vim \
-    libta-lib0 \
-    libta-lib-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Install TA-Lib from source
+RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
+    tar -xzf ta-lib-0.4.0-src.tar.gz && \
+    cd ta-lib && \
+    ./configure --prefix=/usr && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
+
 USER ${NB_UID}
 
-# Install core quant libraries
+# Install core quant libraries with correct versions
 RUN pip install --no-cache-dir \
-    freqtrade==2024.11 \
-    pandas-ta==0.3.14b \
-    TA-Lib==0.4.28 \
-    technical==1.4.2 \
-    ccxt==4.4.23 \
-    python-binance==1.0.19 \
-    scikit-learn==1.5.2 \
-    xgboost==2.1.2 \
-    lightgbm==4.5.0 \
-    pandas==2.2.3 \
-    numpy==1.26.4 \
-    polars==1.14.0 \
-    plotly==5.24.1 \
-    matplotlib==3.9.2 \
-    seaborn==0.13.2 \
-    mplfinance==0.12.10b0 \
-    optuna==4.1.0 \
-    backtesting==0.3.3 \
-    scipy==1.14.1 \
-    statsmodels==0.14.4 \
-    psycopg2-binary==2.9.9 \
-    sqlalchemy==2.0.25 \
-    python-telegram-bot==21.7 \
-    requests==2.32.3 \
-    pyyaml==6.0.2 \
-    python-dotenv==1.0.1 \
-    tqdm==4.67.0 \
-    joblib==1.4.2
+    freqtrade \
+    pandas-ta \
+    TA-Lib \
+    technical \
+    ccxt \
+    python-binance \
+    scikit-learn \
+    xgboost \
+    lightgbm \
+    pandas \
+    numpy \
+    polars \
+    plotly \
+    matplotlib \
+    seaborn \
+    mplfinance \
+    optuna \
+    scipy \
+    statsmodels \
+    psycopg2-binary \
+    sqlalchemy \
+    python-telegram-bot \
+    requests \
+    pyyaml \
+    python-dotenv \
+    tqdm \
+    joblib
 
 RUN mkdir -p /home/jovyan/{research,user_data,scripts,models}
 WORKDIR /home/jovyan

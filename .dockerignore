@@ -1,0 +1,83 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Documentation
+*.md
+!README.md
+!DOCKER.md
+docs/
+
+# Data
+user_data/data/
+user_data/logs/
+user_data/backtest_results/
+user_data/plot/
+user_data/*.sqlite
+user_data/*.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment
+.env
+.env.local
+
+# Tests
+tests/
+pytest_cache/
+.pytest_cache/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Misc
+*.bak
+*.tmp
+*.old
+node_modules/

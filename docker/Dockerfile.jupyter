@@ -1,18 +1,19 @@
-# Stoic Citadel - Research Lab Container
+# Stoic Citadel - Production Research Environment
 FROM jupyter/scipy-notebook:python-3.11
 
-LABEL maintainer="Stoic Citadel <stoic@citadel.trade>"
-LABEL description="Quantitative Research Environment for HFT Strategy Development"
+LABEL maintainer="Stoic Citadel"
+LABEL description="Production-grade research environment for algorithmic trading"
 
 USER root
 
-# Install system dependencies including TA-Lib
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     curl \
     wget \
     vim \
+    postgresql-client \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -24,33 +25,45 @@ RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
     make && \
     make install && \
     cd .. && \
-    rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
+    rm -rf ta-lib ta-lib-0.4.0-src.tar.gz && \
+    ldconfig
 
 USER ${NB_UID}
 
-# Install core quant libraries with correct versions
+# Install Python packages in logical groups
+# Core trading libraries
 RUN pip install --no-cache-dir \
     freqtrade \
-    pandas-ta \
-    TA-Lib \
-    technical \
     ccxt \
     python-binance \
-    scikit-learn \
-    xgboost \
-    lightgbm \
+    TA-Lib
+
+# Data science stack
+RUN pip install --no-cache-dir \
     pandas \
     numpy \
-    polars \
+    scipy \
+    scikit-learn \
+    statsmodels
+
+# Machine learning
+RUN pip install --no-cache-dir \
+    xgboost \
+    lightgbm \
+    optuna
+
+# Visualization
+RUN pip install --no-cache-dir \
     plotly \
     matplotlib \
     seaborn \
-    mplfinance \
-    optuna \
-    scipy \
-    statsmodels \
+    mplfinance
+
+# Database and utilities
+RUN pip install --no-cache-dir \
     psycopg2-binary \
     sqlalchemy \
+    polars \
     python-telegram-bot \
     requests \
     pyyaml \
@@ -58,13 +71,18 @@ RUN pip install --no-cache-dir \
     tqdm \
     joblib
 
-RUN mkdir -p /home/jovyan/{research,user_data,scripts,models}
+# Create working directories
+RUN mkdir -p /home/jovyan/{research,user_data,scripts,models,data}
+
 WORKDIR /home/jovyan
 
+# Configure Jupyter Lab
 RUN jupyter lab --generate-config && \
     echo "c.ServerApp.ip = '0.0.0.0'" >> ~/.jupyter/jupyter_lab_config.py && \
     echo "c.ServerApp.allow_root = True" >> ~/.jupyter/jupyter_lab_config.py && \
-    echo "c.ServerApp.open_browser = False" >> ~/.jupyter/jupyter_lab_config.py
+    echo "c.ServerApp.open_browser = False" >> ~/.jupyter/jupyter_lab_config.py && \
+    echo "c.ServerApp.token = 'stoic2024'" >> ~/.jupyter/jupyter_lab_config.py
 
 EXPOSE 8888
-CMD ["start-notebook.sh"]
+
+CMD ["start-notebook.sh", "--NotebookApp.token='stoic2024'", "--NotebookApp.password=''"]

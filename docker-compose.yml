@@ -10,9 +10,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./user_data:/freqtrade/user_data
-      - ./user_data/strategies:/freqtrade/strategies
     ports:
-      - "127.0.0.1:8080:8080"  # Bind to localhost only for security
+      - "127.0.0.1:8080:8080"
     command: >
       trade
       --logfile /freqtrade/user_data/logs/freqtrade.log
@@ -25,14 +24,14 @@ services:
       - FREQTRADE__API_SERVER__ENABLED=true
       - FREQTRADE__API_SERVER__LISTEN_IP_ADDRESS=0.0.0.0
       - FREQTRADE__API_SERVER__LISTEN_PORT=8080
-      - FREQTRADE__API_SERVER__USERNAME=stoic_admin
-      - FREQTRADE__API_SERVER__PASSWORD=StoicGuard2024!ChangeMe
+      - FREQTRADE__API_SERVER__USERNAME=${FREQTRADE_API_USERNAME:-stoic_admin}
+      - FREQTRADE__API_SERVER__PASSWORD=${FREQTRADE_API_PASSWORD:-ChangeMe123!}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/ping"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/v1/ping || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 60s
 
   # ==========================================
   # FREQUI - Web Dashboard
@@ -42,7 +41,7 @@ services:
     container_name: stoic_frequi
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3000:8080"  # Bind to localhost only for security
+      - "127.0.0.1:3000:8080"
     environment:
       - VITE_API_URL=http://freqtrade:8080
     depends_on:
@@ -51,43 +50,42 @@ services:
     networks:
       - stoic_network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-
-  # ==========================================
-  # JUPYTER LAB - Research Environment
-  # ==========================================
-  jupyter:
-    build:
-      context: ./docker
-      dockerfile: Dockerfile.jupyter
-    container_name: stoic_jupyter
-    restart: unless-stopped
-    volumes:
-      - ./research:/home/jovyan/research
-      - ./user_data:/home/jovyan/user_data:ro  # Read-only access to data
-      - ./scripts:/home/jovyan/scripts
-      - ./user_data/strategies:/home/jovyan/strategies  # Read-write for strategy development
-    ports:
-      - "127.0.0.1:8888:8888"  # Bind to localhost only for security
-    environment:
-      - JUPYTER_ENABLE_LAB=yes
-      - GRANT_SUDO=yes
-    command: start-notebook.sh --NotebookApp.token='stoic2024' --NotebookApp.password=''
-    networks:
-      - stoic_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8888/api"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
 
   # ==========================================
-  # POSTGRESQL - Analytics Database (Optional)
+  # JUPYTER LAB - Research Environment
+  # ==========================================
+  jupyter:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.jupyter
+    container_name: stoic_jupyter
+    restart: unless-stopped
+    volumes:
+      - ./research:/home/jovyan/research
+      - ./user_data:/home/jovyan/user_data
+      - ./scripts:/home/jovyan/scripts
+    ports:
+      - "127.0.0.1:8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - GRANT_SUDO=yes
+      - JUPYTER_TOKEN=stoic2024
+    networks:
+      - stoic_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8888/api || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ==========================================
+  # POSTGRESQL - Analytics Database
   # ==========================================
   postgres:
     image: postgres:16-alpine
@@ -95,49 +93,51 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/setup_postgres.sql:/docker-entrypoint-initdb.d/setup.sql
     ports:
-      - "127.0.0.1:5432:5432"  # Bind to localhost only for security
+      - "127.0.0.1:5432:5432"
     environment:
-      - POSTGRES_USER=stoic_trader
-      - POSTGRES_PASSWORD=StoicDB2024!ChangeMe
-      - POSTGRES_DB=trading_analytics
+      - POSTGRES_USER=${POSTGRES_USER:-stoic_trader}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ChangeMe456!}
+      - POSTGRES_DB=${POSTGRES_DB:-trading_analytics}
     networks:
       - stoic_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stoic_trader -d trading_analytics"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stoic_trader} -d ${POSTGRES_DB:-trading_analytics} || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 20s
 
   # ==========================================
-  # PORTAINER - Container Management (Optional)
+  # PORTAINER - Container Management
   # ==========================================
   portainer:
-    image: portainer/portainer-ce:2.19.4
+    image: portainer/portainer-ce:latest
     container_name: stoic_portainer
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
     ports:
-      - "127.0.0.1:9443:9443"  # Bind to localhost only for security
-      - "127.0.0.1:9000:9000"  # Bind to localhost only for security
+      - "127.0.0.1:9443:9443"
+      - "127.0.0.1:9000:9000"
     networks:
       - stoic_network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9000/api/status"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9000/api/status || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 30s
 
 networks:
   stoic_network:
     driver: bridge
+    name: stoic_network
 
 volumes:
   postgres_data:
-    driver: local
+    name: stoic_postgres_data
   portainer_data:
-    driver: local
+    name: stoic_portainer_data

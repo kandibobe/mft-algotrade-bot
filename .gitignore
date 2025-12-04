@@ -1,48 +1,26 @@
-# Stoic Citadel - Git Ignore Rules
-# ==================================
+# ============================================================
+# STOIC CITADEL - Git Ignore Configuration
+# ============================================================
 
-# Environment variables (NEVER commit!)
+# ============================================================
+# SECRETS & CREDENTIALS (CRITICAL!)
+# ============================================================
 .env
-*.env
-!.env.example
-
-# Sensitive data
-user_data/config/config_production.json
-user_data/config/config_live.json
-**/secrets/
-**/credentials/
-*.key
+.env.local
+.env.*.local
+.env.generated
 *.pem
-*.p12
+*.key
+*_secret*
+secrets/
 
-# Trading data
-user_data/data/
-user_data/logs/
-user_data/notebooks/
-user_data/plot/
-user_data/tradesv3.sqlite
-user_data/tradesv3.dryrun.sqlite
-user_data/*.sqlite
-user_data/*.db
+# Generated config with credentials
+user_data/config/config.json
+user_data/config/config_local.json
 
-# Research artifacts
-research/**/*.png
-research/**/*.jpg
-research/**/*.pdf
-research/**/*.html
-research/.ipynb_checkpoints/
-research/**/.ipynb_checkpoints/
-
-# ML models
-models/
-*.pkl
-*.joblib
-*.h5
-*.pt
-*.pth
-*.onnx
-
-# Python
+# ============================================================
+# PYTHON
+# ============================================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -63,42 +41,105 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.hypothesis/
 
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb_checkpoints/
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
 
-# IDE
-.vscode/
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ============================================================
+# IDE & EDITORS
+# ============================================================
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
-.DS_Store
+.project
+.pydevproject
+.settings/
+*.sublime-*
 
-# Docker
-docker-compose.override.yml
-
-# Logs
-*.log
-logs/
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-*.cache
+# ============================================================
+# TRADING DATA & RESULTS
+# ============================================================
+# Historical data (large files)
+user_data/data/
+!user_data/data/.gitkeep
 
 # Backtest results
 user_data/backtest_results/
-backtest-result-*.json
+!user_data/backtest_results/.gitkeep
 
-# Keep important configs (templates)
-!user_data/config/config_dryrun.json
-!user_data/config/config_production.json
+# HyperOpt results
+user_data/hyperopt_results/
+!user_data/hyperopt_results/.gitkeep
+
+# Logs
+user_data/logs/
+!user_data/logs/.gitkeep
+*.log
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Notebooks (personal)
+user_data/notebooks/
+!user_data/notebooks/.gitkeep
+
+# ============================================================
+# BACKUP & TEMPORARY FILES
+# ============================================================
+*.bak
+*.backup
+*.tmp
+*.temp
+backups/
+!backups/.gitkeep
+reports/
+!reports/.gitkeep
+
+# ============================================================
+# DOCKER
+# ============================================================
+docker-compose.override.yml
+docker-compose.local.yml
+
+# ============================================================
+# OS FILES
+# ============================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# TEST & COVERAGE
+# ============================================================
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ============================================================
+# BUILD
+# ============================================================
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt

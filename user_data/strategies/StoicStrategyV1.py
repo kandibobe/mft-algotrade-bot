@@ -36,8 +36,8 @@ from functools import reduce
 import logging
 import numpy as np
 
-# HyperOpt imports
-from freqtrade.optimize.space import Categorical, Decimal, Integer
+# HyperOpt imports - Updated for Freqtrade 2024.11+
+from freqtrade.strategy import IntParameter, CategoricalParameter
 
 logger = logging.getLogger(__name__)
 
@@ -118,15 +118,15 @@ class StoicStrategyV1(IStrategy):
     # ==========================================================================
 
     # Entry parameters (optimizable)
-    buy_rsi_threshold = Integer(20, 40, default=30, space='buy', optimize=True)
-    buy_rsi_enabled = Categorical([True, False], default=True, space='buy', optimize=False)
+    buy_rsi_threshold = IntParameter(20, 40, default=30, space='buy', optimize=True)
+    buy_rsi_enabled = CategoricalParameter([True, False], default=True, space='buy', optimize=False)
 
     # Exit parameters (optimizable)
-    sell_rsi_threshold = Integer(60, 80, default=70, space='sell', optimize=True)
-    sell_rsi_enabled = Categorical([True, False], default=True, space='sell', optimize=False)
+    sell_rsi_threshold = IntParameter(60, 80, default=70, space='sell', optimize=True)
+    sell_rsi_enabled = CategoricalParameter([True, False], default=True, space='sell', optimize=False)
 
     # Market regime parameters
-    regime_ema_period = Integer(150, 250, default=200, space='buy', optimize=True)
+    regime_ema_period = IntParameter(150, 250, default=200, space='buy', optimize=True)
 
     # ==========================================================================
     # INFORMATIVE PAIRS (MARKET REGIME)

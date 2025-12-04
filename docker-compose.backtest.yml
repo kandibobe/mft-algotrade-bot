@@ -1,0 +1,97 @@
+# Stoic Citadel - Backtest-Only Environment
+# ==========================================
+# Usage: docker-compose -f docker-compose.backtest.yml up --build
+#
+# This is a minimal setup for reproducible backtesting:
+# - No API keys required
+# - No external connections
+# - Deterministic results
+
+services:
+  # ==========================================
+  # FREQTRADE - Backtest Mode Only
+  # ==========================================
+  freqtrade-backtest:
+    image: freqtradeorg/freqtrade:2024.11
+    container_name: stoic_backtest
+    volumes:
+      - ./user_data:/freqtrade/user_data
+      - ./src:/freqtrade/src:ro
+    working_dir: /freqtrade
+    command: >
+      backtesting
+      --config /freqtrade/user_data/config/config_backtest.json
+      --strategy ${STRATEGY:-StoicEnsembleStrategy}
+      --timerange ${TIMERANGE:-20240101-20240201}
+      --export trades
+      --export-filename /freqtrade/user_data/backtest_results/backtest-results.json
+    environment:
+      - FREQTRADE__DRY_RUN=true
+    networks:
+      - backtest_network
+
+  # ==========================================
+  # DATA DOWNLOADER - Get Historical Data
+  # ==========================================
+  data-downloader:
+    image: freqtradeorg/freqtrade:2024.11
+    container_name: stoic_data_downloader
+    profiles:
+      - download
+    volumes:
+      - ./user_data:/freqtrade/user_data
+    command: >
+      download-data
+      --config /freqtrade/user_data/config/config_backtest.json
+      --pairs ${PAIRS:-BTC/USDT ETH/USDT}
+      --timeframes 5m 1h
+      --timerange ${TIMERANGE:-20240101-20240301}
+      --exchange binance
+    networks:
+      - backtest_network
+
+  # ==========================================
+  # HYPEROPT - Parameter Optimization
+  # ==========================================
+  hyperopt:
+    image: freqtradeorg/freqtrade:2024.11
+    container_name: stoic_hyperopt
+    profiles:
+      - optimize
+    volumes:
+      - ./user_data:/freqtrade/user_data
+    command: >
+      hyperopt
+      --config /freqtrade/user_data/config/config_backtest.json
+      --strategy ${STRATEGY:-StoicEnsembleStrategy}
+      --hyperopt-loss ${HYPEROPT_LOSS:-SharpeHyperOptLoss}
+      --spaces ${SPACES:-buy sell}
+      --timerange ${TIMERANGE:-20240101-20240201}
+      -e ${EPOCHS:-100}
+    networks:
+      - backtest_network
+
+  # ==========================================
+  # REPORT GENERATOR - Post-Backtest Analysis
+  # ==========================================
+  report-generator:
+    image: python:3.11-slim
+    container_name: stoic_reporter
+    profiles:
+      - report
+    volumes:
+      - ./user_data:/app/user_data:ro
+      - ./reports:/app/reports
+      - ./scripts:/app/scripts:ro
+    working_dir: /app
+    command: >
+      python scripts/generate_report.py
+      --input /app/user_data/backtest_results/backtest-results.json
+      --output /app/reports/backtest_report.html
+    networks:
+      - backtest_network
+
+networks:
+  backtest_network:
+    driver: bridge
+    name: stoic_backtest_network

@@ -1,0 +1,86 @@
+# Stoic Citadel - Backtest Makefile
+# ==================================
+# Quick commands for backtesting workflow
+#
+# Usage: make -f Makefile.backtest <target>
+
+# Variables
+STRATEGY ?= StoicEnsembleStrategy
+TIMERANGE ?= 20240101-20240301
+PAIRS ?= BTC/USDT ETH/USDT
+
+.PHONY: help download backtest hyperopt report clean
+
+help:
+	@echo "Stoic Citadel Backtest Commands"
+	@echo "================================"
+	@echo ""
+	@echo "make -f Makefile.backtest download    - Download historical data"
+	@echo "make -f Makefile.backtest backtest    - Run backtest"
+	@echo "make -f Makefile.backtest hyperopt    - Run hyperparameter optimization"
+	@echo "make -f Makefile.backtest report      - Generate HTML report"
+	@echo "make -f Makefile.backtest clean       - Clean results"
+	@echo ""
+	@echo "Variables:"
+	@echo "  STRATEGY=$(STRATEGY)"
+	@echo "  TIMERANGE=$(TIMERANGE)"
+	@echo "  PAIRS=$(PAIRS)"
+	@echo ""
+	@echo "Example:"
+	@echo "  make -f Makefile.backtest backtest STRATEGY=StoicStrategyV1 TIMERANGE=20240101-20240201"
+
+# Download historical data
+download:
+	@echo "📥 Downloading data for $(PAIRS)..."
+	docker-compose -f docker-compose.backtest.yml --profile download run --rm \
+		-e PAIRS="$(PAIRS)" \
+		-e TIMERANGE="$(TIMERANGE)" \
+		data-downloader
+	@echo "✅ Data download complete"
+
+# Run backtest
+backtest:
+	@echo "🧪 Running backtest: $(STRATEGY) [$(TIMERANGE)]..."
+	docker-compose -f docker-compose.backtest.yml run --rm \
+		-e STRATEGY="$(STRATEGY)" \
+		-e TIMERANGE="$(TIMERANGE)" \
+		freqtrade-backtest
+	@echo "✅ Backtest complete. Results in user_data/backtest_results/"
+
+# Run hyperopt
+hyperopt:
+	@echo "🎯 Running hyperopt: $(STRATEGY) [$(TIMERANGE)]..."
+	docker-compose -f docker-compose.backtest.yml --profile optimize run --rm \
+		-e STRATEGY="$(STRATEGY)" \
+		-e TIMERANGE="$(TIMERANGE)" \
+		-e EPOCHS="$(EPOCHS)" \
+		hyperopt
+	@echo "✅ Hyperopt complete. Results in user_data/hyperopt_results/"
+
+# Generate report
+report:
+	@echo "📊 Generating HTML report..."
+	docker-compose -f docker-compose.backtest.yml --profile report run --rm \
+		report-generator
+	@echo "✅ Report generated at reports/backtest_report.html"
+
+# Full workflow: download -> backtest -> report
+full: download backtest report
+	@echo "🎉 Full backtest workflow complete!"
+
+# Clean results
+clean:
+	@echo "🧹 Cleaning backtest results..."
+	rm -rf user_data/backtest_results/*.json
+	rm -rf user_data/hyperopt_results/*.pickle
+	rm -rf reports/*.html
+	@echo "✅ Clean complete"
+
+# Smoke test (quick validation)
+smoke:
+	@echo "💨 Running smoke test..."
+	docker-compose -f docker-compose.backtest.yml run --rm \
+		-e STRATEGY="$(STRATEGY)" \
+		-e TIMERANGE="20240101-20240103" \
+		freqtrade-backtest
+	@echo "✅ Smoke test passed"

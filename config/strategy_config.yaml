@@ -1,0 +1,68 @@
+# Stoic Citadel - Strategy Configuration
+# ========================================
+# This file contains all configurable parameters for the strategy.
+# Copy to your strategy folder and modify as needed.
+#
+# Usage:
+#   config = StrategyConfig.from_file('config/strategy_config.yaml')
+
+# === General ===
+name: "StoicEnsembleStrategy"
+version: "1.0.0"
+timeframe: "5m"
+startup_candle_count: 200
+
+# === Risk Management ===
+# These are the most important parameters!
+risk_per_trade: 0.02  # 2% of account per trade
+max_positions: 3      # Maximum concurrent positions
+max_drawdown: 0.15    # Stop trading at 15% drawdown
+stoploss: -0.05       # -5% hard stop loss
+trailing_stop: true
+trailing_stop_positive: 0.01       # Start trailing at +1%
+trailing_stop_positive_offset: 0.015  # Trail by 1.5%
+
+# === Entry Parameters ===
+# Trend filter
+min_adx: 20.0  # Minimum ADX for trend confirmation
+
+# Oscillator thresholds  
+rsi_oversold: 30.0   # RSI below this = oversold
+rsi_overbought: 70.0 # RSI above this = overbought
+stoch_oversold: 30.0
+stoch_overbought: 80.0
+
+# Volume filter
+min_volume_ratio: 0.8  # Volume must be 80% of 20-period average
+
+# Volatility filter (Bollinger Band width)
+min_bb_width: 0.02  # Minimum volatility
+max_bb_width: 0.20  # Maximum volatility
+
+# === Exit Parameters ===
+exit_rsi_overbought: 75.0
+exit_stoch_overbought: 80.0
+
+# === ROI Table ===
+# Take profit targets at different time horizons
+roi_0: 0.15    # 15% - take immediately
+roi_30: 0.08   # 8% - after 30 minutes
+roi_60: 0.05   # 5% - after 1 hour
+roi_120: 0.03  # 3% - after 2 hours
+
+# === Regime Detection ===
+regime_aware: true
+regime_adx_threshold: 25.0
+regime_aggressive_score: 70.0  # Score above this = aggressive mode
+regime_defensive_score: 40.0   # Score below this = defensive mode
+
+# === Fees & Slippage (for backtesting) ===
+fee: 0.001          # 0.1% trading fee
+slippage_entry: 0.0005  # 0.05% entry slippage
+slippage_exit: 0.0005   # 0.05% exit slippage
+
+# === Protections ===
+protection_stoploss_guard: true
+protection_stoploss_lookback: 60   # Look back 60 candles (5h on 5m)
+protection_stoploss_limit: 3       # Stop after 3 consecutive losses
+protection_cooldown: 24            # Cooldown: 24 candles (2h on 5m)

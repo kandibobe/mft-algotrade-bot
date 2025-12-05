@@ -24,24 +24,24 @@ sys.path.insert(0, str(project_root))
 
 def test_imports():
     """Test that all modules can be imported."""
-    print("\n📦 Testing imports...")
+    print("\n[TEST] Testing imports...")
     
     try:
         from src.data.loader import get_ohlcv, load_csv
         from src.data.validator import validate_ohlcv
         from src.data.downloader import download_data
-        print("  ✅ src.data modules")
+        print("  [OK] src.data modules")
     except ImportError as e:
-        print(f"  ❌ src.data: {e}")
+        print(f"  [FAIL] src.data: {e}")
         return False
     
     try:
         from src.utils.indicators import (
             calculate_rsi, calculate_macd, calculate_all_indicators
         )
-        print("  ✅ src.utils.indicators")
+        print("  [OK] src.utils.indicators")
     except ImportError as e:
-        print(f"  ❌ src.utils.indicators: {e}")
+        print(f"  [FAIL] src.utils.indicators: {e}")
         return False
     
     try:
@@ -49,9 +49,9 @@ def test_imports():
             calculate_position_size_fixed_risk,
             calculate_sharpe_ratio
         )
-        print("  ✅ src.utils.risk")
+        print("  [OK] src.utils.risk")
     except ImportError as e:
-        print(f"  ❌ src.utils.risk: {e}")
+        print(f"  [FAIL] src.utils.risk: {e}")
         return False
     
     try:
@@ -59,16 +59,16 @@ def test_imports():
             calculate_regime_score,
             get_regime_parameters
         )
-        print("  ✅ src.utils.regime_detection")
+        print("  [OK] src.utils.regime_detection")
     except ImportError as e:
-        print(f"  ❌ src.utils.regime_detection: {e}")
+        print(f"  [FAIL] src.utils.regime_detection: {e}")
         return False
     
     try:
         from src.strategies.strategy_config import StrategyConfig
-        print("  ✅ src.strategies")
+        print("  [OK] src.strategies")
     except ImportError as e:
-        print(f"  ❌ src.strategies: {e}")
+        print(f"  [FAIL] src.strategies: {e}")
         return False
     
     return True
@@ -76,7 +76,7 @@ def test_imports():
 
 def test_data_loading():
     """Test data loading functionality."""
-    print("\n📊 Testing data loading...")
+    print("\n[TEST] Testing data loading...")
     
     try:
         from src.data.loader import load_csv
@@ -85,29 +85,29 @@ def test_data_loading():
         fixture_path = project_root / 'tests/fixtures/sample_data/BTC_USDT-5m.csv'
         
         if not fixture_path.exists():
-            print(f"  ⚠️ Fixture not found: {fixture_path}")
+            print(f"  [WARN] Fixture not found: {fixture_path}")
             return True  # Not a failure, just missing fixture
         
         df = load_csv(fixture_path)
-        print(f"  ✅ Loaded {len(df)} rows")
+        print(f"  [OK] Loaded {len(df)} rows")
         
         is_valid, issues = validate_ohlcv(df)
         if is_valid:
-            print("  ✅ Data validation passed")
+            print("  [OK] Data validation passed")
         else:
-            print(f"  ❌ Validation issues: {issues}")
+            print(f"  [FAIL] Validation issues: {issues}")
             return False
         
         return True
         
     except Exception as e:
-        print(f"  ❌ Data loading failed: {e}")
+        print(f"  [FAIL] Data loading failed: {e}")
         return False
 
 
 def test_indicators():
     """Test indicator calculations."""
-    print("\n📈 Testing indicators...")
+    print("\n[TEST] Testing indicators...")
     
     try:
         import pandas as pd
@@ -126,15 +126,15 @@ def test_indicators():
         rsi = calculate_rsi(close)
         assert not rsi.isna().all(), "RSI all NaN"
         assert 0 <= rsi.dropna().min() <= 100, "RSI out of range"
-        print("  ✅ RSI calculation")
+        print("  [OK] RSI calculation")
         
         macd = calculate_macd(close)
         assert 'macd' in macd and 'signal' in macd
-        print("  ✅ MACD calculation")
+        print("  [OK] MACD calculation")
         
         bb = calculate_bollinger_bands(close)
         assert 'upper' in bb and 'lower' in bb
-        print("  ✅ Bollinger Bands calculation")
+        print("  [OK] Bollinger Bands calculation")
         
         # Test combined calculation
         df = pd.DataFrame({
@@ -149,12 +149,12 @@ def test_indicators():
         assert 'rsi' in result.columns
         assert 'macd' in result.columns
         assert 'atr' in result.columns
-        print("  ✅ All indicators calculation")
+        print("  [OK] All indicators calculation")
         
         return True
         
     except Exception as e:
-        print(f"  ❌ Indicator test failed: {e}")
+        print(f"  [FAIL] Indicator test failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -162,7 +162,7 @@ def test_indicators():
 
 def test_risk():
     """Test risk calculations."""
-    print("\n⚠️ Testing risk management...")
+    print("\n[TEST] Testing risk management...")
     
     try:
         from src.utils.risk import (
@@ -181,29 +181,29 @@ def test_risk():
             stop_loss_price=47500
         )
         assert position > 0, "Position size should be positive"
-        print(f"  ✅ Position sizing: {position:.4f}")
+        print(f"  [OK] Position sizing: {position:.4f}")
         
         # Test drawdown
         equity = pd.Series([100, 110, 105, 120, 100, 115])
         max_dd, _, _ = calculate_max_drawdown(equity)
         assert 0 <= max_dd <= 1, "Max DD should be 0-1"
-        print(f"  ✅ Max drawdown: {max_dd:.2%}")
+        print(f"  [OK] Max drawdown: {max_dd:.2%}")
         
         # Test Sharpe
         returns = pd.Series(np.random.randn(100) * 0.01)
         sharpe = calculate_sharpe_ratio(returns)
-        print(f"  ✅ Sharpe ratio: {sharpe:.2f}")
+        print(f"  [OK] Sharpe ratio: {sharpe:.2f}")
         
         return True
         
     except Exception as e:
-        print(f"  ❌ Risk test failed: {e}")
+        print(f"  [FAIL] Risk test failed: {e}")
         return False
 
 
 def test_regime():
     """Test regime detection."""
-    print("\n🌡️ Testing regime detection...")
+    print("\n[TEST] Testing regime detection...")
     
     try:
         from src.utils.regime_detection import (
@@ -223,25 +223,25 @@ def test_regime():
         
         regime_data = calculate_regime_score(high, low, close, volume)
         assert 'regime_score' in regime_data.columns
-        print("  ✅ Regime score calculation")
+        print("  [OK] Regime score calculation")
         
         # Test parameter adjustment
         score = regime_data['regime_score'].iloc[-1]
         params = get_regime_parameters(score)
         assert 'mode' in params
         assert 'risk_per_trade' in params
-        print(f"  ✅ Regime mode: {params['mode']}")
+        print(f"  [OK] Regime mode: {params['mode']}")
         
         return True
         
     except Exception as e:
-        print(f"  ❌ Regime test failed: {e}")
+        print(f"  [FAIL] Regime test failed: {e}")
         return False
 
 
 def test_config():
     """Test configuration system."""
-    print("\n⚙️ Testing configuration...")
+    print("\n[TEST] Testing configuration...")
     
     try:
         from src.strategies.strategy_config import StrategyConfig
@@ -249,34 +249,33 @@ def test_config():
         # Test default config
         config = StrategyConfig()
         assert config.validate()
-        print("  ✅ Default config valid")
+        print("  [OK] Default config valid")
         
         # Test config export
         config_dict = config.to_dict()
         assert 'risk_per_trade' in config_dict
-        print("  ✅ Config export")
+        print("  [OK] Config export")
         
         # Test YAML loading if file exists
         yaml_path = project_root / 'config/strategy_config.yaml'
         if yaml_path.exists():
             loaded = StrategyConfig.from_file(str(yaml_path))
             assert loaded.validate()
-            print("  ✅ YAML config loading")
+            print("  [OK] YAML config loading")
         
         return True
         
     except Exception as e:
-        print(f"  ❌ Config test failed: {e}")
+        print(f"  [FAIL] Config test failed: {e}")
         return False
 
 
 def main():
     """Run all smoke tests."""
-    print("""
-╔════════════════════════════════════════════════════════════╗
-║           STOIC CITADEL - SMOKE TEST                         ║
-╚════════════════════════════════════════════════════════════╝
-""")
+    print("")
+    print("============================================================")
+    print("           STOIC CITADEL - SMOKE TEST                       ")
+    print("============================================================")
     
     results = []
     
@@ -296,8 +295,9 @@ def main():
     failed = 0
     
     for name, result in results:
-        status = "✅ PASS" if result else "❌ FAIL"
-        print(f"  {name}: {status}")
+        status = "[PASS]" if result else "[FAIL]"
+        color_status = status
+        print(f"  {name}: {color_status}")
         if result:
             passed += 1
         else:
@@ -307,16 +307,16 @@ def main():
     print(f"Results: {passed} passed, {failed} failed")
     
     if failed == 0:
-        print("""
-🎉 ALL SMOKE TESTS PASSED!
-
-Stoic Citadel is ready for use.
-""")
+        print("")
+        print("ALL SMOKE TESTS PASSED!")
+        print("")
+        print("Stoic Citadel is ready for use.")
+        print("")
         return 0
     else:
-        print("""
-⚠️ Some tests failed. Please review the errors above.
-""")
+        print("")
+        print("Some tests failed. Please review the errors above.")
+        print("")
         return 1
 
 

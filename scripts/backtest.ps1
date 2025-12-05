@@ -31,17 +31,17 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Colors for output
-function Write-Success { param($Message) Write-Host "✅ $Message" -ForegroundColor Green }
-function Write-Info { param($Message) Write-Host "ℹ️  $Message" -ForegroundColor Cyan }
-function Write-Warning { param($Message) Write-Host "⚠️  $Message" -ForegroundColor Yellow }
-function Write-Error { param($Message) Write-Host "❌ $Message" -ForegroundColor Red }
+function Write-Success { param($Message) Write-Host "[OK] $Message" -ForegroundColor Green }
+function Write-Info { param($Message) Write-Host "[INFO] $Message" -ForegroundColor Cyan }
+function Write-Warn { param($Message) Write-Host "[WARN] $Message" -ForegroundColor Yellow }
+function Write-Err { param($Message) Write-Host "[ERROR] $Message" -ForegroundColor Red }
 
 # Banner
 function Show-Banner {
     Write-Host ""
-    Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║           🏛️  STOIC CITADEL - BACKTEST MANAGER              ║" -ForegroundColor Cyan
-    Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "          STOIC CITADEL - BACKTEST MANAGER                  " -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host ""
 }
 
@@ -67,11 +67,11 @@ function Invoke-Setup {
     
     # Activate and install
     Write-Info "Installing dependencies..."
-    & .venv\Scripts\python.exe -m pip install --upgrade pip
-    & .venv\Scripts\pip.exe install -r requirements.txt
-    & .venv\Scripts\pip.exe install pytest pytest-cov pytest-mock
+    & .\.venv\Scripts\python.exe -m pip install --upgrade pip
+    & .\.venv\Scripts\pip.exe install -r requirements.txt
+    & .\.venv\Scripts\pip.exe install pytest pytest-cov pytest-mock
     
-    Write-Success "Setup complete! Activate with: .venv\Scripts\Activate.ps1"
+    Write-Success "Setup complete! Activate with: .\.venv\Scripts\Activate.ps1"
 }
 
 # Download historical data
@@ -81,7 +81,7 @@ function Invoke-Download {
     Write-Info "Exchange: $Exchange"
     
     if (-not (Test-Docker)) {
-        Write-Error "Docker is not running! Please start Docker Desktop."
+        Write-Err "Docker is not running! Please start Docker Desktop."
         exit 1
     }
     
@@ -97,7 +97,7 @@ function Invoke-Download {
     if ($LASTEXITCODE -eq 0) {
         Write-Success "Data download complete!"
     } else {
-        Write-Error "Data download failed!"
+        Write-Err "Data download failed!"
         exit 1
     }
 }
@@ -108,7 +108,7 @@ function Invoke-Backtest {
     Write-Info "Time range: $TimeRange"
     
     if (-not (Test-Docker)) {
-        Write-Error "Docker is not running! Please start Docker Desktop."
+        Write-Err "Docker is not running! Please start Docker Desktop."
         exit 1
     }
     
@@ -125,7 +125,7 @@ function Invoke-Backtest {
     if ($LASTEXITCODE -eq 0) {
         Write-Success "Backtest complete! Results in user_data/backtest_results/"
     } else {
-        Write-Error "Backtest failed!"
+        Write-Err "Backtest failed!"
         exit 1
     }
 }
@@ -136,7 +136,7 @@ function Invoke-Hyperopt {
     Write-Info "Strategy: $Strategy"
     
     if (-not (Test-Docker)) {
-        Write-Error "Docker is not running! Please start Docker Desktop."
+        Write-Err "Docker is not running! Please start Docker Desktop."
         exit 1
     }
     
@@ -152,7 +152,7 @@ function Invoke-Hyperopt {
     if ($LASTEXITCODE -eq 0) {
         Write-Success "Hyperopt complete!"
     } else {
-        Write-Error "Hyperopt failed!"
+        Write-Err "Hyperopt failed!"
         exit 1
     }
 }
@@ -174,9 +174,9 @@ function Invoke-Report {
             }
         }
     } else {
-        Write-Warning "Report generator not found. Showing raw results..."
+        Write-Warn "Report generator not found. Showing raw results..."
         
-        $resultFile = Get-ChildItem -Path "user_data/backtest_results" -Filter "*.json" | 
+        $resultFile = Get-ChildItem -Path "user_data/backtest_results" -Filter "*.json" -ErrorAction SilentlyContinue | 
                       Sort-Object LastWriteTime -Descending | 
                       Select-Object -First 1
         
@@ -196,7 +196,7 @@ function Invoke-SmokeTest {
     if ($LASTEXITCODE -eq 0) {
         Write-Success "Smoke test passed!"
     } else {
-        Write-Error "Smoke test failed!"
+        Write-Err "Smoke test failed!"
         exit 1
     }
 }
@@ -205,30 +205,11 @@ function Invoke-SmokeTest {
 function Invoke-Test {
     Write-Info "Running unit tests..."
     
-    # Try different ways to run pytest
-    $pytestPaths = @(
-        ".venv\Scripts\pytest.exe",
-        "pytest",
-        "python -m pytest"
-    )
-    
-    $found = $false
-    foreach ($pytest in $pytestPaths) {
-        try {
-            if ($pytest -eq "python -m pytest") {
-                python -m pytest tests/test_utils/ tests/test_data/ -v --tb=short
-            } else {
-                & $pytest tests/test_utils/ tests/test_data/ -v --tb=short
-            }
-            $found = $true
-            break
-        } catch {
-            continue
-        }
-    }
-    
-    if (-not $found) {
-        Write-Warning "pytest not found. Installing..."
+    # Try to run pytest
+    try {
+        python -m pytest tests/test_utils/ tests/test_data/ -v --tb=short
+    } catch {
+        Write-Warn "pytest not found. Installing..."
         pip install pytest pytest-cov pytest-mock
         python -m pytest tests/test_utils/ tests/test_data/ -v --tb=short
     }
@@ -236,7 +217,7 @@ function Invoke-Test {
     if ($LASTEXITCODE -eq 0) {
         Write-Success "All tests passed!"
     } else {
-        Write-Error "Some tests failed!"
+        Write-Err "Some tests failed!"
         exit 1
     }
 }
@@ -275,7 +256,7 @@ function Invoke-Clean {
     }
     
     # Remove pycache
-    Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+    Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     Write-Success "Cleaned __pycache__"
     
     Write-Success "Cleanup complete!"
@@ -285,8 +266,8 @@ function Invoke-Clean {
 function Show-Help {
     Write-Host @"
 
-🏛️ STOIC CITADEL - Backtest Manager
-====================================
+STOIC CITADEL - Backtest Manager
+================================
 
 USAGE:
     .\scripts\backtest.ps1 -Action <action> [options]
@@ -297,7 +278,7 @@ ACTIONS:
     backtest    Run backtest with strategy
     hyperopt    Run hyperparameter optimization
     report      Generate HTML report
-    full        Run complete workflow (download → backtest → report)
+    full        Run complete workflow (download -> backtest -> report)
     smoke       Run smoke test
     test        Run unit tests with pytest
     clean       Clean up generated files

@@ -11,15 +11,15 @@
 
 $ErrorActionPreference = "Stop"
 
-function Write-Success { param($Message) Write-Host "✅ $Message" -ForegroundColor Green }
-function Write-Info { param($Message) Write-Host "ℹ️  $Message" -ForegroundColor Cyan }
-function Write-Warn { param($Message) Write-Host "⚠️  $Message" -ForegroundColor Yellow }
+function Write-Success { param($Message) Write-Host "[OK] $Message" -ForegroundColor Green }
+function Write-Info { param($Message) Write-Host "[INFO] $Message" -ForegroundColor Cyan }
+function Write-Warn { param($Message) Write-Host "[WARN] $Message" -ForegroundColor Yellow }
 
 # Banner
 Write-Host ""
-Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║           🏛️  STOIC CITADEL - SETUP                         ║" -ForegroundColor Cyan
-Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "          STOIC CITADEL - SETUP                             " -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Check Python
@@ -28,7 +28,7 @@ try {
     $pythonVersion = python --version 2>&1
     Write-Success "Found: $pythonVersion"
 } catch {
-    Write-Host "❌ Python not found! Please install Python 3.10+" -ForegroundColor Red
+    Write-Host "[ERROR] Python not found! Please install Python 3.10+" -ForegroundColor Red
     exit 1
 }
 
@@ -43,7 +43,7 @@ if (-not (Test-Path ".venv")) {
 
 # Activate venv
 Write-Info "Activating virtual environment..."
-& .venv\Scripts\Activate.ps1
+& .\.venv\Scripts\Activate.ps1
 
 # Upgrade pip
 Write-Info "Upgrading pip..."
@@ -54,10 +54,12 @@ Write-Info "Installing dependencies..."
 pip install -r requirements.txt --quiet
 Write-Success "Core dependencies installed!"
 
-# Install dev dependencies
-Write-Info "Installing development dependencies..."
-pip install -r requirements-dev.txt --quiet
-Write-Success "Development dependencies installed!"
+# Install dev dependencies if exists
+if (Test-Path "requirements-dev.txt") {
+    Write-Info "Installing development dependencies..."
+    pip install -r requirements-dev.txt --quiet
+    Write-Success "Development dependencies installed!"
+}
 
 # Create necessary directories
 $dirs = @(
@@ -85,17 +87,17 @@ $exitCode = $LASTEXITCODE
 
 Write-Host ""
 if ($exitCode -eq 0) {
-    Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "║           🎉 SETUP COMPLETE!                                ║" -ForegroundColor Green
-    Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host "============================================================" -ForegroundColor Green
+    Write-Host "          SETUP COMPLETE!                                   " -ForegroundColor Green
+    Write-Host "============================================================" -ForegroundColor Green
     Write-Host ""
     Write-Host "Next steps:" -ForegroundColor Yellow
-    Write-Host "  1. Activate venv:  .venv\Scripts\Activate.ps1"
+    Write-Host "  1. Activate venv:  .\.venv\Scripts\Activate.ps1"
     Write-Host "  2. Run tests:      .\scripts\run_tests.ps1"
     Write-Host "  3. Run backtest:   .\scripts\backtest.ps1 -Action backtest"
     Write-Host "  4. Get help:       .\scripts\backtest.ps1 -Action help"
     Write-Host ""
 } else {
-    Write-Host "❌ Setup completed but smoke test failed!" -ForegroundColor Red
+    Write-Host "[ERROR] Setup completed but smoke test failed!" -ForegroundColor Red
     exit 1
 }

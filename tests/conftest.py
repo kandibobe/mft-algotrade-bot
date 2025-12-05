@@ -1,343 +1,152 @@
 """
-Pytest Configuration and Shared Fixtures
-=========================================
-
-Provides reusable test fixtures for Stoic Citadel testing suite.
-
-Author: Stoic Citadel Team
-License: MIT
+Pytest configuration and fixtures for Stoic Citadel tests.
 """
 
 import pytest
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
-from typing import Dict, Any
-from unittest.mock import MagicMock
+from pathlib import Path
+import sys
+
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 
-# ==============================================================================
-# DATAFRAME FIXTURES
-# ==============================================================================
-
-
-@pytest.fixture
-def sample_dataframe() -> pd.DataFrame:
-    """
-    Generate a realistic sample OHLCV dataframe for testing.
-
-    Returns:
-        pd.DataFrame: 200 rows of synthetic market data
-    """
-    rows = 200
-    dates = pd.date_range(
-        start=datetime.now() - timedelta(days=rows // 288),
-        periods=rows,
-        freq="5min",
-    )
-
-    # Generate synthetic price data with realistic characteristics
-    np.random.seed(42)  # Reproducible tests
-    close_prices = 100 + np.cumsum(np.random.randn(rows) * 0.5)
-    close_prices = np.maximum(close_prices, 50)  # Prevent negative prices
-
-    high_prices = close_prices + np.random.rand(rows) * 2
-    low_prices = close_prices - np.random.rand(rows) * 2
-    open_prices = close_prices + np.random.randn(rows) * 0.5
-
-    volume = np.random.randint(1000, 10000, rows)
-
-    return pd.DataFrame(
-        {
-            "date": dates,
-            "open": open_prices,
-            "high": high_prices,
-            "low": low_prices,
-            "close": close_prices,
-            "volume": volume,
-        }
-    ).set_index("date")
-
+# ============================================================================
+# FIXTURES
+# ============================================================================
 
 @pytest.fixture
-def uptrend_dataframe() -> pd.DataFrame:
+def sample_ohlcv():
     """
-    Generate a dataframe with clear uptrend for testing trend filters.
-
-    Returns:
-        pd.DataFrame: Synthetic uptrending market data
+    Generate sample OHLCV data for testing.
+    
+    Returns a DataFrame with 200 rows of realistic price data.
     """
-    rows = 200
-    dates = pd.date_range(start=datetime.now() - timedelta(days=7), periods=rows, freq="5min")
-
-    # Generate uptrending data
     np.random.seed(42)
-    trend = np.linspace(100, 150, rows)  # Steady uptrend
-    noise = np.random.randn(rows) * 0.5
-    close_prices = trend + noise
-
-    high_prices = close_prices + np.random.rand(rows) * 1
-    low_prices = close_prices - np.random.rand(rows) * 1
-    open_prices = close_prices + np.random.randn(rows) * 0.3
-    volume = np.random.randint(5000, 15000, rows)
-
-    return pd.DataFrame(
-        {
-            "date": dates,
-            "open": open_prices,
-            "high": high_prices,
-            "low": low_prices,
-            "close": close_prices,
-            "volume": volume,
-        }
-    ).set_index("date")
+    n = 200
+    
+    # Generate realistic price data with trend
+    base_price = 100
+    returns = np.random.randn(n) * 0.02  # 2% daily volatility
+    close = base_price * np.exp(np.cumsum(returns))
+    
+    # Generate OHLC
+    high = close * (1 + np.abs(np.random.randn(n) * 0.01))
+    low = close * (1 - np.abs(np.random.randn(n) * 0.01))
+    open_ = close * (1 + np.random.randn(n) * 0.005)
+    volume = np.random.randint(1000, 10000, n).astype(float)
+    
+    # Create timestamps
+    dates = pd.date_range('2024-01-01', periods=n, freq='5min')
+    
+    return pd.DataFrame({
+        'date': dates,
+        'open': open_,
+        'high': high,
+        'low': low,
+        'close': close,
+        'volume': volume
+    })
 
 
 @pytest.fixture
-def downtrend_dataframe() -> pd.DataFrame:
+def sample_ohlcv_short():
     """
-    Generate a dataframe with clear downtrend for testing filters.
-
-    Returns:
-        pd.DataFrame: Synthetic downtrending market data
+    Generate short sample OHLCV data (50 rows).
     """
-    rows = 200
-    dates = pd.date_range(start=datetime.now() - timedelta(days=7), periods=rows, freq="5min")
-
-    # Generate downtrending data
     np.random.seed(42)
-    trend = np.linspace(150, 100, rows)  # Steady downtrend
-    noise = np.random.randn(rows) * 0.5
-    close_prices = trend + noise
-
-    high_prices = close_prices + np.random.rand(rows) * 1
-    low_prices = close_prices - np.random.rand(rows) * 1
-    open_prices = close_prices + np.random.randn(rows) * 0.3
-    volume = np.random.randint(5000, 15000, rows)
-
-    return pd.DataFrame(
-        {
-            "date": dates,
-            "open": open_prices,
-            "high": high_prices,
-            "low": low_prices,
-            "close": close_prices,
-            "volume": volume,
-        }
-    ).set_index("date")
+    n = 50
+    
+    close = pd.Series(100 + np.random.randn(n).cumsum())
+    
+    return pd.DataFrame({
+        'open': close + np.random.randn(n) * 0.5,
+        'high': close + abs(np.random.randn(n)),
+        'low': close - abs(np.random.randn(n)),
+        'close': close,
+        'volume': np.random.randint(1000, 10000, n)
+    })
 
 
 @pytest.fixture
-def sideways_dataframe() -> pd.DataFrame:
+def sample_equity_curve():
     """
-    Generate a dataframe with sideways market for testing range strategies.
-
-    Returns:
-        pd.DataFrame: Synthetic ranging market data
+    Generate sample equity curve for risk testing.
     """
-    rows = 200
-    dates = pd.date_range(start=datetime.now() - timedelta(days=7), periods=rows, freq="5min")
-
-    # Generate sideways data
     np.random.seed(42)
-    close_prices = 125 + np.random.randn(rows) * 2  # Oscillate around 125
-
-    high_prices = close_prices + np.random.rand(rows) * 1
-    low_prices = close_prices - np.random.rand(rows) * 1
-    open_prices = close_prices + np.random.randn(rows) * 0.3
-    volume = np.random.randint(5000, 15000, rows)
-
-    return pd.DataFrame(
-        {
-            "date": dates,
-            "open": open_prices,
-            "high": high_prices,
-            "low": low_prices,
-            "close": close_prices,
-            "volume": volume,
-        }
-    ).set_index("date")
-
-
-# ==============================================================================
-# EXCHANGE & TRADING FIXTURES
-# ==============================================================================
+    n = 100
+    
+    # Random returns with slight upward bias
+    returns = np.random.randn(n) * 0.02 + 0.001
+    equity = 10000 * np.exp(np.cumsum(returns))
+    
+    return pd.Series(equity)
 
 
 @pytest.fixture
-def mock_exchange():
+def sample_returns():
     """
-    Create a mock exchange object for testing without real API calls.
-
-    Returns:
-        MagicMock: Mock exchange with common methods
+    Generate sample returns series.
     """
-    exchange = MagicMock()
-    exchange.name = "binance"
-    exchange.get_fee.return_value = 0.001  # 0.1% fee
-    exchange.get_min_pair_stake_amount.return_value = 10.0
-    exchange.get_max_pair_stake_amount.return_value = 100000.0
-    exchange.fetch_ticker.return_value = {
-        "bid": 100.0,
-        "ask": 100.5,
-        "last": 100.25,
-    }
-    return exchange
+    np.random.seed(42)
+    n = 252  # One year of daily returns
+    
+    returns = pd.Series(np.random.randn(n) * 0.02)
+    
+    return returns
 
 
 @pytest.fixture
-def mock_trade():
+def fixture_dir():
     """
-    Create a mock trade object for testing exit logic.
-
-    Returns:
-        MagicMock: Mock trade object
+    Return path to test fixtures directory.
     """
-    trade = MagicMock()
-    trade.pair = "BTC/USDT"
-    trade.open_rate = 100.0
-    trade.open_date_utc = datetime.utcnow() - timedelta(hours=2)
-    trade.stake_amount = 100.0
-    trade.amount = 1.0
-    trade.stop_loss = 95.0
-    trade.is_open = True
-    return trade
+    return Path(__file__).parent / 'fixtures'
 
 
 @pytest.fixture
-def default_conf() -> Dict[str, Any]:
+def sample_data_path(fixture_dir):
     """
-    Provide a default Freqtrade configuration for testing.
-
-    Returns:
-        Dict[str, Any]: Default configuration dictionary
+    Return path to sample CSV data.
     """
-    return {
-        "stake_currency": "USDT",
-        "dry_run": True,
-        "exchange": {
-            "name": "binance",
-            "key": "test_key",
-            "secret": "test_secret",
-            "pair_whitelist": ["BTC/USDT", "ETH/USDT"],
-            "pair_blacklist": [],
-        },
-        "max_open_trades": 3,
-        "stake_amount": "unlimited",
-        "tradable_balance_ratio": 0.99,
-        "timeframe": "5m",
-        "dry_run_wallet": 1000,
-        "stoploss": -0.05,
-        "trailing_stop": True,
-        "trailing_stop_positive": 0.01,
-    }
+    return fixture_dir / 'sample_data' / 'BTC_USDT-5m.csv'
 
 
-# ==============================================================================
-# STRATEGY FIXTURES
-# ==============================================================================
-
-
-@pytest.fixture
-def strategy_metadata() -> Dict[str, Any]:
-    """
-    Provide metadata dictionary for strategy testing.
-
-    Returns:
-        Dict[str, Any]: Strategy metadata
-    """
-    return {"pair": "BTC/USDT", "timeframe": "5m"}
-
-
-@pytest.fixture
-def populated_dataframe(sample_dataframe):
-    """
-    Provide a dataframe with basic indicators already populated.
-
-    This is useful for testing entry/exit logic without running
-    the full populate_indicators method.
-
-    Returns:
-        pd.DataFrame: Dataframe with basic indicators
-    """
-    df = sample_dataframe.copy()
-
-    # Add simple indicators for testing
-    df["ema_50"] = df["close"].ewm(span=50).mean()
-    df["ema_100"] = df["close"].ewm(span=100).mean()
-    df["ema_200"] = df["close"].ewm(span=200).mean()
-    df["rsi"] = 50  # Neutral RSI
-    df["adx"] = 25  # Moderate trend
-    df["volume_mean"] = df["volume"].rolling(20).mean()
-
-    return df
-
-
-# ==============================================================================
-# PYTEST CONFIGURATION
-# ==============================================================================
-
+# ============================================================================
+# MARKERS
+# ============================================================================
 
 def pytest_configure(config):
+    """Configure custom markers."""
+    config.addinivalue_line(
+        "markers", "slow: marks tests as slow (deselect with '-m not slow')"
+    )
+    config.addinivalue_line(
+        "markers", "integration: marks tests as integration tests"
+    )
+    config.addinivalue_line(
+        "markers", "unit: marks tests as unit tests"
+    )
+    config.addinivalue_line(
+        "markers", "strategy: marks tests as strategy tests"
+    )
+
+
+# ============================================================================
+# HOOKS
+# ============================================================================
+
+def pytest_collection_modifyitems(config, items):
     """
-    Configure pytest with custom markers.
+    Automatically add markers based on test location.
     """
-    config.addinivalue_line("markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')")
-    config.addinivalue_line("markers", "integration: marks tests as integration tests")
-    config.addinivalue_line("markers", "unit: marks tests as unit tests")
-    config.addinivalue_line("markers", "backtest: marks tests that run backtests")
-
-
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
-
-
-def assert_column_exists(dataframe: pd.DataFrame, column: str) -> None:
-    """
-    Assert that a column exists in the dataframe.
-
-    Args:
-        dataframe: The dataframe to check
-        column: The column name to verify
-
-    Raises:
-        AssertionError: If column doesn't exist
-    """
-    assert column in dataframe.columns, f"Column '{column}' not found in dataframe"
-
-
-def assert_signal_generated(dataframe: pd.DataFrame, signal_column: str) -> None:
-    """
-    Assert that at least one signal was generated.
-
-    Args:
-        dataframe: The dataframe to check
-        signal_column: The signal column name ('enter_long', 'exit_long', etc.)
-
-    Raises:
-        AssertionError: If no signals generated
-    """
-    assert signal_column in dataframe.columns, f"Signal column '{signal_column}' not found"
-    assert dataframe[signal_column].sum() > 0, f"No signals generated in '{signal_column}'"
-
-
-def assert_no_nan_in_column(dataframe: pd.DataFrame, column: str, skip_first: int = 0) -> None:
-    """
-    Assert that a column has no NaN values (except optionally the first N rows).
-
-    Args:
-        dataframe: The dataframe to check
-        column: The column name to verify
-        skip_first: Number of initial rows to skip (for indicators with lookback)
-
-    Raises:
-        AssertionError: If NaN values found
-    """
-    if skip_first > 0:
-        values = dataframe[column].iloc[skip_first:]
-    else:
-        values = dataframe[column]
-
-    nan_count = values.isna().sum()
-    assert nan_count == 0, f"Column '{column}' has {nan_count} NaN values"
+    for item in items:
+        # Add markers based on path
+        if "test_integration" in str(item.fspath):
+            item.add_marker(pytest.mark.integration)
+        elif "test_strategies" in str(item.fspath):
+            item.add_marker(pytest.mark.strategy)
+        else:
+            item.add_marker(pytest.mark.unit)

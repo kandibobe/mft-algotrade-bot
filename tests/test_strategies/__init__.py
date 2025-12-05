@@ -1,1 +1,1 @@
-"""Strategy unit tests."""
+"""Unit tests for strategy modules."""

@@ -162,8 +162,17 @@ def get_data_hash(df: pd.DataFrame) -> str:
     Useful for ensuring reproducibility:
     - Same hash = same data = same backtest results
     """
-    # Create hash from first/last rows and shape
-    hash_content = f"{df.shape}_{df.iloc[0].values.tobytes()}_{df.iloc[-1].values.tobytes()}"
+    # Select only numeric columns for hashing (exclude date strings)
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    
+    if len(numeric_cols) > 0:
+        # Use numeric data for reliable hashing
+        numeric_df = df[numeric_cols]
+        hash_content = f"{numeric_df.shape}_{numeric_df.values.tobytes()}"
+    else:
+        # Fallback to string representation
+        hash_content = f"{df.shape}_{df.to_string()}"
+    
     return hashlib.md5(hash_content.encode()).hexdigest()[:12]
 
 

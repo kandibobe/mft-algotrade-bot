@@ -60,17 +60,22 @@ class TestDataLoader:
     
     def test_data_hash_changes_with_data(self):
         """Test that hash changes when data changes."""
-        csv_path = FIXTURES_DIR / 'BTC_USDT-5m.csv'
-        df1 = load_csv(csv_path)
-        df2 = df1.copy()
+        # Create synthetic dataframes to ensure hash changes
+        df1 = pd.DataFrame({
+            'open': [100.0, 101.0, 102.0],
+            'high': [105.0, 106.0, 107.0],
+            'low': [98.0, 99.0, 100.0],
+            'close': [103.0, 104.0, 105.0],
+            'volume': [1000.0, 1100.0, 1200.0]
+        })
         
-        # Modify a numeric column (close) instead of first column (might be date string)
-        df2.loc[df2.index[0], 'close'] = df2.loc[df2.index[0], 'close'] + 1
+        df2 = df1.copy()
+        df2.loc[0, 'close'] = 999.0  # Modify value
         
         hash1 = get_data_hash(df1)
         hash2 = get_data_hash(df2)
         
-        assert hash1 != hash2
+        assert hash1 != hash2, f"Hash should change with data: {hash1} vs {hash2}"
     
     def test_get_data_metadata(self):
         """Test metadata generation."""

@@ -63,7 +63,9 @@ class TestDataLoader:
         csv_path = FIXTURES_DIR / 'BTC_USDT-5m.csv'
         df1 = load_csv(csv_path)
         df2 = df1.copy()
-        df2.iloc[0, 0] = df2.iloc[0, 0] + 1  # Modify first value
+        
+        # Modify a numeric column (close) instead of first column (might be date string)
+        df2.loc[df2.index[0], 'close'] = df2.loc[df2.index[0], 'close'] + 1
         
         hash1 = get_data_hash(df1)
         hash2 = get_data_hash(df2)

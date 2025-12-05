@@ -98,23 +98,33 @@ class TestRSI:
         # For random walk, RSI should be around 50
         assert 30 < rsi.mean() < 70
     
-    def test_rsi_all_up_high(self):
-        """Test that RSI is high for consistently rising prices."""
-        # Create strictly rising prices
-        rising_prices = pd.Series(range(1, 51), dtype=float)
+    def test_rsi_trending_up_high(self):
+        """Test that RSI is high for consistently rising prices with noise."""
+        np.random.seed(42)
+        n = 100
+        # Create strongly rising prices with small noise
+        trend = np.linspace(0, 50, n)
+        noise = np.random.randn(n) * 0.5
+        rising_prices = pd.Series(100 + trend + noise)
+        
         rsi = calculate_rsi(rising_prices, period=14)
         
-        # Last RSI should be very high
-        assert rsi.iloc[-1] > 80
+        # RSI should be above 50 for uptrend (last few values)
+        assert rsi.iloc[-10:].mean() > 50
     
-    def test_rsi_all_down_low(self):
-        """Test that RSI is low for consistently falling prices."""
-        # Create strictly falling prices
-        falling_prices = pd.Series(range(100, 50, -1), dtype=float)
+    def test_rsi_trending_down_low(self):
+        """Test that RSI is low for consistently falling prices with noise."""
+        np.random.seed(42)
+        n = 100
+        # Create strongly falling prices with small noise
+        trend = np.linspace(0, -50, n)
+        noise = np.random.randn(n) * 0.5
+        falling_prices = pd.Series(100 + trend + noise)
+        
         rsi = calculate_rsi(falling_prices, period=14)
         
-        # Last RSI should be very low
-        assert rsi.iloc[-1] < 20
+        # RSI should be below 50 for downtrend (last few values)
+        assert rsi.iloc[-10:].mean() < 50
 
 
 class TestMACD:

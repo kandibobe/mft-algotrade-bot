@@ -1,1 +1,1 @@
-"""Utility function tests."""
+"""Unit tests for utility modules."""

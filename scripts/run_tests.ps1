@@ -25,15 +25,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Write-Success { param($Message) Write-Host "✅ $Message" -ForegroundColor Green }
-function Write-Info { param($Message) Write-Host "ℹ️  $Message" -ForegroundColor Cyan }
-function Write-Warn { param($Message) Write-Host "⚠️  $Message" -ForegroundColor Yellow }
+function Write-Success { param($Message) Write-Host "[OK] $Message" -ForegroundColor Green }
+function Write-Info { param($Message) Write-Host "[INFO] $Message" -ForegroundColor Cyan }
+function Write-Warn { param($Message) Write-Host "[WARN] $Message" -ForegroundColor Yellow }
 
 # Banner
 Write-Host ""
-Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║           🧪 STOIC CITADEL - TEST RUNNER                    ║" -ForegroundColor Cyan
-Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "          STOIC CITADEL - TEST RUNNER                       " -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Install pytest if needed
@@ -120,7 +120,7 @@ if ($exitCode -eq 0) {
         Write-Info "Open reports/coverage/index.html to view coverage report"
     }
 } else {
-    Write-Host "❌ Some tests failed!" -ForegroundColor Red
+    Write-Host "[ERROR] Some tests failed!" -ForegroundColor Red
 }
 
 exit $exitCode

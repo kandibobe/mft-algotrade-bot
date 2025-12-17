@@ -1,5 +1,5 @@
 # ==============================================================================
-# HEALTH CHECK - Проверка здоровья системы
+# HEALTH CHECK - РџСЂРѕРІРµСЂРєР° Р·РґРѕСЂРѕРІСЊСЏ СЃРёСЃС‚РµРјС‹
 # ==============================================================================
 
 $PROJECT_DIR = "C:\hft-algotrade-bot"
@@ -15,9 +15,9 @@ function Write-ColorOutput($ForegroundColor) {
 
 function Show-Header {
     Write-Host ""
-    Write-ColorOutput Cyan "╔════════════════════════════════════════════════════════════╗"
-    Write-ColorOutput Cyan "║            STOIC CITADEL - HEALTH CHECK                    ║"
-    Write-ColorOutput Cyan "╚════════════════════════════════════════════════════════════╝"
+    Write-ColorOutput Cyan "в•”в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•—"
+    Write-ColorOutput Cyan "в•‘            STOIC CITADEL - HEALTH CHECK                    в•‘"
+    Write-ColorOutput Cyan "в•љв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ќ"
     Write-Host ""
 }
 
@@ -26,33 +26,33 @@ Set-Location $PROJECT_DIR
 
 $allGood = $true
 
-# Проверка Docker
-Write-ColorOutput Cyan "🐳 Проверка Docker..."
+# РџСЂРѕРІРµСЂРєР° Docker
+Write-ColorOutput Cyan "рџђі РџСЂРѕРІРµСЂРєР° Docker..."
 try {
     $dockerVersion = docker --version
-    Write-ColorOutput Green "  ✅ Docker: $dockerVersion"
+    Write-ColorOutput Green "  вњ… Docker: $dockerVersion"
 } catch {
-    Write-ColorOutput Red "  ❌ Docker не найден или не запущен"
+    Write-ColorOutput Red "  вќЊ Docker РЅРµ РЅР°Р№РґРµРЅ РёР»Рё РЅРµ Р·Р°РїСѓС‰РµРЅ"
     $allGood = $false
 }
 
 try {
     $composeVersion = docker-compose --version
-    Write-ColorOutput Green "  ✅ Docker Compose: $composeVersion"
+    Write-ColorOutput Green "  вњ… Docker Compose: $composeVersion"
 } catch {
-    Write-ColorOutput Red "  ❌ Docker Compose не найден"
+    Write-ColorOutput Red "  вќЊ Docker Compose РЅРµ РЅР°Р№РґРµРЅ"
     $allGood = $false
 }
 
-# Проверка .env файла
+# РџСЂРѕРІРµСЂРєР° .env С„Р°Р№Р»Р°
 Write-Host ""
-Write-ColorOutput Cyan "📝 Проверка .env файла..."
+Write-ColorOutput Cyan "рџ“ќ РџСЂРѕРІРµСЂРєР° .env С„Р°Р№Р»Р°..."
 if (Test-Path ".env") {
-    Write-ColorOutput Green "  ✅ .env файл существует"
+    Write-ColorOutput Green "  вњ… .env С„Р°Р№Р» СЃСѓС‰РµСЃС‚РІСѓРµС‚"
     
     $envContent = Get-Content ".env" -Raw
     
-    # Проверка критичных переменных
+    # РџСЂРѕРІРµСЂРєР° РєСЂРёС‚РёС‡РЅС‹С… РїРµСЂРµРјРµРЅРЅС‹С…
     $required = @(
         "BINANCE_API_KEY",
         "BINANCE_API_SECRET",
@@ -61,28 +61,28 @@ if (Test-Path ".env") {
     
     foreach ($var in $required) {
         if ($envContent -match "$var\s*=\s*\S+") {
-            Write-ColorOutput Green "  ✅ $var настроен"
+            Write-ColorOutput Green "  вњ… $var РЅР°СЃС‚СЂРѕРµРЅ"
         } else {
-            Write-ColorOutput Red "  ❌ $var не настроен или пустой"
+            Write-ColorOutput Red "  вќЊ $var РЅРµ РЅР°СЃС‚СЂРѕРµРЅ РёР»Рё РїСѓСЃС‚РѕР№"
             $allGood = $false
         }
     }
     
-    # Проверка DRY_RUN
+    # РџСЂРѕРІРµСЂРєР° DRY_RUN
     if ($envContent -match "DRY_RUN\s*=\s*true") {
-        Write-ColorOutput Green "  ✅ DRY_RUN=true (безопасно)"
+        Write-ColorOutput Green "  вњ… DRY_RUN=true (Р±РµР·РѕРїР°СЃРЅРѕ)"
     } elseif ($envContent -match "DRY_RUN\s*=\s*false") {
-        Write-ColorOutput Yellow "  ⚠️  DRY_RUN=false (LIVE TRADING!)"
+        Write-ColorOutput Yellow "  вљ пёЏ  DRY_RUN=false (LIVE TRADING!)"
     }
     
 } else {
-    Write-ColorOutput Red "  ❌ .env файл не найден"
+    Write-ColorOutput Red "  вќЊ .env С„Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ"
     $allGood = $false
 }
 
-# Проверка директорий
+# РџСЂРѕРІРµСЂРєР° РґРёСЂРµРєС‚РѕСЂРёР№
 Write-Host ""
-Write-ColorOutput Cyan "📁 Проверка структуры директорий..."
+Write-ColorOutput Cyan "рџ“Ѓ РџСЂРѕРІРµСЂРєР° СЃС‚СЂСѓРєС‚СѓСЂС‹ РґРёСЂРµРєС‚РѕСЂРёР№..."
 $requiredDirs = @(
     "user_data",
     "user_data/strategies",
@@ -94,90 +94,90 @@ $requiredDirs = @(
 
 foreach ($dir in $requiredDirs) {
     if (Test-Path $dir) {
-        Write-ColorOutput Green "  ✅ $dir"
+        Write-ColorOutput Green "  вњ… $dir"
     } else {
-        Write-ColorOutput Yellow "  ⚠️  $dir отсутствует (будет создана при setup)"
+        Write-ColorOutput Yellow "  вљ пёЏ  $dir РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚ (Р±СѓРґРµС‚ СЃРѕР·РґР°РЅР° РїСЂРё setup)"
     }
 }
 
-# Проверка стратегий
+# РџСЂРѕРІРµСЂРєР° СЃС‚СЂР°С‚РµРіРёР№
 Write-Host ""
-Write-ColorOutput Cyan "🎯 Проверка стратегий..."
+Write-ColorOutput Cyan "рџЋЇ РџСЂРѕРІРµСЂРєР° СЃС‚СЂР°С‚РµРіРёР№..."
 $strategies = Get-ChildItem "user_data\strategies\*.py" -ErrorAction SilentlyContinue
 
 if ($strategies) {
-    Write-ColorOutput Green "  ✅ Найдено $($strategies.Count) стратегий:"
+    Write-ColorOutput Green "  вњ… РќР°Р№РґРµРЅРѕ $($strategies.Count) СЃС‚СЂР°С‚РµРіРёР№:"
     foreach ($strat in $strategies) {
         Write-Host "     - $($strat.BaseName)"
     }
 } else {
-    Write-ColorOutput Red "  ❌ Стратегии не найдены"
+    Write-ColorOutput Red "  вќЊ РЎС‚СЂР°С‚РµРіРёРё РЅРµ РЅР°Р№РґРµРЅС‹"
     $allGood = $false
 }
 
-# Проверка Docker контейнеров
+# РџСЂРѕРІРµСЂРєР° Docker РєРѕРЅС‚РµР№РЅРµСЂРѕРІ
 Write-Host ""
-Write-ColorOutput Cyan "🐳 Проверка Docker контейнеров..."
+Write-ColorOutput Cyan "рџђі РџСЂРѕРІРµСЂРєР° Docker РєРѕРЅС‚РµР№РЅРµСЂРѕРІ..."
 try {
     $containers = docker-compose ps --format json 2>$null | ConvertFrom-Json
     
     if ($containers) {
-        Write-ColorOutput Green "  ✅ Найдено $($containers.Count) контейнеров:"
+        Write-ColorOutput Green "  вњ… РќР°Р№РґРµРЅРѕ $($containers.Count) РєРѕРЅС‚РµР№РЅРµСЂРѕРІ:"
         foreach ($container in $containers) {
             $name = $container.Service
             $status = $container.State
             
             if ($status -eq "running") {
-                Write-ColorOutput Green "     ✅ $name - running"
+                Write-ColorOutput Green "     вњ… $name - running"
             } else {
-                Write-ColorOutput Yellow "     ⚠️  $name - $status"
+                Write-ColorOutput Yellow "     вљ пёЏ  $name - $status"
             }
         }
     } else {
-        Write-ColorOutput Yellow "  ⚠️  Контейнеры не запущены"
+        Write-ColorOutput Yellow "  вљ пёЏ  РљРѕРЅС‚РµР№РЅРµСЂС‹ РЅРµ Р·Р°РїСѓС‰РµРЅС‹"
     }
 } catch {
-    Write-ColorOutput Yellow "  ⚠️  Не удалось проверить контейнеры"
+    Write-ColorOutput Yellow "  вљ пёЏ  РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕРІРµСЂРёС‚СЊ РєРѕРЅС‚РµР№РЅРµСЂС‹"
 }
 
-# Проверка данных
+# РџСЂРѕРІРµСЂРєР° РґР°РЅРЅС‹С…
 Write-Host ""
-Write-ColorOutput Cyan "📊 Проверка данных..."
+Write-ColorOutput Cyan "рџ“Љ РџСЂРѕРІРµСЂРєР° РґР°РЅРЅС‹С…..."
 $dataFiles = Get-ChildItem "user_data\data\binance\*.json" -ErrorAction SilentlyContinue -Recurse
 
 if ($dataFiles) {
-    Write-ColorOutput Green "  ✅ Найдено $($dataFiles.Count) файлов данных"
+    Write-ColorOutput Green "  вњ… РќР°Р№РґРµРЅРѕ $($dataFiles.Count) С„Р°Р№Р»РѕРІ РґР°РЅРЅС‹С…"
     
-    # Проверка свежести данных
+    # РџСЂРѕРІРµСЂРєР° СЃРІРµР¶РµСЃС‚Рё РґР°РЅРЅС‹С…
     $newest = $dataFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     $age = (Get-Date) - $newest.LastWriteTime
     
     if ($age.Days -lt 1) {
-        Write-ColorOutput Green "  ✅ Данные свежие (обновлены сегодня)"
+        Write-ColorOutput Green "  вњ… Р”Р°РЅРЅС‹Рµ СЃРІРµР¶РёРµ (РѕР±РЅРѕРІР»РµРЅС‹ СЃРµРіРѕРґРЅСЏ)"
     } elseif ($age.Days -lt 7) {
-        Write-ColorOutput Yellow "  ⚠️  Данные устарели ($($age.Days) дней)"
+        Write-ColorOutput Yellow "  вљ пёЏ  Р”Р°РЅРЅС‹Рµ СѓСЃС‚Р°СЂРµР»Рё ($($age.Days) РґРЅРµР№)"
     } else {
-        Write-ColorOutput Red "  ❌ Данные очень старые ($($age.Days) дней)"
-        Write-Host "     Запусти: .\stoic.ps1 download-data"
+        Write-ColorOutput Red "  вќЊ Р”Р°РЅРЅС‹Рµ РѕС‡РµРЅСЊ СЃС‚Р°СЂС‹Рµ ($($age.Days) РґРЅРµР№)"
+        Write-Host "     Р—Р°РїСѓСЃС‚Рё: .\stoic.ps1 download-data"
     }
 } else {
-    Write-ColorOutput Yellow "  ⚠️  Данные не найдены"
-    Write-Host "     Запусти: .\stoic.ps1 download-data"
+    Write-ColorOutput Yellow "  вљ пёЏ  Р”Р°РЅРЅС‹Рµ РЅРµ РЅР°Р№РґРµРЅС‹"
+    Write-Host "     Р—Р°РїСѓСЃС‚Рё: .\stoic.ps1 download-data"
 }
 
-# Проверка базы данных
+# РџСЂРѕРІРµСЂРєР° Р±Р°Р·С‹ РґР°РЅРЅС‹С…
 Write-Host ""
-Write-ColorOutput Cyan "💾 Проверка базы данных..."
+Write-ColorOutput Cyan "рџ’ѕ РџСЂРѕРІРµСЂРєР° Р±Р°Р·С‹ РґР°РЅРЅС‹С…..."
 if (Test-Path "user_data\tradesv3.sqlite") {
     $dbSize = (Get-Item "user_data\tradesv3.sqlite").Length / 1MB
-    Write-ColorOutput Green "  ✅ База данных найдена ($('{0:N2}' -f $dbSize) MB)"
+    Write-ColorOutput Green "  вњ… Р‘Р°Р·Р° РґР°РЅРЅС‹С… РЅР°Р№РґРµРЅР° ($('{0:N2}' -f $dbSize) MB)"
 } else {
-    Write-ColorOutput Yellow "  ⚠️  База данных не найдена (создастся при первом запуске)"
+    Write-ColorOutput Yellow "  вљ пёЏ  Р‘Р°Р·Р° РґР°РЅРЅС‹С… РЅРµ РЅР°Р№РґРµРЅР° (СЃРѕР·РґР°СЃС‚СЃСЏ РїСЂРё РїРµСЂРІРѕРј Р·Р°РїСѓСЃРєРµ)"
 }
 
-# Проверка портов
+# РџСЂРѕРІРµСЂРєР° РїРѕСЂС‚РѕРІ
 Write-Host ""
-Write-ColorOutput Cyan "🌐 Проверка доступности портов..."
+Write-ColorOutput Cyan "рџЊђ РџСЂРѕРІРµСЂРєР° РґРѕСЃС‚СѓРїРЅРѕСЃС‚Рё РїРѕСЂС‚РѕРІ..."
 $ports = @{
     "3000" = "FreqUI Dashboard"
     "8080" = "Freqtrade API"
@@ -190,34 +190,34 @@ foreach ($port in $ports.Keys) {
     try {
         $connection = Test-NetConnection -ComputerName localhost -Port $port -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
         if ($connection.TcpTestSucceeded) {
-            Write-ColorOutput Green "  ✅ Port $port ($($ports[$port])) - открыт"
+            Write-ColorOutput Green "  вњ… Port $port ($($ports[$port])) - РѕС‚РєСЂС‹С‚"
         } else {
-            Write-ColorOutput Yellow "  ⚠️  Port $port ($($ports[$port])) - закрыт"
+            Write-ColorOutput Yellow "  вљ пёЏ  Port $port ($($ports[$port])) - Р·Р°РєСЂС‹С‚"
         }
     } catch {
-        Write-ColorOutput Yellow "  ⚠️  Port $port ($($ports[$port])) - недоступен"
+        Write-ColorOutput Yellow "  вљ пёЏ  Port $port ($($ports[$port])) - РЅРµРґРѕСЃС‚СѓРїРµРЅ"
     }
 }
 
-# Итоговый результат
+# РС‚РѕРіРѕРІС‹Р№ СЂРµР·СѓР»СЊС‚Р°С‚
 Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════════"
+Write-Host "в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ"
 if ($allGood) {
-    Write-ColorOutput Green "✅ ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ!"
+    Write-ColorOutput Green "вњ… Р’РЎР• РџР РћР’Р•Р РљР РџР РћР™Р”Р•РќР«!"
     Write-Host ""
-    Write-ColorOutput Cyan "🚀 Готово к запуску:"
+    Write-ColorOutput Cyan "рџљЂ Р“РѕС‚РѕРІРѕ Рє Р·Р°РїСѓСЃРєСѓ:"
     Write-Host "   .\stoic.ps1 trade-dry    # Paper trading"
-    Write-Host "   .\stoic.ps1 dashboard    # Открыть dashboard"
+    Write-Host "   .\stoic.ps1 dashboard    # РћС‚РєСЂС‹С‚СЊ dashboard"
 } else {
-    Write-ColorOutput Yellow "⚠️  НЕКОТОРЫЕ ПРОВЕРКИ НЕ ПРОШЛИ"
+    Write-ColorOutput Yellow "вљ пёЏ  РќР•РљРћРўРћР Р«Р• РџР РћР’Р•Р РљР РќР• РџР РћРЁР›Р"
     Write-Host ""
-    Write-ColorOutput Cyan "🔧 Рекомендации:"
-    Write-Host "   1. Проверьте Docker Desktop (должен быть запущен)"
-    Write-Host "   2. Заполните .env файл"
-    Write-Host "   3. Запустите: .\stoic.ps1 setup"
+    Write-ColorOutput Cyan "рџ”§ Р РµРєРѕРјРµРЅРґР°С†РёРё:"
+    Write-Host "   1. РџСЂРѕРІРµСЂСЊС‚Рµ Docker Desktop (РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ Р·Р°РїСѓС‰РµРЅ)"
+    Write-Host "   2. Р—Р°РїРѕР»РЅРёС‚Рµ .env С„Р°Р№Р»"
+    Write-Host "   3. Р—Р°РїСѓСЃС‚РёС‚Рµ: .\stoic.ps1 setup"
 }
-Write-Host "═══════════════════════════════════════════════════════════"
+Write-Host "в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ"
 Write-Host ""
 
-Write-ColorOutput Cyan "🏛️  Stoic Citadel - Trade with wisdom, not emotion"
+Write-ColorOutput Cyan "рџЏ›пёЏ  Stoic Citadel - Trade with wisdom, not emotion"
 Write-Host ""

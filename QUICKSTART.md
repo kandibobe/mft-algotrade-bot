@@ -1,315 +1,247 @@
-# 🚀 Stoic Citadel - Быстрый старт
+# Stoic Citadel - Quick Start Guide
 
-## Что было добавлено (Phase 1)
+## Prerequisites
 
-### ✅ Order Management System
-
-Полноценная система управления ордерами:
-
-- **Order Types** - Market, Limit, Stop-Loss, Take-Profit, Trailing Stop
-- **Position Manager** - Трекинг позиций с real-time PnL
-- **Circuit Breaker** - Защита от катастрофических потерь
-- **Slippage Simulator** - Реалистичная симуляция исполнения
-- **Order Executor** - Надежное исполнение с retry логикой
-
-📖 **Документация:** `docs/ORDER_MANAGEMENT.md`
+- Python 3.11+
+- Git
+- Docker (optional, for production)
 
 ---
 
-## 🔐 Учетные данные
+## Installation
 
-### FreqUI Web Dashboard
-```
-URL:    http://localhost:3000
-Логин:  stoic_admin
-Пароль: StoicTrade2025!Secure
-```
+### 1. Clone Repository
 
-### Jupyter Lab (для исследований)
-```
-URL:   http://localhost:8888
-Token: JupyterStoic2025!Token
-```
-
-### PostgreSQL Database
-```
-Host:     localhost:5433
-User:     stoic_trader
-Password: PostgresDB2025!Secure
-Database: trading_analytics
-```
-
-> 💡 **Полный список учетных данных:** см. файл `CREDENTIALS.md`
-
----
-
-## 📦 Установка и запуск
-
-### 1. Клонирование репозитория
 ```bash
 git clone https://github.com/kandibobe/hft-algotrade-bot.git
 cd hft-algotrade-bot
 ```
 
-### 2. Конфигурация уже настроена
-
-Файл `.env` уже создан с базовыми настройками.
-
-Для изменения параметров:
-```bash
-nano .env  # или любой редактор
-```
-
-### 3. Запуск системы
+### 2. Create Virtual Environment
 
 ```bash
-# Запуск Freqtrade + FreqUI
-docker-compose up -d freqtrade frequi
+# Windows
+python -m venv .venv
+.venv\Scripts\activate
 
-# Просмотр логов
-docker-compose logs -f freqtrade
-
-# Остановка
-docker-compose down
+# Linux/Mac
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
-### 4. Доступ к FreqUI
+### 3. Install Dependencies
 
-1. Откройте http://localhost:3000
-2. Введите учетные данные:
-   - Логин: `stoic_admin`
-   - Пароль: `StoicTrade2025!Secure`
+```bash
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+```
 
 ---
 
-## 🧪 Тестирование Order Management System
+## Running Tests
 
-### Запуск тестов
+### Quick Test (recommended first step)
 
 ```bash
-# Все тесты
-pytest tests/test_order_manager/ -v
+# Run all tests
+pytest tests/ -v
 
-# С покрытием
-pytest tests/test_order_manager/ --cov=src.order_manager --cov-report=html
-
-# Конкретный тест
-pytest tests/test_order_manager/test_circuit_breaker.py -v
+# Run with summary only
+pytest tests/ -q
 ```
 
-### Запуск примеров
+### Test by Module
 
 ```bash
+# Order Management (12 tests)
+pytest tests/test_order_manager/ -v
+
+# ML Pipeline (43 tests)
+pytest tests/test_ml/ -v
+
+# Strategies (41 tests)
+pytest tests/test_strategies/ -v
+
+# Utils & Data (31 tests)
+pytest tests/test_utils/ tests/test_data/ -v
+```
+
+### Test Coverage
+
+```bash
+pytest tests/ --cov=src --cov-report=html
+# Open htmlcov/index.html in browser
+```
+
+### Expected Result
+
+```
+======================== 174 tests collected ========================
+======================= 174 passed in ~30s ==========================
+```
+
+---
+
+## Running Examples
+
+```bash
+# Order Management demo
 python examples/order_management_example.py
 ```
 
-Вы увидите:
-- Lifecycle ордера (создание → исполнение → заполнение)
-- Управление позициями с PnL
-- Работу circuit breaker
-- Симуляцию slippage
-- Полный торговый workflow
+---
+
+## Docker Deployment
+
+### Start Services
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit credentials
+nano .env  # or any editor
+
+# Start Freqtrade + FreqUI
+docker-compose up -d
+
+# View logs
+docker-compose logs -f freqtrade
+```
+
+### Access Dashboards
+
+| Service | URL | Default Credentials |
+|---------|-----|---------------------|
+| FreqUI | http://localhost:3000 | stoic_admin / StoicTrade2025!Secure |
+| Jupyter | http://localhost:8888 | Token: JupyterStoic2025!Token |
 
 ---
 
-## 📊 Backtesting
-
-### Скачать данные
-
-```bash
-make -f Makefile.backtest download PAIRS="BTC/USDT ETH/USDT" TIMERANGE="20240101-20240601"
-```
-
-### Запустить бэктест
-
-```bash
-# С новым Order Management System
-make -f Makefile.backtest backtest STRATEGY=StoicEnsembleStrategyV2
-
-# Просмотреть результаты
-make -f Makefile.backtest report
-```
-
-### Walk-Forward оптимизация
-
-```bash
-python scripts/walk_forward.py \
-    --strategy StoicEnsembleStrategyV2 \
-    --train-months 3 \
-    --test-months 1 \
-    --start-date 20230101 \
-    --end-date 20240101
-```
-
----
-
-## 🏗️ Архитектура Order Management
+## Project Structure
 
 ```
-src/order_manager/
-├── order_types.py          # Order classes & state machine
-├── position_manager.py     # Position tracking
-├── circuit_breaker.py      # Risk protection
-├── slippage_simulator.py   # Execution simulation
-└── order_executor.py       # Order execution
-```
-
-### Использование в стратегии
-
-```python
-from freqtrade.strategy import IStrategy
-from src.order_manager import CircuitBreaker, PositionManager
-
-class MyStrategy(IStrategy):
-    def __init__(self, config: dict):
-        super().__init__(config)
-        self.circuit_breaker = CircuitBreaker()
-        self.position_manager = PositionManager(max_positions=3)
-
-    def populate_entry_trend(self, dataframe, metadata):
-        # Проверка circuit breaker перед входом
-        if not self.circuit_breaker.is_operational:
-            dataframe['enter_long'] = 0
-            return dataframe
-
-        # ... ваша логика входа ...
-
-        return dataframe
+hft-algotrade-bot/
+├── src/                      # Core modules
+│   ├── order_manager/        # Order Management System
+│   ├── ml/training/          # ML Pipeline
+│   ├── risk/                 # Risk Management
+│   └── utils/                # Utilities
+├── user_data/strategies/     # Trading Strategies
+├── tests/                    # Test Suite (174 tests)
+├── examples/                 # Working Examples
+├── docs/                     # Documentation
+└── scripts/                  # Utility Scripts
 ```
 
 ---
 
-## 📈 Мониторинг
+## Key Features
 
-### Запуск с мониторингом
+### Order Management
+- 5 order types (Market, Limit, StopLoss, TrailingStop, Bracket)
+- Position tracking with real-time PnL
+- Circuit breaker protection
+- Slippage simulation
 
-```bash
-docker-compose --profile analytics up -d
-```
+### ML Pipeline
+- Feature engineering (50+ indicators)
+- Model training (RF, XGBoost, LightGBM)
+- Experiment tracking (W&B/MLflow)
+- Model registry with versioning
 
-Сервисы:
-- **Prometheus**: http://localhost:9090
-- **Grafana**: http://localhost:3001 (admin/admin)
-- **Alertmanager**: http://localhost:9093
-
-### Метрики
-
-Order Management System экспортирует метрики:
-- `trading_trades_total` - Количество сделок
-- `trading_pnl_total` - Общий PnL
-- `trading_drawdown_current` - Текущая просадка
-- `trading_positions_open` - Открытые позиции
+### Risk Management
+- Daily loss limits
+- Consecutive loss protection
+- Max drawdown limits
+- Dynamic position sizing
 
 ---
 
-## 🔧 Troubleshooting
+## Backtesting
 
-### FreqUI не подключается
+### Download Data
 
 ```bash
-# Проверить статус
-docker-compose ps
-
-# Проверить API
-curl http://localhost:8080/api/v1/ping
-
-# Перезапустить
-docker-compose restart freqtrade frequi
+docker-compose run --rm freqtrade download-data \
+    --pairs BTC/USDT ETH/USDT \
+    --timerange 20240101-20241201 \
+    -t 5m 1h
 ```
 
-### Забыли пароль
-
-1. Откройте `.env`
-2. Измените `FREQTRADE_API_PASSWORD`
-3. Перезапустите: `docker-compose restart freqtrade`
-
-### Ошибки при запуске тестов
+### Run Backtest
 
 ```bash
-# Установить зависимости
-pip install -r requirements-dev.txt
-
-# Проверить Python версию (должна быть 3.11+)
-python --version
+docker-compose run --rm freqtrade backtesting \
+    --strategy StoicEnsembleStrategy \
+    --timerange 20240601-20241201
 ```
 
 ---
 
-## 📚 Документация
+## Configuration
 
-- **Order Management**: `docs/ORDER_MANAGEMENT.md`
-- **Architecture**: `ARCHITECTURE_ANALYSIS.md`
-- **Development Plan**: `DEVELOPMENT_PLAN.md`
-- **Deployment**: `DEPLOYMENT.md`
+### Paper Trading (Default)
 
----
-
-## 🎯 Следующие шаги
-
-### Phase 2: ML Pipeline (в разработке)
-
-Планируется:
-- ML Training Pipeline
-- Experiment Tracking (W&B / MLflow)
-- Model Registry
-- Automated model validation
-
-### Phase 3: Enhanced Monitoring
-
-- Детальные метрики для Prometheus
-- Custom Grafana dashboards
-- Alerting через Slack/Email
-- ELK Stack для логов
-
----
-
-## ⚠️ Важные заметки
-
-### Безопасность
-
-- ✅ `.env` добавлен в `.gitignore`
-- ✅ `CREDENTIALS.md` не коммитится
-- ⚠️ Измените пароли перед продакшеном!
-- ⚠️ Используйте `DRY_RUN=true` для тестирования
-
-### Trading Mode
-
-По умолчанию включен **paper trading** (виртуальные деньги):
-```bash
+```env
 DRY_RUN=true
 DRY_RUN_WALLET=10000
 ```
 
-Для live trading:
-1. Получите API ключи от биржи
-2. Добавьте в `.env`:
-   ```
-   BINANCE_API_KEY=your_key
-   BINANCE_API_SECRET=your_secret
-   DRY_RUN=false
-   ```
-3. **Начните с малых сумм!**
+### Live Trading
+
+```env
+BINANCE_API_KEY=your_key
+BINANCE_API_SECRET=your_secret
+DRY_RUN=false
+```
+
+> **Warning**: Start with small amounts! Test thoroughly in paper trading first.
 
 ---
 
-## 🤝 Contributing
+## Troubleshooting
 
-1. Fork репозиторий
-2. Создайте feature branch
-3. Запустите тесты: `pytest tests/ -v`
-4. Commit с conventional commits: `feat: add feature`
-5. Push и создайте Pull Request
+### Tests Fail
+
+```bash
+# Check Python version
+python --version  # Should be 3.11+
+
+# Reinstall dependencies
+pip install -r requirements.txt --force-reinstall
+```
+
+### Docker Issues
+
+```bash
+# Check status
+docker-compose ps
+
+# Restart services
+docker-compose restart
+
+# View logs
+docker-compose logs -f freqtrade
+```
 
 ---
 
-## 📞 Поддержка
+## Documentation
+
+- [Order Management API](docs/ORDER_MANAGEMENT.md)
+- [ML Training Pipeline](docs/ML_TRAINING_PIPELINE.md)
+- [Strategy Development](docs/STRATEGY_DEVELOPMENT_GUIDE.md)
+- [Testing Guide](docs/TESTING_GUIDE.md)
+- [Deployment](docs/deployment.md)
+
+---
+
+## Support
 
 - **Issues**: https://github.com/kandibobe/hft-algotrade-bot/issues
-- **Документация**: См. `docs/` директорию
-- **Examples**: См. `examples/` директорию
+- **Docs**: See `docs/` directory
 
 ---
 
-**🏛️ Stoic Citadel** - Professional Algorithmic Trading System
-
-*"The wise man accepts losses with equanimity."*
+**Stoic Citadel** v1.3.0 - Trade with wisdom, not emotion.

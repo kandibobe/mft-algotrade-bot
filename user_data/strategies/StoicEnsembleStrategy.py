@@ -1,27 +1,30 @@
 """
-Stoic Citadel - Ensemble Strategy Template
-===========================================
+Stoic Citadel - Ensemble Strategy
+==================================
 
 Philosophy: "The wise man accepts losses with equanimity."
 
-This is a professional-grade strategy template implementing:
+This is a professional-grade strategy implementing:
 1. Trend Filter (EMA 200) - Don't fight the macro trend
 2. Entry Oscillator (RSI + Stochastic) - Buy pullbacks in trends
 3. Strict Risk Management - Capital preservation first
-4. ML Validator (placeholder) - Filter false signals
+4. Dynamic Position Sizing - Volatility-adjusted stakes
 
 Author: Stoic Citadel Team
-Version: 1.0.0
+Version: 1.3.0
 License: MIT
 """
 
-from freqtrade.strategy import IStrategy, informative
-from pandas import DataFrame
-import talib.abstract as ta
-import pandas_ta as pta
+from __future__ import annotations
+
+from functools import reduce
 from typing import Optional
 from datetime import datetime, timedelta
 import logging
+
+from freqtrade.strategy import IStrategy
+from pandas import DataFrame
+import talib.abstract as ta
 
 logger = logging.getLogger(__name__)
 
@@ -421,7 +424,3 @@ class StoicEnsembleStrategy(IStrategy):
             return "take_profit_10pct"
 
         return None
-
-
-# Required import for reduce function
-from functools import reduce

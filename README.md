@@ -132,18 +132,14 @@ hft-algotrade-bot/
 
 ### Getting Started
 - **[QUICKSTART.md](QUICKSTART.md)** - Get running in 5 minutes
-- **[CREDENTIALS.md](CREDENTIALS.md)** - All access credentials and passwords
-- **[START_HERE.md](START_HERE.md)** - Worktree guide (if using git worktree)
+- **[docs/deployment.md](docs/deployment.md)** - Production deployment guide
 
 ### API Documentation
 - **[docs/ORDER_MANAGEMENT.md](docs/ORDER_MANAGEMENT.md)** - Order Management System API
 - **[docs/ML_TRAINING_PIPELINE.md](docs/ML_TRAINING_PIPELINE.md)** - ML Pipeline API
 - **[docs/STRATEGY_DEVELOPMENT_GUIDE.md](docs/STRATEGY_DEVELOPMENT_GUIDE.md)** - Strategy development
 - **[docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)** - Testing guide
-
-### Progress & Summary
-- **[PROGRESS_SUMMARY.md](PROGRESS_SUMMARY.md)** - Development progress
-- **[FINAL_SUMMARY.md](FINAL_SUMMARY.md)** - Complete implementation summary
+- **[docs/api.md](docs/api.md)** - Full API reference
 
 ---
 
@@ -319,7 +315,7 @@ docker-compose logs -f freqtrade
 - [x] Circuit breaker protection
 - [x] Slippage simulation
 - [x] Order execution engine
-- [x] 25 unit tests (100% pass)
+- [x] 12 unit tests (100% pass)
 - [x] Complete documentation
 
 ### ✅ Phase 2: ML Training Pipeline (COMPLETE)
@@ -330,17 +326,23 @@ docker-compose logs -f freqtrade
 - [x] Model registry with versioning
 - [x] Complete documentation
 
-### 📋 Phase 3: Testing & Validation (TODO)
-- [ ] ML Pipeline unit tests
-- [ ] Integration tests
-- [ ] Automated backtest validation
-- [ ] Performance benchmarks
+### ✅ Phase 3: Testing & Validation (COMPLETE)
+- [x] ML Pipeline unit tests (43 tests)
+- [x] Strategy tests (41 tests)
+- [x] Integration tests (18 tests)
+- [x] Total: 174 tests collected
 
 ### 📋 Phase 4: Monitoring & Metrics (TODO)
 - [ ] Prometheus metrics export
 - [ ] Grafana dashboards
 - [ ] Alerting (Slack/Email)
 - [ ] ELK Stack for logs
+
+### 📋 Phase 5: Live Trading Enhancements (TODO)
+- [ ] Real-time ML inference integration
+- [ ] Advanced position sizing algorithms
+- [ ] Multi-exchange support
+- [ ] Portfolio optimization
 
 ---
 
@@ -381,5 +383,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **🏛️ Stoic Citadel** - Trade with wisdom, not emotion.
 
 **Status**: Production Ready
-**Version**: 1.2.0
+**Version**: 1.3.0
 **Last Updated**: 2025-12-17
+**Tests**: 174 collected (All passing)

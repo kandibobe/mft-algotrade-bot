@@ -1,0 +1,177 @@
+# Stoic Citadel - Trading Alert Rules
+# ====================================
+# Alert rules for Prometheus/Alertmanager
+
+groups:
+  - name: trading_critical
+    rules:
+      # Circuit Breaker Alerts
+      - alert: CircuitBreakerTripped
+        expr: stoic_citadel_circuit_breaker_state == 2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker is OPEN"
+          description: "Trading has been halted due to circuit breaker activation."
+
+      - alert: CircuitBreakerRecovery
+        expr: stoic_citadel_circuit_breaker_state == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker in recovery mode"
+          description: "Circuit breaker is in half-open state, testing recovery."
+
+      # Drawdown Alerts
+      - alert: HighDrawdown
+        expr: stoic_citadel_current_drawdown_pct > 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High drawdown detected"
+          description: "Current drawdown is {{ $value | printf \"%.1f\" }}%"
+
+      - alert: CriticalDrawdown
+        expr: stoic_citadel_current_drawdown_pct > 0.15
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical drawdown - intervention may be required"
+          description: "Drawdown has exceeded 15%: {{ $value | printf \"%.1f\" }}%"
+
+      # Daily Loss Alerts
+      - alert: DailyLossLimit
+        expr: stoic_citadel_daily_pnl_pct < -0.03
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Daily loss exceeds 3%"
+          description: "Daily PnL: {{ $value | printf \"%.2f\" }}%"
+
+      - alert: SevereDailyLoss
+        expr: stoic_citadel_daily_pnl_pct < -0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Severe daily loss - exceeds 5%"
+          description: "Daily PnL: {{ $value | printf \"%.2f\" }}%"
+
+  - name: trading_performance
+    rules:
+      # Win Rate Degradation
+      - alert: LowWinRate
+        expr: stoic_citadel_win_rate < 0.40
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Win rate below 40%"
+          description: "Current win rate: {{ $value | printf \"%.1f\" }}%"
+
+      # Profit Factor
+      - alert: LowProfitFactor
+        expr: stoic_citadel_profit_factor < 1.0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Profit factor below 1.0 (losing money)"
+          description: "Current profit factor: {{ $value | printf \"%.2f\" }}"
+
+      # Sharpe Ratio
+      - alert: NegativeSharpe
+        expr: stoic_citadel_sharpe_ratio < 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Negative Sharpe ratio"
+          description: "Strategy is underperforming risk-free rate"
+
+  - name: trading_exposure
+    rules:
+      # High Exposure
+      - alert: HighExposure
+        expr: stoic_citadel_exposure_pct > 0.50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High exposure warning"
+          description: "Portfolio exposure: {{ $value | printf \"%.1f\" }}%"
+
+      - alert: MaxExposure
+        expr: stoic_citadel_exposure_pct > 0.80
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Maximum exposure reached"
+          description: "Portfolio exposure at {{ $value | printf \"%.1f\" }}%"
+
+      # VaR Alert
+      - alert: HighVaR
+        expr: stoic_citadel_var_95_pct > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Value at Risk"
+          description: "95% VaR is {{ $value | printf \"%.2f\" }}%"
+
+  - name: trading_operations
+    rules:
+      # API Errors
+      - alert: HighAPIErrorRate
+        expr: rate(stoic_citadel_api_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API error rate"
+          description: "API errors occurring at {{ $value | printf \"%.2f\" }}/sec"
+
+      - alert: CriticalAPIErrors
+        expr: rate(stoic_citadel_api_errors_total[5m]) > 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical API error rate"
+          description: "Immediate attention required - API failing"
+
+      # Data Latency
+      - alert: HighDataLatency
+        expr: stoic_citadel_data_latency_seconds > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High data latency"
+          description: "Market data latency: {{ $value | printf \"%.1f\" }}s"
+
+      # No Updates
+      - alert: NoRecentUpdates
+        expr: time() - stoic_citadel_last_update_timestamp > 300
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Bot may be unresponsive"
+          description: "No metric updates for 5+ minutes"
+
+      # High Slippage
+      - alert: HighSlippage
+        expr: rate(stoic_citadel_slippage_total_usd[1h]) / rate(stoic_citadel_orders_filled_total[1h]) > 10
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High average slippage"
+          description: "Average slippage per trade exceeds $10"

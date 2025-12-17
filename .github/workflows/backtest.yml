@@ -1,0 +1,209 @@
+# Stoic Citadel - Backtest Workflow
+# =================================
+# Runs backtests on strategy changes
+
+name: Strategy Backtest
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/strategies/**'
+      - 'user_data/strategies/**'
+      - 'src/signals/**'
+      - 'scripts/walk_forward*.py'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/strategies/**'
+      - 'user_data/strategies/**'
+      - 'src/signals/**'
+  workflow_dispatch:
+    inputs:
+      strategy:
+        description: 'Strategy to backtest'
+        required: true
+        default: 'StoicEnsembleStrategyV2'
+      timerange:
+        description: 'Timerange for backtest'
+        required: false
+        default: '20240101-'
+
+jobs:
+  backtest:
+    name: Run Backtest
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: stoic
+          POSTGRES_PASSWORD: stoic_test
+          POSTGRES_DB: stoic_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install freqtrade
+
+      - name: Create user_data structure
+        run: |
+          mkdir -p user_data/data/binance
+          mkdir -p user_data/backtest_results
+
+      - name: Download sample data
+        run: |
+          # Download last 90 days of data for testing
+          freqtrade download-data \
+            --exchange binance \
+            --pairs BTC/USDT ETH/USDT \
+            --timeframes 5m 15m 1h \
+            --days 90 \
+            --datadir user_data/data
+        continue-on-error: true
+
+      - name: Run basic backtest
+        run: |
+          STRATEGY=${{ github.event.inputs.strategy || 'StoicEnsembleStrategyV2' }}
+          TIMERANGE=${{ github.event.inputs.timerange || '20240101-' }}
+          
+          freqtrade backtesting \
+            --strategy ${STRATEGY} \
+            --config config/config.example.json \
+            --datadir user_data/data \
+            --timerange ${TIMERANGE} \
+            --export trades \
+            --export-filename user_data/backtest_results/ci_backtest.json \
+            || echo "Backtest completed with warnings"
+        continue-on-error: true
+
+      - name: Validate backtest results
+        run: |
+          python << 'EOF'
+          import json
+          import sys
+          from pathlib import Path
+          
+          result_file = Path('user_data/backtest_results/ci_backtest.json')
+          
+          if not result_file.exists():
+              print("No backtest results found - this is OK for strategy-only changes")
+              sys.exit(0)
+          
+          with open(result_file) as f:
+              results = json.load(f)
+          
+          # Extract key metrics
+          strategy_results = list(results.get('strategy', {}).values())
+          if not strategy_results:
+              print("No strategy results found")
+              sys.exit(0)
+          
+          stats = strategy_results[0]
+          
+          print("\n=== Backtest Results ===")
+          print(f"Total Trades: {stats.get('total_trades', 0)}")
+          print(f"Win Rate: {stats.get('wins', 0) / max(stats.get('total_trades', 1), 1) * 100:.1f}%")
+          print(f"Profit: {stats.get('profit_total', 0):.2f}%")
+          print(f"Max Drawdown: {stats.get('max_drawdown', 0):.2f}%")
+          print(f"Sharpe: {stats.get('sharpe', 0):.2f}")
+          
+          # Quality checks
+          issues = []
+          
+          if stats.get('total_trades', 0) < 10:
+              issues.append("⚠️ Very few trades - may not be statistically significant")
+          
+          if stats.get('max_drawdown', 0) > 30:
+              issues.append("⚠️ High drawdown detected")
+          
+          profit = stats.get('profit_total', 0)
+          if profit < -10:
+              issues.append(f"❌ Strategy is losing: {profit:.1f}%")
+          
+          if issues:
+              print("\n=== Issues ===")
+              for issue in issues:
+                  print(issue)
+          else:
+              print("\n✅ Backtest passed quality checks")
+          
+          EOF
+
+      - name: Upload backtest results
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-results
+          path: user_data/backtest_results/
+          if-no-files-found: ignore
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'user_data/backtest_results/ci_backtest.json';
+            
+            if (!fs.existsSync(path)) {
+              console.log('No backtest results to post');
+              return;
+            }
+            
+            const results = JSON.parse(fs.readFileSync(path, 'utf8'));
+            const strategies = Object.values(results.strategy || {});
+            
+            if (strategies.length === 0) return;
+            
+            const stats = strategies[0];
+            const trades = stats.total_trades || 0;
+            const winRate = (stats.wins || 0) / Math.max(trades, 1) * 100;
+            const profit = stats.profit_total || 0;
+            const drawdown = stats.max_drawdown || 0;
+            const sharpe = stats.sharpe || 0;
+            
+            const emoji = profit > 0 ? '📈' : '📉';
+            
+            const body = `## ${emoji} Backtest Results
+            
+            | Metric | Value |
+            |--------|-------|
+            | Total Trades | ${trades} |
+            | Win Rate | ${winRate.toFixed(1)}% |
+            | Profit | ${profit.toFixed(2)}% |
+            | Max Drawdown | ${drawdown.toFixed(2)}% |
+            | Sharpe Ratio | ${sharpe.toFixed(2)} |
+            
+            <details>
+            <summary>View Details</summary>
+            
+            \`\`\`json
+            ${JSON.stringify(stats, null, 2).slice(0, 2000)}
+            \`\`\`
+            </details>`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

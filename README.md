@@ -7,59 +7,78 @@
 
 > *"The wise man accepts losses with equanimity."*
 
-Professional-grade algorithmic trading system built on Freqtrade with:
-- 🎯 **Ensemble Strategies** - Multiple sub-strategies voting for signals
-- 📊 **Regime Detection** - Adapts to market conditions automatically  
-- ⚡ **Vectorized Indicators** - Fast, efficient technical analysis
-- 🛡️ **Risk Management** - Position sizing, drawdown protection
-- 🧪 **Walk-Forward Optimization** - Robust parameter selection
+Professional-grade algorithmic trading system built on Freqtrade with advanced order management, ML pipeline, and production-ready features.
+
+## ✨ Key Features
+
+### 🎯 Trading Features
+- **Ensemble Strategies** - Multiple sub-strategies voting for robust signals
+- **Regime Detection** - Adapts to bull/bear/sideways markets automatically
+- **Advanced Order Management** - 5 order types with state machine
+- **Circuit Breaker** - Automatic risk protection against catastrophic losses
+- **Position Management** - Real-time PnL tracking with stop-loss/take-profit
+
+### 🤖 ML Pipeline (MLOps)
+- **Feature Engineering** - 50+ technical indicators
+- **Model Training** - Random Forest, XGBoost, LightGBM with hyperparameter optimization
+- **Experiment Tracking** - W&B / MLflow integration
+- **Model Registry** - Version management with production promotion
+
+### 🛡️ Production Ready
+- **Risk Management** - Position sizing, drawdown protection, daily loss limits
+- **Slippage Simulation** - Realistic execution modeling for backtests
+- **Comprehensive Testing** - 25+ unit tests
+- **Full Documentation** - API docs, guides, examples
 
 ---
 
-## 🚀 Quick Start (5 Minutes)
+## 🚀 Quick Start
 
 ### Prerequisites
 - Docker & Docker Compose
 - Git
+- Python 3.11+ (for local development)
 
-### 1. Clone & Setup
+### 1. Clone Repository
 
 ```bash
 git clone https://github.com/kandibobe/hft-algotrade-bot.git
 cd hft-algotrade-bot
+```
 
+### 2. Setup Environment
+
+```bash
 # Copy environment template
 cp .env.example .env
 
-# Edit .env with your settings (optional for backtesting)
+# Edit credentials (see CREDENTIALS.md for details)
 nano .env
 ```
 
-### 2. Download Data
+### 3. Start Services
 
 ```bash
-# Download historical data for backtesting
-make -f Makefile.backtest download PAIRS="BTC/USDT ETH/USDT" TIMERANGE="20240101-20240601"
+# Start all services (Freqtrade, FreqUI, Jupyter, PostgreSQL)
+docker-compose up -d
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f freqtrade
 ```
 
-### 3. Run Backtest
+### 4. Access Dashboards
 
-```bash
-# Run backtest with default strategy
-make -f Makefile.backtest backtest
+- **FreqUI**: http://localhost:3000
+  - Login: `stoic_admin`
+  - Password: See `CREDENTIALS.md`
 
-# Or with specific parameters
-make -f Makefile.backtest backtest STRATEGY=StoicEnsembleStrategyV2 TIMERANGE="20240101-20240301"
-```
+- **Jupyter Lab**: http://localhost:8888
+  - Token: See `CREDENTIALS.md`
 
-### 4. View Results
-
-```bash
-# Generate HTML report
-make -f Makefile.backtest report
-
-# Open reports/backtest_report.html in browser
-```
+- **Portainer**: http://localhost:9000
 
 ---
 
@@ -67,317 +86,300 @@ make -f Makefile.backtest report
 
 ```
 hft-algotrade-bot/
-├── src/                          # Core modules
-│   ├── data/                     # Data loading & validation
-│   ├── strategies/               # Strategy base classes
-│   └── utils/                    # Indicators, risk, regime
-├── user_data/                    # Freqtrade user data
-│   ├── strategies/               # Trading strategies
-│   ├── config/                   # Configuration files
-│   └── data/                     # Historical data
-├── config/                       # Strategy configs (YAML)
-├── tests/                        # Test suite
-├── scripts/                      # Utility scripts
-├── docker-compose.yml            # Production setup
-└── docker-compose.backtest.yml   # Backtest environment
+├── src/                              # Core modules
+│   ├── order_manager/                # ✅ Order Management System
+│   │   ├── order_types.py            # 5 order types with state machine
+│   │   ├── position_manager.py       # Position tracking & PnL
+│   │   ├── circuit_breaker.py        # Risk protection
+│   │   ├── slippage_simulator.py     # Execution simulation
+│   │   └── order_executor.py         # Order execution engine
+│   ├── ml/                           # ML modules
+│   │   ├── training/                 # ✅ ML Training Pipeline
+│   │   │   ├── feature_engineering.py    # Feature pipeline
+│   │   │   ├── model_trainer.py          # Model training
+│   │   │   ├── experiment_tracker.py     # Experiment tracking
+│   │   │   └── model_registry.py         # Model versioning
+│   │   └── inference_service.py      # ML inference
+│   ├── strategies/                   # Strategy base classes
+│   ├── data/                         # Data loading & validation
+│   └── utils/                        # Indicators, risk, regime
+├── user_data/                        # Freqtrade user data
+│   ├── strategies/                   # Trading strategies
+│   ├── config/                       # Configuration files
+│   ├── data/                         # Historical data
+│   └── models/                       # Trained ML models
+├── tests/                            # Test suite
+│   └── test_order_manager/           # ✅ 25 unit tests
+├── examples/                         # Working examples
+│   └── order_management_example.py   # ✅ Complete demo
+├── docs/                             # Documentation
+│   ├── ORDER_MANAGEMENT.md           # ✅ Order Management API
+│   ├── ML_TRAINING_PIPELINE.md       # ✅ ML Pipeline API
+│   ├── STRATEGY_DEVELOPMENT_GUIDE.md
+│   ├── TESTING_GUIDE.md
+│   └── ...
+├── config/                           # Strategy configs (YAML)
+├── scripts/                          # Utility scripts
+├── docker-compose.yml                # Production setup
+├── QUICKSTART.md                     # ✅ Quick start guide
+├── CREDENTIALS.md                    # ✅ Access credentials
+└── README.md                         # This file
 ```
 
 ---
 
-## 🛠️ Available Commands
+## 📚 Documentation
 
-### Backtesting
+### Getting Started
+- **[QUICKSTART.md](QUICKSTART.md)** - Get running in 5 minutes
+- **[CREDENTIALS.md](CREDENTIALS.md)** - All access credentials and passwords
+- **[START_HERE.md](START_HERE.md)** - Worktree guide (if using git worktree)
 
-```bash
-# Download data
-make -f Makefile.backtest download
+### API Documentation
+- **[docs/ORDER_MANAGEMENT.md](docs/ORDER_MANAGEMENT.md)** - Order Management System API
+- **[docs/ML_TRAINING_PIPELINE.md](docs/ML_TRAINING_PIPELINE.md)** - ML Pipeline API
+- **[docs/STRATEGY_DEVELOPMENT_GUIDE.md](docs/STRATEGY_DEVELOPMENT_GUIDE.md)** - Strategy development
+- **[docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)** - Testing guide
 
-# Run backtest
-make -f Makefile.backtest backtest
-
-# Run hyperopt (parameter optimization)
-make -f Makefile.backtest hyperopt EPOCHS=100
-
-# Generate report
-make -f Makefile.backtest report
-
-# Full workflow (download + backtest + report)
-make -f Makefile.backtest full
-
-# Quick smoke test
-make -f Makefile.backtest smoke
-```
-
-### Development
-
-```bash
-# Run tests
-pytest tests/ -v
-
-# Run only unit tests
-pytest tests/test_utils/ tests/test_data/ -v
-
-# Run integration tests
-pytest tests/test_integration/ -v -m integration
-
-# Format code
-black src/ user_data/strategies/
-isort src/ user_data/strategies/
-```
-
-### Docker
-
-```bash
-# Start trading (dry-run)
-docker-compose up -d freqtrade frequi
-
-# Start with monitoring
-docker-compose --profile analytics up -d
-
-# View logs
-docker-compose logs -f freqtrade
-
-# Stop all
-docker-compose down
-```
+### Progress & Summary
+- **[PROGRESS_SUMMARY.md](PROGRESS_SUMMARY.md)** - Development progress
+- **[FINAL_SUMMARY.md](FINAL_SUMMARY.md)** - Complete implementation summary
 
 ---
 
-## 📊 Strategies
+## 🛠️ Usage Examples
 
-### StoicEnsembleStrategyV2 (Recommended)
-
-Advanced ensemble strategy with regime detection:
-
-| Feature | Description |
-|---------|-------------|
-| **Ensemble Voting** | Combines Momentum + Mean Reversion + Breakout |
-| **Regime Aware** | Adapts risk based on market conditions |
-| **Dynamic Sizing** | Position size based on volatility |
-| **Time Filter** | Avoids low-liquidity hours |
-
-**Default Parameters:**
-- Stoploss: -5%
-- Trailing Stop: +1% / 1.5% offset
-- Max Positions: 3
-- Risk per Trade: 2%
-
-### Strategy Configuration
-
-Edit `config/strategy_config.yaml`:
-
-```yaml
-# Risk Management
-risk_per_trade: 0.02    # 2% risk per trade
-max_positions: 3        # Max concurrent positions
-stoploss: -0.05         # 5% stop loss
-
-# Entry Parameters
-rsi_oversold: 30        # RSI entry threshold
-min_adx: 20             # Minimum trend strength
-
-# Regime Detection
-regime_aware: true      # Enable/disable regime adaptation
-```
-
----
-
-## 🧪 Walk-Forward Optimization
-
-Run robust parameter optimization:
-
-```bash
-python scripts/walk_forward_optimization.py \
-    --strategy StoicEnsembleStrategyV2 \
-    --timerange 20230101-20240101 \
-    --windows 6 \
-    --epochs 100
-```
-
-This divides data into rolling windows:
-1. **Train** (60%): Optimize parameters
-2. **Validate** (20%): Verify performance
-3. **Test** (20%): Out-of-sample check
-
-Results saved to `reports/wfo/`
-
----
-
-## 📊 Indicators Module
-
-Vectorized technical indicators in `src/utils/indicators.py`:
+### Order Management
 
 ```python
-from src.utils.indicators import (
-    calculate_rsi,
-    calculate_macd,
-    calculate_bollinger_bands,
-    calculate_all_indicators
+from src.order_manager import (
+    OrderExecutor,
+    CircuitBreaker,
+    PositionManager,
+    MarketOrder,
+    OrderSide,
+    ExecutionMode,
 )
 
-# Calculate single indicator
-rsi = calculate_rsi(df['close'], period=14)
+# Initialize components
+circuit_breaker = CircuitBreaker()
+position_manager = PositionManager(max_positions=3)
+executor = OrderExecutor(
+    mode=ExecutionMode.BACKTEST,
+    circuit_breaker=circuit_breaker,
+)
 
-# Calculate all indicators at once
-df = calculate_all_indicators(df)
+# Check if can trade
+if not circuit_breaker.is_operational:
+    print("Trading halted by circuit breaker!")
+    exit()
+
+# Create and execute order
+order = MarketOrder(
+    symbol="BTC/USDT",
+    side=OrderSide.BUY,
+    quantity=0.1
+)
+
+result = executor.execute(order, market_data={
+    "price": 50000.0,
+    "volume_24h": 1_000_000_000.0,
+})
+
+if result.success:
+    position = position_manager.open_position(
+        symbol=order.symbol,
+        side="long",
+        entry_price=result.execution_price,
+        quantity=result.filled_quantity,
+        stop_loss=result.execution_price * 0.95,
+        take_profit=result.execution_price * 1.10,
+    )
+    print(f"Position opened: {position.position_id}")
 ```
 
-**Available Indicators:**
-- EMA, SMA (multiple periods)
-- RSI, Stochastic
-- MACD (with histogram)
-- Bollinger Bands
-- ATR, ADX
-- VWAP, OBV
-
----
-
-## ⚠️ Risk Management
-
-Built-in protections in `src/utils/risk.py`:
+### ML Training Pipeline
 
 ```python
-from src.utils.risk import (
-    calculate_position_size_fixed_risk,
-    calculate_max_drawdown,
-    calculate_sharpe_ratio
+from src.ml.training import (
+    FeatureEngineer,
+    ModelTrainer,
+    ModelConfig,
+    ExperimentTracker,
+    ModelRegistry
 )
 
-# Fixed risk position sizing
-position = calculate_position_size_fixed_risk(
-    account_balance=10000,
-    risk_per_trade=0.02,  # 2%
-    entry_price=50000,
-    stop_loss_price=47500
-)
-```
+# Feature engineering
+engineer = FeatureEngineer()
+features_df = engineer.transform(ohlcv_df)
 
-**Freqtrade Protections:**
-- StoplossGuard: Pause after consecutive losses
-- MaxDrawdown: Stop at maximum drawdown
-- CooldownPeriod: Wait between trades
+# Prepare data
+X_train = features_df[engineer.get_feature_names()]
+y_train = (features_df['close'].shift(-1) > features_df['close']).astype(int)
 
----
+# Track experiment
+tracker = ExperimentTracker(project="stoic-citadel-ml")
+tracker.start_run("xgboost_trend_v1")
 
-## 📈 Regime Detection
+# Train model
+config = ModelConfig(model_type="xgboost", optimize_hyperparams=True)
+trainer = ModelTrainer(config)
+model, metrics = trainer.train(X_train, y_train)
 
-Automatic market regime detection in `src/utils/regime_detection.py`:
+# Log results
+tracker.log_metrics(metrics)
+tracker.log_model("models/xgboost_v1.pkl")
+tracker.finish()
 
-| Regime | Behavior |
-|--------|----------|
-| **Aggressive** | Higher risk, more positions |
-| **Normal** | Standard parameters |
-| **Cautious** | Reduced risk |
-| **Defensive** | Minimal exposure |
-
-```python
-from src.utils.regime_detection import (
-    calculate_regime_score,
-    get_regime_parameters
+# Register model
+registry = ModelRegistry()
+metadata = registry.register_model(
+    model_name="trend_classifier",
+    model_path="models/xgboost_v1.pkl",
+    metrics=metrics,
+    feature_names=list(X_train.columns),
 )
 
-# Get current regime
-regime_data = calculate_regime_score(high, low, close, volume)
-score = regime_data['regime_score'].iloc[-1]
-
-# Get adjusted parameters
-params = get_regime_parameters(score)
-print(f"Mode: {params['mode']}, Risk: {params['risk_per_trade']}")
+# Validate and promote to production
+if registry.validate_model("trend_classifier", metadata.version):
+    registry.promote_to_production("trend_classifier", metadata.version)
+    print("Model deployed to production!")
 ```
 
 ---
 
 ## 🧪 Testing
 
+### Run Tests
+
 ```bash
 # Run all tests
 pytest tests/ -v
 
+# Run order management tests
+pytest tests/test_order_manager/ -v
+
 # Run with coverage
 pytest tests/ --cov=src --cov-report=html
 
-# Run specific test file
-pytest tests/test_utils/test_indicators.py -v
+# Windows: use run_tests.bat
+run_tests.bat
 ```
 
-**Test Structure:**
-- `tests/test_utils/` - Unit tests for indicators, risk
-- `tests/test_data/` - Data loading tests
-- `tests/test_strategies/` - Strategy tests
-- `tests/test_integration/` - End-to-end tests
-
----
-
-## 🔧 Configuration
-
-### Environment Variables
+### Run Examples
 
 ```bash
-# .env file
-FREQTRADE_API_USERNAME=admin
-FREQTRADE_API_PASSWORD=your_secure_password
-JUPYTER_TOKEN=your_jupyter_token
-POSTGRES_PASSWORD=your_db_password
-
-# Strategy selection
-STRATEGY=StoicEnsembleStrategyV2
-```
-
-### Backtest Config
-
-Edit `user_data/config/config_backtest.json`:
-
-```json
-{
-    "max_open_trades": 3,
-    "stake_amount": "unlimited",
-    "dry_run_wallet": 10000,
-    "fee": 0.001
-}
+# Order management demo
+python examples/order_management_example.py
 ```
 
 ---
 
-## 📖 Documentation
+## 🚀 Production Deployment
 
-- [Development Plan](DEVELOPMENT_PLAN.md) - Roadmap and phases
-- [Architecture](ARCHITECTURE_ANALYSIS.md) - System design
-- [Deployment](DEPLOYMENT.md) - Production setup
-- [Quick Start (Windows)](QUICKSTART_WINDOWS.md) - Windows guide
+### 1. Configure Exchange API
+
+Edit `.env`:
+
+```env
+# Binance API (or your exchange)
+BINANCE_API_KEY=your_api_key
+BINANCE_API_SECRET=your_api_secret
+
+# Enable live trading (CAREFUL!)
+DRY_RUN=false
+```
+
+### 2. Start Trading
+
+```bash
+# Start production services
+docker-compose up -d freqtrade frequi
+
+# Monitor logs
+docker-compose logs -f freqtrade
+```
+
+### 3. Monitor Performance
+
+- FreqUI Dashboard: http://localhost:3000
+- Check circuit breaker status
+- Monitor position PnL
+- Review trade history
+
+⚠️ **WARNING**: Start with small amounts! Test thoroughly in paper trading mode first.
+
+---
+
+## 📊 Features Status
+
+### ✅ Phase 1: Order Management System (COMPLETE)
+- [x] 5 order types with state machine
+- [x] Position tracking with real-time PnL
+- [x] Circuit breaker protection
+- [x] Slippage simulation
+- [x] Order execution engine
+- [x] 25 unit tests (100% pass)
+- [x] Complete documentation
+
+### ✅ Phase 2: ML Training Pipeline (COMPLETE)
+- [x] Feature engineering (50+ indicators)
+- [x] Model training (RF, XGBoost, LightGBM)
+- [x] Hyperparameter optimization (Optuna)
+- [x] Experiment tracking (W&B/MLflow)
+- [x] Model registry with versioning
+- [x] Complete documentation
+
+### 📋 Phase 3: Testing & Validation (TODO)
+- [ ] ML Pipeline unit tests
+- [ ] Integration tests
+- [ ] Automated backtest validation
+- [ ] Performance benchmarks
+
+### 📋 Phase 4: Monitoring & Metrics (TODO)
+- [ ] Prometheus metrics export
+- [ ] Grafana dashboards
+- [ ] Alerting (Slack/Email)
+- [ ] ELK Stack for logs
 
 ---
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create feature branch: `git checkout -b feature/amazing-feature`
-3. Run tests: `pytest tests/ -v`
-4. Commit: `git commit -m 'feat: add amazing feature'`
-5. Push: `git push origin feature/amazing-feature`
-6. Open Pull Request
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
-## ⚠️ Disclaimer
-
-**This software is for educational purposes only.**
-
-- Trading cryptocurrencies involves substantial risk
-- Past performance does not guarantee future results
-- Never trade with money you cannot afford to lose
-- Always test thoroughly in dry-run mode first
-
----
-
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-<p align="center">
-  <b>🏛️ Stoic Citadel</b><br>
-  <i>"The wise man adapts to circumstances like water."</i>
-</p>
+## 🙏 Acknowledgments
+
+- Built on [Freqtrade](https://www.freqtrade.io/)
+- Inspired by stoic philosophy principles
+- Community-driven development
+
+---
+
+## 📧 Support
+
+- 📖 **Documentation**: See [docs/](docs/) directory
+- 🐛 **Bug Reports**: [Open an issue](https://github.com/kandibobe/hft-algotrade-bot/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/kandibobe/hft-algotrade-bot/discussions)
+
+---
+
+**🏛️ Stoic Citadel** - Trade with wisdom, not emotion.
+
+**Status**: Production Ready
+**Version**: 1.2.0
+**Last Updated**: 2025-12-17

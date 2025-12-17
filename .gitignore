@@ -13,6 +13,7 @@
 *.key
 *_secret*
 secrets/
+CREDENTIALS.md
 
 # Generated config with credentials
 user_data/config/config.json

@@ -220,31 +220,32 @@ class TestCustomMethods:
             from user_data.strategies.StoicEnsembleStrategyV2 import StoicEnsembleStrategyV2
         except ImportError:
             pytest.skip("Strategy not available")
-        
+
         strategy = StoicEnsembleStrategyV2(strategy_config)
-        
-        # Mock dataframe provider
+
+        # Mock dataframe provider - need to create it first
         mock_df = pd.DataFrame({
             'atr_pct': [6.0]  # High volatility
         })
-        
-        with patch.object(strategy, 'dp') as mock_dp:
-            mock_dp.get_analyzed_dataframe.return_value = (mock_df, datetime.now())
-            
-            stake = strategy.custom_stake_amount(
-                pair='BTC/USDT',
-                current_time=datetime.now(),
-                current_rate=50000,
-                proposed_stake=100,
-                min_stake=10,
-                max_stake=1000,
-                leverage=1,
-                entry_tag=None,
-                side='long'
-            )
-            
-            # Should reduce stake due to high volatility
-            assert stake < 100
+
+        # Create mock dp (dataframe provider)
+        strategy.dp = MagicMock()
+        strategy.dp.get_analyzed_dataframe.return_value = (mock_df, datetime.now())
+
+        stake = strategy.custom_stake_amount(
+            pair='BTC/USDT',
+            current_time=datetime.now(),
+            current_rate=50000,
+            proposed_stake=100,
+            min_stake=10,
+            max_stake=1000,
+            leverage=1,
+            entry_tag=None,
+            side='long'
+        )
+
+        # Should reduce stake due to high volatility
+        assert stake < 100
     
     def test_confirm_trade_entry_time_filter(self, strategy_config):
         """Test that trades are filtered during low liquidity hours."""

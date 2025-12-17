@@ -226,9 +226,16 @@ class FeatureEngineer:
         plus_dm = high_diff.where((high_diff > low_diff) & (high_diff > 0), 0)
         minus_dm = low_diff.where((low_diff > high_diff) & (low_diff > 0), 0)
 
+        # Calculate true range for ADX
+        high_low = df['high'] - df['low']
+        high_close = np.abs(df['high'] - df['close'].shift())
+        low_close = np.abs(df['low'] - df['close'].shift())
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = ranges.max(axis=1)
+
         atr = true_range.rolling(self.config.short_period).mean()
-        plus_di = 100 * (plus_dm.rolling(self.config.short_period).mean() / atr)
-        minus_di = 100 * (minus_dm.rolling(self.config.short_period).mean() / atr)
+        plus_di = 100 * (plus_dm.rolling(self.config.short_period).mean() / (atr + 1e-10))
+        minus_di = 100 * (minus_dm.rolling(self.config.short_period).mean() / (atr + 1e-10))
         dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di + 1e-10)
         df['adx'] = dx.rolling(self.config.short_period).mean()
 
@@ -254,8 +261,15 @@ class FeatureEngineer:
 
     def _remove_correlated_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Remove highly correlated features."""
-        # Get numeric columns only
-        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        # Preserve OHLCV columns
+        base_cols = ['open', 'high', 'low', 'close', 'volume']
+
+        # Get numeric columns only, excluding base OHLCV columns
+        numeric_cols = [col for col in df.select_dtypes(include=[np.number]).columns
+                       if col not in base_cols]
+
+        if len(numeric_cols) < 2:
+            return df
 
         # Calculate correlation matrix
         corr_matrix = df[numeric_cols].corr().abs()
@@ -265,10 +279,11 @@ class FeatureEngineer:
             np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
         )
 
-        # Drop features with high correlation
+        # Drop features with high correlation (never drop base OHLCV columns)
         to_drop = [
             column for column in upper_tri.columns
             if any(upper_tri[column] > self.config.correlation_threshold)
+            and column not in base_cols
         ]
 
         if to_drop:

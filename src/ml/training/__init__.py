@@ -13,26 +13,40 @@ Author: Stoic Citadel Team
 License: MIT
 """
 
-from src.ml.training.feature_engineering import (
-    FeatureEngineer,
-    FeatureConfig,
-)
 
-from src.ml.training.model_trainer import (
-    ModelTrainer,
-    TrainingConfig,
-)
+def __getattr__(name):
+    """Lazy import to avoid loading sklearn when not needed."""
+    if name in ("FeatureEngineer", "FeatureConfig"):
+        from src.ml.training.feature_engineering import (
+            FeatureEngineer,
+            FeatureConfig,
+        )
+        return locals()[name]
 
-from src.ml.training.experiment_tracker import (
-    ExperimentTracker,
-    Experiment,
-)
+    if name in ("ModelTrainer", "TrainingConfig"):
+        from src.ml.training.model_trainer import (
+            ModelTrainer,
+            TrainingConfig,
+        )
+        return locals()[name]
 
-from src.ml.training.model_registry import (
-    ModelRegistry,
-    ModelMetadata,
-    ModelStatus,
-)
+    if name in ("ExperimentTracker", "Experiment"):
+        from src.ml.training.experiment_tracker import (
+            ExperimentTracker,
+            Experiment,
+        )
+        return locals()[name]
+
+    if name in ("ModelRegistry", "ModelMetadata", "ModelStatus"):
+        from src.ml.training.model_registry import (
+            ModelRegistry,
+            ModelMetadata,
+            ModelStatus,
+        )
+        return locals()[name]
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "FeatureEngineer",

@@ -223,8 +223,15 @@ class FeatureEngineer:
         df['volume_ratio'] = df['volume'] / (df['volume_sma'] + 1e-10)
 
         # Volume-price features
-        df['vwap'] = (df['volume'] * (df['high'] + df['low'] + df['close']) / 3).cumsum() / df['volume'].cumsum()
-        df['vwap_diff'] = (df['close'] - df['vwap']) / df['vwap']
+        # ✅ FIXED: Use rolling window instead of cumsum to prevent data leakage
+        # VWAP should only use past data, not future data
+        vwap_window = self.config.short_period
+        typical_price = (df['high'] + df['low'] + df['close']) / 3
+        df['vwap'] = (
+            (typical_price * df['volume']).rolling(vwap_window).sum() /
+            df['volume'].rolling(vwap_window).sum()
+        )
+        df['vwap_diff'] = (df['close'] - df['vwap']) / (df['vwap'] + 1e-10)
 
         return df
 

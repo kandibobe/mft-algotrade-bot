@@ -270,6 +270,14 @@ selector.save_selected_features(); \
 print(selector.get_feature_report())"
 	@echo "$(GREEN)✅ Feature selection completed!$(NC)"
 
+walk-forward: check-env ## Run Walk-Forward Validation (realistic backtesting)
+	@echo "$(CYAN)Running Walk-Forward Validation...$(NC)"
+	@$(DOCKER_COMPOSE) run --rm jupyter python scripts/walk_forward_validation.py \
+		--pairs BTC/USDT \
+		--timeframe 1h \
+		--windows 5
+	@echo "$(GREEN)✅ Walk-Forward Validation completed!$(NC)"
+
 # ==============================================================================
 # RESEARCH & DATA
 # ==============================================================================

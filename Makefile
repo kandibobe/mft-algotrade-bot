@@ -1,7 +1,13 @@
 # ==============================================================================
-# Stoic Citadel - Professional Trading Bot Makefile
+# Stoic Citadel - Algorithmic Trading Bot Makefile
 # ==============================================================================
 # Unified development workflow for algorithmic trading infrastructure
+#
+# Features:
+#   - ML Pipeline: Triple Barrier Labeling, Feature Selection, Model Training
+#   - Smart Order Execution: Limit order state machine with fee optimization
+#   - Risk Management: Dynamic position sizing, Market regime filter
+#   - Testing: 190+ unit tests with coverage
 #
 # Author: Stoic Citadel Team
 # License: MIT
@@ -35,7 +41,7 @@ NC     := \033[0m
 help: ## Show this help message
 	@echo ""
 	@echo "$(CYAN)╔════════════════════════════════════════════════════════════════════╗$(NC)"
-	@echo "$(CYAN)║                    STOIC CITADEL - MAKEFILE                        ║$(NC)"
+	@echo "$(CYAN)║           STOIC CITADEL - ALGORITHMIC TRADING BOT                 ║$(NC)"
 	@echo "$(CYAN)╚════════════════════════════════════════════════════════════════════╝$(NC)"
 	@echo ""
 	@echo "$(GREEN)Development Workflow:$(NC)"
@@ -45,6 +51,8 @@ help: ## Show this help message
 	@echo "  make setup                          # Initial setup"
 	@echo "  make test                           # Run all tests"
 	@echo "  make lint                           # Check code quality"
+	@echo "  make train                          # Train ML model"
+	@echo "  make optimize-ml                    # Hyperopt with Optuna"
 	@echo "  make backtest STRATEGY=MyStrategy   # Run backtest"
 	@echo "  make logs SERVICE=jupyter           # View Jupyter logs"
 	@echo ""
@@ -214,6 +222,53 @@ hyperopt: check-env ## Run hyperparameter optimization
 		--epochs 500 \
 		--spaces buy sell
 	@echo "$(GREEN)✅ Hyperopt completed!$(NC)"
+
+# ==============================================================================
+# ML PIPELINE
+# ==============================================================================
+
+##@ ML Pipeline
+
+train: check-env ## Train ML model with proper data split
+	@echo "$(CYAN)Training ML model...$(NC)"
+	@$(DOCKER_COMPOSE) run --rm jupyter python -c "\
+from src.ml.training import FeatureEngineer, TripleBarrierLabeler, TripleBarrierConfig, ModelTrainer, TrainingConfig; \
+import pandas as pd; \
+from sklearn.model_selection import train_test_split; \
+df = pd.read_parquet('user_data/data/BTC_USDT-1h.parquet'); \
+labeler = TripleBarrierLabeler(TripleBarrierConfig(take_profit_pct=0.02, stop_loss_pct=0.01)); \
+df = labeler.create_labels(df); \
+train_df, test_df = train_test_split(df, test_size=0.2, shuffle=False); \
+engineer = FeatureEngineer(); \
+train_features = engineer.fit_transform(train_df); \
+test_features = engineer.transform(test_df); \
+engineer.save_scaler('user_data/models/scaler.joblib'); \
+print('Training model...'); \
+trainer = ModelTrainer(TrainingConfig(model_type='lightgbm')); \
+model, metrics = trainer.train(train_features[engineer.get_feature_names()].dropna(), train_features.loc[train_features[engineer.get_feature_names()].dropna().index, 'label']); \
+print(f'Metrics: {metrics}')"
+	@echo "$(GREEN)✅ Model trained!$(NC)"
+
+optimize-ml: check-env ## Run ML hyperparameter optimization with Optuna
+	@echo "$(CYAN)Running ML hyperparameter optimization...$(NC)"
+	@$(DOCKER_COMPOSE) run --rm jupyter python scripts/optimize_strategy.py --n-trials 100
+	@echo "$(GREEN)✅ Optimization completed!$(NC)"
+
+feature-select: check-env ## Run feature selection (SHAP + Permutation Importance)
+	@echo "$(CYAN)Running feature selection...$(NC)"
+	@$(DOCKER_COMPOSE) run --rm jupyter python -c "\
+from src.ml.training import FeatureSelector, FeatureSelectionConfig, FeatureEngineer; \
+import pandas as pd; \
+df = pd.read_parquet('user_data/data/BTC_USDT-1h.parquet'); \
+engineer = FeatureEngineer(); \
+features = engineer.fit_transform(df); \
+X = features[engineer.get_feature_names()].dropna(); \
+y = features.loc[X.index, 'close'].pct_change().shift(-1) > 0; \
+selector = FeatureSelector(FeatureSelectionConfig(method='permutation')); \
+X_selected, selected = selector.fit_transform(X, y.loc[X.index].dropna()); \
+selector.save_selected_features(); \
+print(selector.get_feature_report())"
+	@echo "$(GREEN)✅ Feature selection completed!$(NC)"
 
 # ==============================================================================
 # RESEARCH & DATA

@@ -6,10 +6,12 @@ Transform raw OHLCV data into ML-ready features.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import pandas as pd
 import numpy as np
 import logging
+from pathlib import Path
+import joblib
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +57,20 @@ class FeatureEngineer:
     - Time-based features
     - Feature scaling and selection
 
+    IMPORTANT: To avoid data leakage, use fit_transform() on training data,
+    then transform() on test/validation data. Never fit on test data!
+
     Usage:
         engineer = FeatureEngineer(config)
-        features_df = engineer.transform(ohlcv_df)
+
+        # Training: fit scaler on train data only
+        train_features = engineer.fit_transform(train_df)
+
+        # Testing: apply same scaler (no fitting!)
+        test_features = engineer.transform(test_df)
+
+        # Save scaler for production
+        engineer.save_scaler("models/scaler.joblib")
     """
 
     def __init__(self, config: Optional[FeatureConfig] = None):
@@ -70,19 +83,95 @@ class FeatureEngineer:
         self.config = config or FeatureConfig()
         self.feature_names: List[str] = []
         self.scaler = None
+        self._is_fitted = False
+        self._scaled_feature_cols: List[str] = []
+
+    def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Fit scaler on data and transform. Use this for TRAINING data only.
+
+        This method:
+        1. Engineers features (indicators, time features, etc.)
+        2. Removes correlated features
+        3. FITS the scaler on this data (learns mean/std or min/max)
+        4. Transforms the data using the fitted scaler
+
+        IMPORTANT: Only call this on training data to avoid data leakage!
+
+        Args:
+            df: Training DataFrame with OHLCV data
+
+        Returns:
+            DataFrame with engineered and scaled features
+        """
+        logger.info(f"Fit-transforming features from {len(df)} rows (TRAINING MODE)")
+
+        result = self._engineer_features(df)
+
+        # Remove highly correlated features (learn which to remove from train)
+        if self.config.remove_correlated:
+            result = self._remove_correlated_features(result)
+
+        # Fit scaler on training data and transform
+        if self.config.scale_features:
+            result = self._fit_scale_features(result)
+
+        # Store feature names (after correlation removal)
+        self.feature_names = [col for col in result.columns
+                            if col not in ['open', 'high', 'low', 'close', 'volume']]
+
+        self._is_fitted = True
+        logger.info(f"Generated {len(self.feature_names)} features (scaler fitted)")
+
+        return result
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Transform OHLCV data to features.
+        Transform data using pre-fitted scaler. Use this for TEST/VALIDATION data.
+
+        This method:
+        1. Engineers features (same indicators as training)
+        2. Applies the same scaler fitted on training data (NO refitting!)
+
+        IMPORTANT: Must call fit_transform() first on training data!
 
         Args:
-            df: DataFrame with OHLCV data
+            df: Test/validation DataFrame with OHLCV data
 
         Returns:
-            DataFrame with engineered features
-        """
-        logger.info(f"Engineering features from {len(df)} rows")
+            DataFrame with engineered and scaled features
 
+        Raises:
+            ValueError: If fit_transform() was not called first
+        """
+        if self.config.scale_features and not self._is_fitted:
+            raise ValueError(
+                "Scaler not fitted! Call fit_transform() on training data first. "
+                "This prevents data leakage from test set into scaler parameters."
+            )
+
+        logger.info(f"Transforming features from {len(df)} rows (TEST MODE)")
+
+        result = self._engineer_features(df)
+
+        # Apply same correlation filter (use stored feature names)
+        if self.config.remove_correlated and self.feature_names:
+            # Keep only features that were kept during training
+            cols_to_keep = ['open', 'high', 'low', 'close', 'volume'] + [
+                col for col in self.feature_names if col in result.columns
+            ]
+            result = result[[col for col in cols_to_keep if col in result.columns]]
+
+        # Apply pre-fitted scaler (NO fitting on test data!)
+        if self.config.scale_features:
+            result = self._apply_scale_features(result)
+
+        logger.info(f"Transformed {len(self.feature_names)} features")
+
+        return result
+
+    def _engineer_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Engineer all features without scaling."""
         result = df.copy()
 
         # Add technical indicators
@@ -104,20 +193,6 @@ class FeatureEngineer:
         # Add time features
         if self.config.include_time_features:
             result = self._add_time_features(result)
-
-        # Remove highly correlated features
-        if self.config.remove_correlated:
-            result = self._remove_correlated_features(result)
-
-        # Scale features
-        if self.config.scale_features:
-            result = self._scale_features(result)
-
-        # Store feature names
-        self.feature_names = [col for col in result.columns
-                            if col not in ['open', 'high', 'low', 'close', 'volume']]
-
-        logger.info(f"Generated {len(self.feature_names)} features")
 
         return result
 
@@ -292,8 +367,13 @@ class FeatureEngineer:
 
         return df
 
-    def _scale_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Scale features to standard range."""
+    def _fit_scale_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Fit scaler on features and transform. TRAINING DATA ONLY.
+
+        This learns the scaling parameters (mean/std for StandardScaler,
+        min/max for MinMaxScaler) from the training data.
+        """
         from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 
         # Don't scale OHLCV columns
@@ -303,6 +383,9 @@ class FeatureEngineer:
         if not feature_cols:
             return df
 
+        # Store feature columns for later use
+        self._scaled_feature_cols = feature_cols
+
         # Select scaler
         if self.config.scaling_method == "standard":
             self.scaler = StandardScaler()
@@ -311,11 +394,81 @@ class FeatureEngineer:
         else:  # robust
             self.scaler = RobustScaler()
 
-        # Fit and transform
+        # FIT on training data and transform
+        logger.info(f"Fitting scaler ({self.config.scaling_method}) on {len(feature_cols)} features")
         df[feature_cols] = self.scaler.fit_transform(df[feature_cols])
 
         return df
 
+    def _apply_scale_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Apply pre-fitted scaler to features. TEST/VALIDATION DATA ONLY.
+
+        Uses scaling parameters learned from training data - NO refitting!
+        This prevents data leakage from test set.
+        """
+        if self.scaler is None:
+            raise ValueError("Scaler not fitted! Call fit_transform() first.")
+
+        # Use the same feature columns as training
+        feature_cols = [col for col in self._scaled_feature_cols if col in df.columns]
+
+        if not feature_cols:
+            return df
+
+        # TRANSFORM only (no fitting!)
+        logger.info(f"Applying pre-fitted scaler to {len(feature_cols)} features")
+        df[feature_cols] = self.scaler.transform(df[feature_cols])
+
+        return df
+
+    def save_scaler(self, path: str) -> None:
+        """
+        Save fitted scaler to file for production use.
+
+        Args:
+            path: Path to save scaler (e.g., "models/scaler.joblib")
+        """
+        if self.scaler is None:
+            raise ValueError("Scaler not fitted! Call fit_transform() first.")
+
+        output_path = Path(path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        scaler_data = {
+            "scaler": self.scaler,
+            "feature_cols": self._scaled_feature_cols,
+            "feature_names": self.feature_names,
+            "config": {
+                "scaling_method": self.config.scaling_method,
+                "correlation_threshold": self.config.correlation_threshold,
+            }
+        }
+
+        joblib.dump(scaler_data, output_path)
+        logger.info(f"Scaler saved to {output_path}")
+
+    def load_scaler(self, path: str) -> None:
+        """
+        Load pre-fitted scaler from file.
+
+        Args:
+            path: Path to load scaler from
+        """
+        input_path = Path(path)
+        scaler_data = joblib.load(input_path)
+
+        self.scaler = scaler_data["scaler"]
+        self._scaled_feature_cols = scaler_data["feature_cols"]
+        self.feature_names = scaler_data["feature_names"]
+        self._is_fitted = True
+
+        logger.info(f"Scaler loaded from {input_path} ({len(self.feature_names)} features)")
+
     def get_feature_names(self) -> List[str]:
         """Get list of generated feature names."""
         return self.feature_names
+
+    def is_fitted(self) -> bool:
+        """Check if scaler has been fitted."""
+        return self._is_fitted

@@ -16,7 +16,12 @@ For a $10,000 trade:
 - Limit: $2 fee (or $0 with rebate)
 - Savings: $8 per trade
 
-Reference: HFT best practices for fee optimization
+State Machine for Order Lifecycle:
+    PENDING -> PLACED -> CHECKING -> FILLED (success)
+                     |-> PARTIALLY_FILLED -> CHASING -> CHECKING
+                     |-> OPEN -> CHASING -> CHECKING
+                     |-> TIMEOUT -> MARKET_FALLBACK -> FILLED
+                     |-> CANCELLED -> FAILED
 """
 
 from dataclasses import dataclass, field
@@ -24,11 +29,26 @@ from datetime import datetime
 from typing import Optional, Dict, Any, Callable
 from enum import Enum
 import time
+import asyncio
 import logging
 
 from src.order_manager.order_types import Order, OrderType, OrderSide, OrderStatus, LimitOrder
 
 logger = logging.getLogger(__name__)
+
+
+class ExecutionState(Enum):
+    """State machine states for smart limit order execution."""
+    PENDING = "pending"                  # Order created, not yet placed
+    PLACED = "placed"                    # Limit order placed on exchange
+    CHECKING = "checking"                # Checking order status
+    PARTIALLY_FILLED = "partially_filled"  # Some quantity filled
+    CHASING = "chasing"                  # Updating price to chase market
+    MARKET_FALLBACK = "market_fallback"  # Converting to market order
+    FILLED = "filled"                    # Order fully filled
+    CANCELLED = "cancelled"              # Order cancelled
+    TIMEOUT = "timeout"                  # Max wait time exceeded
+    FAILED = "failed"                    # Execution failed
 
 
 class ChasingStrategy(Enum):
@@ -522,3 +542,425 @@ class SmartLimitExecutor:
                 sum(r.chase_count for r in self.execution_history) / max(1, total_executions)
             )
         }
+
+
+class AsyncSmartLimitExecutor:
+    """
+    Async version of SmartLimitExecutor with proper state machine.
+
+    Uses asyncio for non-blocking order monitoring.
+
+    State Machine:
+        PENDING -> PLACED -> CHECKING
+                         |-> FILLED (done)
+                         |-> PARTIALLY_FILLED -> wait -> CHECKING
+                         |-> OPEN -> CHASING -> PLACED
+                         |-> TIMEOUT -> MARKET_FALLBACK -> FILLED
+
+    Usage:
+        executor = AsyncSmartLimitExecutor(config)
+
+        result = await executor.execute_async(
+            order=buy_order,
+            exchange_api=exchange,
+            orderbook=orderbook
+        )
+    """
+
+    def __init__(self, config: Optional[SmartLimitConfig] = None):
+        """Initialize async executor."""
+        self.config = config or SmartLimitConfig()
+        self.execution_history: list[SmartExecutionResult] = []
+        self.total_fees_saved = 0.0
+        self._current_state = ExecutionState.PENDING
+
+    @property
+    def state(self) -> ExecutionState:
+        """Get current execution state."""
+        return self._current_state
+
+    def _transition_to(self, new_state: ExecutionState) -> None:
+        """Transition to a new state with logging."""
+        old_state = self._current_state
+        self._current_state = new_state
+        logger.debug(f"State transition: {old_state.value} -> {new_state.value}")
+
+    async def execute_async(
+        self,
+        order: Order,
+        exchange_api: Any,
+        orderbook: Dict[str, Any],
+        on_state_change: Optional[Callable[[ExecutionState, Dict], None]] = None
+    ) -> SmartExecutionResult:
+        """
+        Execute order asynchronously with state machine.
+
+        Args:
+            order: Order to execute
+            exchange_api: Exchange API (must support async or be wrapped)
+            orderbook: Current order book
+            on_state_change: Callback for state changes
+
+        Returns:
+            SmartExecutionResult
+        """
+        start_time = time.time()
+        self._transition_to(ExecutionState.PENDING)
+
+        # Validate inputs
+        if not orderbook or not orderbook.get("bids") or not orderbook.get("asks"):
+            self._transition_to(ExecutionState.FAILED)
+            return self._create_failure_result(
+                order, "Invalid order book data", start_time
+            )
+
+        best_bid = orderbook["bids"][0][0]
+        best_ask = orderbook["asks"][0][0]
+        spread_bps = ((best_ask - best_bid) / best_bid) * 10000
+
+        # Check spread
+        if spread_bps > self.config.max_spread_bps:
+            logger.warning(f"Spread too wide: {spread_bps:.1f} bps")
+            self._transition_to(ExecutionState.MARKET_FALLBACK)
+            return await self._execute_market_async(
+                order, exchange_api, best_ask if order.is_buy else best_bid, start_time
+            )
+
+        # Calculate initial price
+        current_price = self._calculate_limit_price(order, best_bid, best_ask)
+
+        # State machine loop
+        exchange_order_id: Optional[str] = None
+        chase_count = 0
+        filled_quantity = 0.0
+
+        while True:
+            elapsed = time.time() - start_time
+
+            # Check timeout
+            if elapsed >= self.config.max_wait_seconds:
+                self._transition_to(ExecutionState.TIMEOUT)
+                if exchange_order_id:
+                    await self._cancel_order_async(exchange_order_id, order.symbol, exchange_api)
+
+                if self.config.convert_to_market and filled_quantity < order.quantity:
+                    self._transition_to(ExecutionState.MARKET_FALLBACK)
+                    return await self._execute_market_async(
+                        order, exchange_api, current_price, start_time,
+                        already_filled=filled_quantity
+                    )
+                else:
+                    self._transition_to(ExecutionState.FAILED)
+                    return self._create_failure_result(
+                        order, "Timeout", start_time, chase_count
+                    )
+
+            # State: PENDING -> Place order
+            if self._current_state == ExecutionState.PENDING:
+                self._transition_to(ExecutionState.PLACED)
+                result = await self._place_order_async(order, current_price, exchange_api)
+
+                if not result["success"]:
+                    self._transition_to(ExecutionState.FAILED)
+                    return self._create_failure_result(
+                        order, result.get("error", "Failed to place"), start_time
+                    )
+
+                exchange_order_id = result.get("order_id")
+                if on_state_change:
+                    on_state_change(self._current_state, {"price": current_price})
+
+            # State: PLACED/CHASING -> Check status
+            if self._current_state in (ExecutionState.PLACED, ExecutionState.CHASING):
+                self._transition_to(ExecutionState.CHECKING)
+
+                # Wait before checking
+                await asyncio.sleep(self.config.chase_interval_seconds)
+
+                status = await self._check_status_async(
+                    exchange_order_id, order.symbol, exchange_api
+                )
+
+                if status["status"] == "closed":
+                    # Fully filled!
+                    self._transition_to(ExecutionState.FILLED)
+                    filled_quantity = status.get("filled", order.quantity)
+                    avg_price = status.get("average", current_price)
+                    fee = self._calculate_maker_fee(filled_quantity * avg_price)
+
+                    market_fee = self._calculate_taker_fee(filled_quantity * avg_price)
+                    fee_saved = market_fee - fee
+                    self.total_fees_saved += fee_saved
+
+                    order.update_fill(filled_quantity, avg_price, fee)
+
+                    if on_state_change:
+                        on_state_change(self._current_state, {"filled": filled_quantity})
+
+                    return SmartExecutionResult(
+                        success=True,
+                        order=order,
+                        execution_type="maker",
+                        average_price=avg_price,
+                        filled_quantity=filled_quantity,
+                        total_fee=fee,
+                        fee_saved_vs_market=fee_saved,
+                        chase_count=chase_count,
+                        total_time_seconds=time.time() - start_time
+                    )
+
+                elif status["status"] == "partially_filled":
+                    self._transition_to(ExecutionState.PARTIALLY_FILLED)
+                    filled_quantity = status.get("filled", 0)
+
+                    if on_state_change:
+                        on_state_change(self._current_state, {"filled": filled_quantity})
+
+                    # Continue waiting or chase
+                    if elapsed >= self.config.max_wait_seconds * 0.5:
+                        # Chase after 50% of wait time
+                        self._transition_to(ExecutionState.CHASING)
+
+                elif status["status"] == "open":
+                    # Not filled yet - should we chase?
+                    convert_threshold = self.config.max_wait_seconds * self.config.market_conversion_threshold
+
+                    if elapsed >= convert_threshold:
+                        # Convert to market
+                        self._transition_to(ExecutionState.MARKET_FALLBACK)
+                        await self._cancel_order_async(exchange_order_id, order.symbol, exchange_api)
+                        return await self._execute_market_async(
+                            order, exchange_api, current_price, start_time,
+                            already_filled=filled_quantity
+                        )
+                    else:
+                        # Chase the price
+                        self._transition_to(ExecutionState.CHASING)
+
+            # State: CHASING -> Update price
+            if self._current_state == ExecutionState.CHASING:
+                try:
+                    # Fetch fresh orderbook
+                    new_orderbook = exchange_api.fetch_order_book(order.symbol)
+                    new_price = self._calculate_chase_price(
+                        order, current_price, new_orderbook, chase_count
+                    )
+
+                    if new_price != current_price:
+                        # Cancel and replace
+                        await self._cancel_order_async(exchange_order_id, order.symbol, exchange_api)
+
+                        result = await self._place_order_async(order, new_price, exchange_api)
+                        if result["success"]:
+                            exchange_order_id = result.get("order_id")
+                            current_price = new_price
+                            chase_count += 1
+
+                            logger.info(f"Chase #{chase_count}: New price {new_price:.2f}")
+
+                            if on_state_change:
+                                on_state_change(self._current_state, {
+                                    "price": new_price,
+                                    "chase_count": chase_count
+                                })
+
+                    self._transition_to(ExecutionState.PLACED)
+
+                except Exception as e:
+                    logger.warning(f"Chase error: {e}")
+                    self._transition_to(ExecutionState.PLACED)
+
+    def _calculate_limit_price(
+        self,
+        order: Order,
+        best_bid: float,
+        best_ask: float
+    ) -> float:
+        """Calculate initial limit price."""
+        offset_ratio = self.config.initial_offset_bps / 10000
+
+        if order.is_buy:
+            price = best_bid * (1 + offset_ratio)
+            price = min(price, best_ask * 0.9999)
+        else:
+            price = best_ask * (1 - offset_ratio)
+            price = max(price, best_bid * 1.0001)
+
+        return round(price, 8)
+
+    def _calculate_chase_price(
+        self,
+        order: Order,
+        current_price: float,
+        orderbook: Dict,
+        chase_count: int
+    ) -> float:
+        """Calculate new chase price."""
+        best_bid = orderbook["bids"][0][0] if orderbook.get("bids") else current_price
+        best_ask = orderbook["asks"][0][0] if orderbook.get("asks") else current_price
+
+        offset_bps = min(
+            self.config.initial_offset_bps + (chase_count * 1.0),
+            self.config.max_offset_bps
+        )
+        offset_ratio = offset_bps / 10000
+
+        if order.is_buy:
+            new_price = best_bid * (1 + offset_ratio)
+            if new_price > current_price * 1.0001:
+                return round(min(new_price, best_ask * 0.9999), 8)
+        else:
+            new_price = best_ask * (1 - offset_ratio)
+            if new_price < current_price * 0.9999:
+                return round(max(new_price, best_bid * 1.0001), 8)
+
+        return current_price
+
+    async def _place_order_async(
+        self,
+        order: Order,
+        price: float,
+        exchange_api: Any
+    ) -> Dict:
+        """Place limit order (async wrapper)."""
+        try:
+            # Support both sync and async APIs
+            if asyncio.iscoroutinefunction(exchange_api.create_limit_order):
+                result = await exchange_api.create_limit_order(
+                    symbol=order.symbol,
+                    side=order.side.value,
+                    amount=order.quantity,
+                    price=price
+                )
+            else:
+                result = exchange_api.create_limit_order(
+                    symbol=order.symbol,
+                    side=order.side.value,
+                    amount=order.quantity,
+                    price=price
+                )
+
+            return {"success": True, "order_id": result.get("id")}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def _cancel_order_async(
+        self,
+        order_id: str,
+        symbol: str,
+        exchange_api: Any
+    ) -> bool:
+        """Cancel order (async wrapper)."""
+        try:
+            if asyncio.iscoroutinefunction(exchange_api.cancel_order):
+                await exchange_api.cancel_order(order_id, symbol)
+            else:
+                exchange_api.cancel_order(order_id, symbol)
+            return True
+        except Exception as e:
+            logger.warning(f"Cancel failed: {e}")
+            return False
+
+    async def _check_status_async(
+        self,
+        order_id: str,
+        symbol: str,
+        exchange_api: Any
+    ) -> Dict:
+        """Check order status (async wrapper)."""
+        try:
+            if asyncio.iscoroutinefunction(exchange_api.fetch_order):
+                result = await exchange_api.fetch_order(order_id, symbol)
+            else:
+                result = exchange_api.fetch_order(order_id, symbol)
+
+            return {
+                "status": result.get("status"),
+                "filled": result.get("filled", 0),
+                "average": result.get("average", 0),
+            }
+        except Exception as e:
+            logger.warning(f"Status check failed: {e}")
+            return {"status": "unknown"}
+
+    async def _execute_market_async(
+        self,
+        order: Order,
+        exchange_api: Any,
+        reference_price: float,
+        start_time: float,
+        already_filled: float = 0.0
+    ) -> SmartExecutionResult:
+        """Execute as market order (async)."""
+        remaining = order.quantity - already_filled
+
+        if remaining <= 0:
+            return SmartExecutionResult(
+                success=True,
+                order=order,
+                execution_type="maker",
+                average_price=reference_price,
+                filled_quantity=already_filled,
+                total_fee=self._calculate_maker_fee(already_filled * reference_price),
+                total_time_seconds=time.time() - start_time
+            )
+
+        try:
+            if asyncio.iscoroutinefunction(exchange_api.create_market_order):
+                result = await exchange_api.create_market_order(
+                    symbol=order.symbol,
+                    side=order.side.value,
+                    amount=remaining
+                )
+            else:
+                result = exchange_api.create_market_order(
+                    symbol=order.symbol,
+                    side=order.side.value,
+                    amount=remaining
+                )
+
+            avg_price = result.get("average", reference_price)
+            fee = self._calculate_taker_fee(remaining * avg_price)
+
+            self._transition_to(ExecutionState.FILLED)
+
+            return SmartExecutionResult(
+                success=True,
+                order=order,
+                execution_type="taker" if already_filled == 0 else "partial",
+                average_price=avg_price,
+                filled_quantity=already_filled + remaining,
+                total_fee=fee,
+                fee_saved_vs_market=0.0,
+                total_time_seconds=time.time() - start_time
+            )
+
+        except Exception as e:
+            self._transition_to(ExecutionState.FAILED)
+            return self._create_failure_result(order, str(e), start_time)
+
+    def _calculate_maker_fee(self, value: float) -> float:
+        """Calculate maker fee."""
+        return value * (self.config.maker_fee_bps / 10000)
+
+    def _calculate_taker_fee(self, value: float) -> float:
+        """Calculate taker fee."""
+        return value * (self.config.taker_fee_bps / 10000)
+
+    def _create_failure_result(
+        self,
+        order: Order,
+        error: str,
+        start_time: float,
+        chase_count: int = 0
+    ) -> SmartExecutionResult:
+        """Create failure result."""
+        return SmartExecutionResult(
+            success=False,
+            order=order,
+            execution_type="failed",
+            error_message=error,
+            chase_count=chase_count,
+            total_time_seconds=time.time() - start_time
+        )

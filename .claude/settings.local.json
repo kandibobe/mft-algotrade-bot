@@ -12,7 +12,9 @@
       "Bash(pip install:*)",
       "Bash(git merge:*)",
       "Bash(tree:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

@@ -19,7 +19,8 @@ Professional-grade algorithmic trading system built on Freqtrade with advanced o
 - **Position Management** - Real-time PnL tracking with stop-loss/take-profit
 
 ### 🤖 ML Pipeline (MLOps)
-- **Feature Engineering** - 50+ technical indicators
+- **Feature Engineering** - 50+ technical indicators with stationarity (log returns)
+- **Triple Barrier Labeling** - Proper ML labels accounting for fees and holding period
 - **Model Training** - Random Forest, XGBoost, LightGBM with hyperparameter optimization
 - **Experiment Tracking** - W&B / MLflow integration
 - **Model Registry** - Version management with production promotion
@@ -132,14 +133,13 @@ hft-algotrade-bot/
 
 ### Getting Started
 - **[QUICKSTART.md](QUICKSTART.md)** - Get running in 5 minutes
-- **[docs/deployment.md](docs/deployment.md)** - Production deployment guide
+- **[CREDENTIALS.md](CREDENTIALS.md)** - All access credentials and passwords
+- **[TESTING.md](TESTING.md)** - How to run tests and validate
 
 ### API Documentation
 - **[docs/ORDER_MANAGEMENT.md](docs/ORDER_MANAGEMENT.md)** - Order Management System API
 - **[docs/ML_TRAINING_PIPELINE.md](docs/ML_TRAINING_PIPELINE.md)** - ML Pipeline API
 - **[docs/STRATEGY_DEVELOPMENT_GUIDE.md](docs/STRATEGY_DEVELOPMENT_GUIDE.md)** - Strategy development
-- **[docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)** - Testing guide
-- **[docs/api.md](docs/api.md)** - Full API reference
 
 ---
 
@@ -315,11 +315,14 @@ docker-compose logs -f freqtrade
 - [x] Circuit breaker protection
 - [x] Slippage simulation
 - [x] Order execution engine
-- [x] 12 unit tests (100% pass)
+- [x] **Smart Limit Orders** - Fee-optimized execution (Maker vs Taker)
+- [x] 25+ unit tests (100% pass)
 - [x] Complete documentation
 
 ### ✅ Phase 2: ML Training Pipeline (COMPLETE)
 - [x] Feature engineering (50+ indicators)
+- [x] **Triple Barrier Labeling** - Proper ML labels with TP/SL/Time barriers
+- [x] **Dynamic Barrier Labeling** - ATR-adjusted barriers
 - [x] Model training (RF, XGBoost, LightGBM)
 - [x] Hyperparameter optimization (Optuna)
 - [x] Experiment tracking (W&B/MLflow)
@@ -327,15 +330,16 @@ docker-compose logs -f freqtrade
 - [x] Complete documentation
 
 ### ✅ Phase 3: Testing & Validation (COMPLETE)
-- [x] ML Pipeline unit tests (43 tests)
-- [x] Strategy tests (41 tests)
-- [x] Integration tests (18 tests)
-- [x] Total: 174 tests collected
+- [x] ML Pipeline unit tests (40+ tests)
+- [x] Risk management tests
+- [x] Strategy tests
+- [x] Labeling tests (21 tests)
+- [x] 190+ total tests
 
-### 📋 Phase 4: Monitoring & Metrics (TODO)
-- [ ] Prometheus metrics export
+### 📋 Phase 4: Monitoring & Metrics (IN PROGRESS)
+- [x] Prometheus metrics export
 - [ ] Grafana dashboards
-- [ ] Alerting (Slack/Email)
+- [ ] Alerting (Slack/Email/Telegram)
 - [ ] ELK Stack for logs
 
 ### 📋 Phase 5: Live Trading Enhancements (TODO)
@@ -383,6 +387,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **🏛️ Stoic Citadel** - Trade with wisdom, not emotion.
 
 **Status**: Production Ready
-**Version**: 1.3.0
-**Last Updated**: 2025-12-17
-**Tests**: 174 collected (All passing)
+**Version**: 1.4.0
+**Last Updated**: 2025-12-18
+**Tests**: 190+ passing

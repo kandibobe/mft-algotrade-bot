@@ -59,6 +59,18 @@ def __getattr__(name):
         )
         return locals()[name]
 
+    if name in (
+        "FeatureSelector",
+        "FeatureSelectionConfig",
+        "RecursiveFeatureEliminator",
+    ):
+        from src.ml.training.feature_selection import (
+            FeatureSelector,
+            FeatureSelectionConfig,
+            RecursiveFeatureEliminator,
+        )
+        return locals()[name]
+
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -76,4 +88,7 @@ __all__ = [
     "TripleBarrierConfig",
     "DynamicBarrierLabeler",
     "create_labels_for_training",
+    "FeatureSelector",
+    "FeatureSelectionConfig",
+    "RecursiveFeatureEliminator",
 ]

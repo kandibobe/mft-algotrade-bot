@@ -393,13 +393,251 @@ class PositionSizer:
         """Calculate total correlated exposure."""
         if self._correlation_matrix is None:
             return position_value
-        
+
         total_correlated = position_value
-        
+
         for other_symbol, other_value in self._current_positions.items():
             if other_symbol in self._correlation_matrix.columns:
                 correlation = abs(self._correlation_matrix.loc[symbol, other_symbol])
                 if correlation > 0.5:  # Only count highly correlated
                     total_correlated += other_value * correlation
-        
+
         return total_correlated
+
+    def calculate_atr_based_size(
+        self,
+        account_balance: float,
+        entry_price: float,
+        dataframe: pd.DataFrame,
+        atr_period: int = 14,
+        atr_multiplier: float = 2.0,
+        risk_per_trade: float = 0.01,
+    ) -> Dict[str, float]:
+        """
+        Calculate position size based on ATR for stop-loss sizing.
+
+        This method sizes positions so that a 2xATR move equals your
+        risk per trade. More volatile = smaller position.
+
+        Args:
+            account_balance: Total account balance
+            entry_price: Current/planned entry price
+            dataframe: OHLCV dataframe with high, low, close
+            atr_period: Period for ATR calculation
+            atr_multiplier: Stop-loss distance in ATR multiples
+            risk_per_trade: Maximum risk per trade (e.g., 0.01 = 1%)
+
+        Returns:
+            Dictionary with position details and calculated stop-loss
+        """
+        # Calculate ATR
+        high_low = dataframe['high'] - dataframe['low']
+        high_close = np.abs(dataframe['high'] - dataframe['close'].shift())
+        low_close = np.abs(dataframe['low'] - dataframe['close'].shift())
+
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = ranges.max(axis=1)
+        atr = true_range.rolling(atr_period).mean().iloc[-1]
+
+        if pd.isna(atr) or atr <= 0:
+            logger.warning("Invalid ATR, using fixed risk sizing")
+            return self._fixed_risk_size(
+                account_balance, entry_price, entry_price * 0.98
+            )
+
+        # Calculate stop-loss price
+        stop_loss_distance = atr * atr_multiplier
+        stop_loss_price = entry_price - stop_loss_distance
+
+        # Calculate position size
+        # Risk = Position * (Entry - Stop) / Entry = risk_per_trade * Balance
+        # Position = (risk_per_trade * Balance) / (Stop Distance / Entry)
+        stop_loss_pct = stop_loss_distance / entry_price
+        position_value = (risk_per_trade * account_balance) / stop_loss_pct
+        position_size = position_value / entry_price
+
+        # Apply max position limit
+        max_position_value = account_balance * self.config.max_position_pct
+        if position_value > max_position_value:
+            position_value = max_position_value
+            position_size = position_value / entry_price
+            limiting_factor = "max_position_pct"
+        else:
+            limiting_factor = None
+
+        return {
+            "method": "atr_based",
+            "position_size": position_size,
+            "position_value": position_value,
+            "atr": atr,
+            "atr_pct": atr / entry_price,
+            "stop_loss_price": stop_loss_price,
+            "stop_loss_distance": stop_loss_distance,
+            "stop_loss_pct": stop_loss_pct,
+            "risk_amount": position_value * stop_loss_pct,
+            "risk_pct": risk_per_trade,
+            "atr_multiplier": atr_multiplier,
+            "limited_by": limiting_factor
+        }
+
+    def calculate_dynamic_stake(
+        self,
+        account_balance: float,
+        entry_price: float,
+        dataframe: pd.DataFrame,
+        current_drawdown: float = 0.0,
+        win_rate: Optional[float] = None,
+        avg_win: Optional[float] = None,
+        avg_loss: Optional[float] = None,
+    ) -> Dict[str, float]:
+        """
+        Calculate dynamic stake using best available method.
+
+        Combines volatility targeting, ATR sizing, and optional Kelly
+        to determine optimal position size.
+
+        This is the recommended method for Freqtrade integration.
+
+        Args:
+            account_balance: Total account balance
+            entry_price: Current asset price
+            dataframe: OHLCV dataframe
+            current_drawdown: Current portfolio drawdown (0.05 = 5%)
+            win_rate: Historical win rate (for Kelly)
+            avg_win: Average winning trade profit
+            avg_loss: Average losing trade loss
+
+        Returns:
+            Dictionary with optimal stake details
+        """
+        results = {}
+
+        # 1. Calculate volatility-adjusted size
+        returns = dataframe['close'].pct_change().dropna()
+        if len(returns) >= 20:
+            current_vol = returns.std() * np.sqrt(252 * 24)  # Annualized hourly
+            vol_result = self._volatility_adjusted_size(
+                account_balance=account_balance,
+                entry_price=entry_price,
+                stop_loss_price=entry_price * 0.98,  # Placeholder
+                current_volatility=current_vol
+            )
+            results['volatility'] = vol_result['position_value']
+
+        # 2. Calculate ATR-based size
+        atr_result = self.calculate_atr_based_size(
+            account_balance=account_balance,
+            entry_price=entry_price,
+            dataframe=dataframe
+        )
+        results['atr'] = atr_result['position_value']
+
+        # 3. Calculate Kelly if stats available
+        if win_rate is not None and avg_win is not None and avg_loss is not None:
+            kelly_result = self._kelly_size(
+                account_balance=account_balance,
+                entry_price=entry_price,
+                stop_loss_price=entry_price * 0.98,
+                win_rate=win_rate,
+                avg_win=avg_win,
+                avg_loss=avg_loss
+            )
+            results['kelly'] = kelly_result['position_value']
+
+        # Take minimum (most conservative)
+        min_method = min(results.keys(), key=lambda k: results[k])
+        optimal_value = results[min_method]
+
+        # Apply drawdown reduction
+        if current_drawdown >= 0.05:  # 5% drawdown threshold
+            reduction_factor = max(0.5, 1.0 - current_drawdown)
+            optimal_value *= reduction_factor
+            logger.info(
+                f"Drawdown {current_drawdown:.1%} - reducing stake by {1-reduction_factor:.0%}"
+            )
+
+        return {
+            "method": "dynamic",
+            "selected_method": min_method,
+            "position_value": optimal_value,
+            "position_size": optimal_value / entry_price,
+            "all_methods": results,
+            "atr_stop_loss": atr_result.get('stop_loss_price'),
+            "drawdown_applied": current_drawdown >= 0.05,
+        }
+
+
+def create_freqtrade_stake_function(config: Optional[PositionSizingConfig] = None):
+    """
+    Create a custom_stake_amount function for Freqtrade strategies.
+
+    Usage in strategy:
+        from src.risk.position_sizing import create_freqtrade_stake_function
+
+        class MyStrategy(IStrategy):
+            custom_stake_amount = create_freqtrade_stake_function()
+    """
+    sizer = PositionSizer(config)
+
+    def custom_stake_amount(
+        self,
+        pair: str,
+        current_time,
+        current_rate: float,
+        proposed_stake: float,
+        min_stake: Optional[float],
+        max_stake: float,
+        leverage: float,
+        entry_tag: Optional[str],
+        side: str,
+        **kwargs
+    ) -> float:
+        """
+        Freqtrade custom_stake_amount callback.
+
+        Implements dynamic position sizing based on volatility and ATR.
+        """
+        try:
+            # Get dataframe
+            dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+            if dataframe.empty or len(dataframe) < 50:
+                return proposed_stake
+
+            # Get wallet balance
+            wallet_balance = self.wallets.get_total_stake_amount()
+
+            # Calculate current drawdown
+            starting_balance = self.wallets.get_starting_balance()
+            if starting_balance > 0:
+                current_drawdown = max(0, (starting_balance - wallet_balance) / starting_balance)
+            else:
+                current_drawdown = 0.0
+
+            # Calculate dynamic stake
+            result = sizer.calculate_dynamic_stake(
+                account_balance=wallet_balance,
+                entry_price=current_rate,
+                dataframe=dataframe,
+                current_drawdown=current_drawdown,
+            )
+
+            stake = result['position_value']
+
+            # Respect min/max
+            if min_stake is not None:
+                stake = max(min_stake, stake)
+            stake = min(max_stake, stake)
+
+            logger.info(
+                f"Dynamic stake for {pair}: {stake:.2f} "
+                f"(method: {result['selected_method']}, "
+                f"proposed: {proposed_stake:.2f})"
+            )
+
+            return stake
+
+        except Exception as e:
+            logger.error(f"Error in custom_stake_amount: {e}")
+            return proposed_stake
+
+    return custom_stake_amount

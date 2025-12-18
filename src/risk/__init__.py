@@ -5,6 +5,11 @@ from src.risk.circuit_breaker import (
     CircuitBreakerConfig,
     CircuitState,
 )
+from src.risk.position_sizing import (
+    PositionSizer,
+    PositionSizingConfig,
+    create_freqtrade_stake_function,
+)
 
 __all__ = [
     'CorrelationManager',
@@ -12,4 +17,7 @@ __all__ = [
     'CircuitBreaker',
     'CircuitBreakerConfig',
     'CircuitState',
+    'PositionSizer',
+    'PositionSizingConfig',
+    'create_freqtrade_stake_function',
 ]

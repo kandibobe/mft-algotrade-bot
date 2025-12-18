@@ -45,6 +45,20 @@ def __getattr__(name):
         )
         return locals()[name]
 
+    if name in (
+        "TripleBarrierLabeler",
+        "TripleBarrierConfig",
+        "DynamicBarrierLabeler",
+        "create_labels_for_training",
+    ):
+        from src.ml.training.labeling import (
+            TripleBarrierLabeler,
+            TripleBarrierConfig,
+            DynamicBarrierLabeler,
+            create_labels_for_training,
+        )
+        return locals()[name]
+
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -58,4 +72,8 @@ __all__ = [
     "ModelRegistry",
     "ModelMetadata",
     "ModelStatus",
+    "TripleBarrierLabeler",
+    "TripleBarrierConfig",
+    "DynamicBarrierLabeler",
+    "create_labels_for_training",
 ]

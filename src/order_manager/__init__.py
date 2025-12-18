@@ -47,6 +47,13 @@ from src.order_manager.slippage_simulator import (
     SlippageModel,
 )
 
+from src.order_manager.smart_limit_executor import (
+    SmartLimitExecutor,
+    SmartLimitConfig,
+    SmartExecutionResult,
+    ChasingStrategy,
+)
+
 __all__ = [
     # Order types
     "Order",
@@ -72,4 +79,9 @@ __all__ = [
     # Simulation
     "SlippageSimulator",
     "SlippageModel",
+    # Smart execution
+    "SmartLimitExecutor",
+    "SmartLimitConfig",
+    "SmartExecutionResult",
+    "ChasingStrategy",
 ]

@@ -342,6 +342,12 @@ docker-compose logs -f freqtrade
 - [ ] Alerting (Slack/Email/Telegram)
 - [ ] ELK Stack for logs
 
+### 📋 Phase 5: Live Trading Enhancements (TODO)
+- [ ] Real-time ML inference integration
+- [ ] Advanced position sizing algorithms
+- [ ] Multi-exchange support
+- [ ] Portfolio optimization
+
 ---
 
 ## 🤝 Contributing

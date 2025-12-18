@@ -573,6 +573,7 @@ class AsyncSmartLimitExecutor:
         self.execution_history: list[SmartExecutionResult] = []
         self.total_fees_saved = 0.0
         self._current_state = ExecutionState.PENDING
+        self._order_lock = asyncio.Lock()  # Protect against race conditions
 
     @property
     def state(self) -> ExecutionState:
@@ -641,7 +642,15 @@ class AsyncSmartLimitExecutor:
             if elapsed >= self.config.max_wait_seconds:
                 self._transition_to(ExecutionState.TIMEOUT)
                 if exchange_order_id:
-                    await self._cancel_order_async(exchange_order_id, order.symbol, exchange_api)
+                    # Use lock to safely cancel order
+                    async with self._order_lock:
+                        status = await self._check_status_async(
+                            exchange_order_id, order.symbol, exchange_api
+                        )
+                        if status["status"] not in ("closed", "canceled"):
+                            await self._cancel_order_async(
+                                exchange_order_id, order.symbol, exchange_api
+                            )
 
                 if self.config.convert_to_market and filled_quantity < order.quantity:
                     self._transition_to(ExecutionState.MARKET_FALLBACK)
@@ -726,13 +735,39 @@ class AsyncSmartLimitExecutor:
                     convert_threshold = self.config.max_wait_seconds * self.config.market_conversion_threshold
 
                     if elapsed >= convert_threshold:
-                        # Convert to market
-                        self._transition_to(ExecutionState.MARKET_FALLBACK)
-                        await self._cancel_order_async(exchange_order_id, order.symbol, exchange_api)
-                        return await self._execute_market_async(
-                            order, exchange_api, current_price, start_time,
-                            already_filled=filled_quantity
-                        )
+                        # Convert to market - use lock to prevent race
+                        async with self._order_lock:
+                            # Re-check status before canceling
+                            fresh_status = await self._check_status_async(
+                                exchange_order_id, order.symbol, exchange_api
+                            )
+                            if fresh_status["status"] == "open":
+                                self._transition_to(ExecutionState.MARKET_FALLBACK)
+                                await self._cancel_order_async(
+                                    exchange_order_id, order.symbol, exchange_api
+                                )
+                                return await self._execute_market_async(
+                                    order, exchange_api, current_price, start_time,
+                                    already_filled=filled_quantity
+                                )
+                            elif fresh_status["status"] == "closed":
+                                # Order filled between checks - update and return
+                                self._transition_to(ExecutionState.FILLED)
+                                filled_quantity = fresh_status.get("filled", order.quantity)
+                                avg_price = fresh_status.get("average", current_price)
+                                fee = self._calculate_maker_fee(filled_quantity * avg_price)
+                                order.update_fill(filled_quantity, avg_price, fee)
+                                return SmartExecutionResult(
+                                    success=True,
+                                    order=order,
+                                    execution_type="maker",
+                                    average_price=avg_price,
+                                    filled_quantity=filled_quantity,
+                                    total_fee=fee,
+                                    fee_saved_vs_market=self._calculate_taker_fee(filled_quantity * avg_price) - fee,
+                                    chase_count=chase_count,
+                                    total_time_seconds=time.time() - start_time
+                                )
                     else:
                         # Chase the price
                         self._transition_to(ExecutionState.CHASING)
@@ -747,22 +782,34 @@ class AsyncSmartLimitExecutor:
                     )
 
                     if new_price != current_price:
-                        # Cancel and replace
-                        await self._cancel_order_async(exchange_order_id, order.symbol, exchange_api)
+                        # Use lock to prevent race condition between status check and cancel
+                        async with self._order_lock:
+                            # Double-check order is still open before canceling
+                            status = await self._check_status_async(
+                                exchange_order_id, order.symbol, exchange_api
+                            )
 
-                        result = await self._place_order_async(order, new_price, exchange_api)
-                        if result["success"]:
-                            exchange_order_id = result.get("order_id")
-                            current_price = new_price
-                            chase_count += 1
+                            if status["status"] in ("open", "partially_filled"):
+                                # Cancel and replace
+                                await self._cancel_order_async(
+                                    exchange_order_id, order.symbol, exchange_api
+                                )
 
-                            logger.info(f"Chase #{chase_count}: New price {new_price:.2f}")
+                                result = await self._place_order_async(order, new_price, exchange_api)
+                                if result["success"]:
+                                    exchange_order_id = result.get("order_id")
+                                    current_price = new_price
+                                    chase_count += 1
 
-                            if on_state_change:
-                                on_state_change(self._current_state, {
-                                    "price": new_price,
-                                    "chase_count": chase_count
-                                })
+                                    logger.info(f"Chase #{chase_count}: New price {new_price:.2f}")
+
+                                    if on_state_change:
+                                        on_state_change(self._current_state, {
+                                            "price": new_price,
+                                            "chase_count": chase_count
+                                        })
+                            else:
+                                logger.info(f"Order status changed to {status['status']}, skipping chase")
 
                     self._transition_to(ExecutionState.PLACED)
 

@@ -1,0 +1,378 @@
+# ⚠️  LIVE TRADING CONFIGURATION - HANDLE WITH EXTREME CARE ⚠️
+# ================================================================
+#
+# 🚨 THIS CONFIG USES REAL MONEY - READ EVERY LINE CAREFULLY! 🚨
+#
+# BEFORE USING THIS CONFIG:
+# ✅ Completed 2+ weeks of paper trading
+# ✅ Verified strategy profitability
+# ✅ Understand EVERY parameter below
+# ✅ Have emergency stop plan
+# ✅ Start with MINIMUM position sizes
+# ✅ Monitor CONTINUOUSLY for first week
+# ✅ Keep kill switch file ready
+#
+# SAFETY DEFAULTS:
+# - Ultra-conservative position sizes (0.5% risk per trade)
+# - Strict circuit breakers (3 losses = stop)
+# - Max $100 per trade for beginners
+# - No leverage, no margin, no futures
+# - Extensive pre-trade validation
+#
+# ================================================================
+
+---
+# ========================================
+# ⚠️  EXCHANGE CONFIGURATION - REAL MONEY
+# ========================================
+exchange:
+  name: "binance"
+
+  # 🔴 CRITICAL: Verify this is FALSE before going live!
+  sandbox: false  # ⚠️  USING REAL MONEY
+  testnet: false  # ⚠️  USING REAL MONEY
+
+  # 🔐 API credentials - NEVER commit these to git!
+  # Store in .env file ONLY
+  # Use read-only keys for monitoring, trading keys ONLY when trading
+  api_key: "${BINANCE_API_KEY}"
+  api_secret: "${BINANCE_API_SECRET}"
+
+  # Permissions required:
+  # - Enable Reading (always)
+  # - Enable Spot & Margin Trading (only if needed)
+  # - Enable Futures (DISABLE unless you know what you're doing)
+  # - Restrict to specific IPs (HIGHLY RECOMMENDED)
+
+  # Rate limiting (respect exchange limits)
+  rate_limit: true
+  requests_per_second: 3  # Conservative (exchange allows more)
+
+  # Timeouts
+  timeout_ms: 30000  # 30 seconds
+
+# ========================================
+# 🛡️  RISK MANAGEMENT (ULTRA-CONSERVATIVE)
+# ========================================
+risk:
+  # ⚠️  CRITICAL: Position sizing
+  risk_per_trade: 0.005  # 0.5% risk per trade (very conservative)
+  # Examples for $10k account:
+  # - 0.5% risk = $50 per trade
+  # - 1.0% risk = $100 per trade (more aggressive)
+  # - 2.0% risk = $200 per trade (aggressive, NOT recommended)
+
+  max_risk_per_day: 0.02  # 2% max daily risk
+  max_drawdown_pct: 10.0  # Stop ALL trading at 10% drawdown
+
+  # Position sizing
+  max_position_size_pct: 0.10  # Max 10% of balance per position
+  max_open_positions: 2  # Max 2 simultaneous positions (conservative)
+  # Start with 1 position only until comfortable!
+
+  # ⚠️  LEVERAGE - DISABLED FOR SAFETY
+  max_leverage: 1.0  # NO LEVERAGE (spot trading only)
+  allow_margin: false  # DISABLE margin trading
+  allow_futures: false  # DISABLE futures trading
+  # WARNING: Leverage can liquidate your entire account!
+
+  # 🔴 CIRCUIT BREAKER (automatic stop)
+  max_consecutive_losses: 3  # Stop after 3 losses in a row
+  max_daily_loss_pct: 5.0  # Stop at 5% daily loss ($500 loss on $10k)
+  cooldown_after_loss_minutes: 180  # Wait 3 hours before resuming
+
+  # Additional safety
+  require_manual_reset: true  # Require manual intervention after trip
+
+# ========================================
+# ✅ PRE-TRADE CHECKS (STRICT VALIDATION)
+# ========================================
+pre_trade:
+  # Balance protection
+  min_balance_buffer: 0.15  # Keep 15% balance as reserve
+  max_balance_per_trade: 0.10  # Max 10% of balance per trade
+
+  # Notional limits (adjust based on account size)
+  min_notional_usd: 20.0  # Min $20 (above exchange minimum)
+  max_notional_usd: 100.0  # Max $100 per trade (beginner-friendly)
+  # For larger accounts:
+  # - $10k account: max $200-500 per trade
+  # - $50k account: max $1000-2000 per trade
+  # - $100k+ account: max $5000 per trade
+
+  # Price safety (prevent fat-finger errors)
+  max_price_deviation_pct: 2.0  # Max 2% from current market price
+
+  # Position limits
+  max_open_positions: 2  # Matches risk.max_open_positions
+  max_daily_trades: 10  # Max 10 trades per day (prevent overtrading)
+
+# ========================================
+# 📊 ORDER EXECUTION
+# ========================================
+execution:
+  # Order types
+  default_order_type: "limit"  # ALWAYS use limit orders
+  allow_market_orders: false  # Disable market orders (too much slippage)
+
+  # Smart limit execution
+  use_smart_limit: true  # Optimize for maker fees
+  max_chase_duration_sec: 60  # Chase for max 1 minute
+  max_chase_attempts: 5  # Max 5 price adjustments
+
+  # Timeouts
+  order_timeout_sec: 300  # Cancel unfilled orders after 5 minutes
+
+  # Slippage
+  max_slippage_pct: 0.3  # Max 0.3% slippage
+
+  # Order confirmation
+  require_confirmation: true  # Log every order (for review)
+
+# ========================================
+# 🕒 TRADING HOURS (OPTIONAL)
+# ========================================
+trading_hours:
+  # Recommended: Only trade during active market hours
+  enabled: true
+
+  # UTC hours (adjust for your timezone)
+  start_hour: 9  # 9 AM UTC
+  end_hour: 21  # 9 PM UTC
+  # Avoid overnight positions for beginners!
+
+  # Days of week (0 = Monday, 6 = Sunday)
+  trading_days: [0, 1, 2, 3, 4]  # Monday - Friday
+  # Avoid weekend trading (lower liquidity)
+
+  # Holidays
+  skip_major_holidays: true
+  holiday_list:
+    - "2025-12-25"  # Christmas
+    - "2025-01-01"  # New Year
+
+# ========================================
+# 🎯 STRATEGY CONFIGURATION
+# ========================================
+strategy:
+  name: "live_conservative_bot"
+
+  # ⚠️  Start with ONLY 1 pair!
+  pairs:
+    - "BTC/USDT"  # Highest liquidity
+    # Add more pairs ONLY after consistent profits:
+    # - "ETH/USDT"
+    # - "BNB/USDT"
+
+  # Timeframe
+  timeframe: "1h"  # Hourly candles (less noise than lower timeframes)
+
+  # Signal validation
+  require_confluent_signals: true  # Multiple indicators must agree
+  min_signal_strength: 0.7  # 70% confidence threshold
+
+# ========================================
+# 🗄️  DATABASE (CRITICAL FOR AUDIT)
+# ========================================
+database:
+  type: "sqlite"
+  path: "data/live_trading_orders.db"
+
+  # ⚠️  CRITICAL: Keep ALL order history for tax/audit
+  order_retention_days: 0  # Keep forever (0 = no deletion)
+
+  # Backup
+  auto_backup: true
+  backup_interval_hours: 24
+  backup_directory: "backups/live_orders"
+  max_backups: 30  # Keep last 30 days
+
+# ========================================
+# 🚨 MONITORING & ALERTS (MANDATORY)
+# ========================================
+monitoring:
+  # Logging
+  log_level: "INFO"
+  log_to_file: true
+  log_file: "logs/live_trading.log"
+  max_log_size_mb: 100
+  log_backup_count: 10
+
+  # ⚠️  CRITICAL: Setup alerts BEFORE going live!
+  telegram_enabled: true  # HIGHLY RECOMMENDED
+  telegram_bot_token: "${TELEGRAM_BOT_TOKEN}"
+  telegram_chat_id: "${TELEGRAM_CHAT_ID}"
+
+  # Email alerts (backup)
+  email_enabled: true
+  email_smtp_server: "smtp.gmail.com"
+  email_smtp_port: 587
+  email_use_tls: true
+  email_username: "${EMAIL_USERNAME}"
+  email_password: "${EMAIL_APP_PASSWORD}"
+  email_from: "${ALERT_EMAIL}"
+  email_to: "${ALERT_EMAIL}"
+
+  # Alert triggers (be notified of EVERYTHING)
+  alert_on_trade: true  # Every trade
+  alert_on_order_create: true  # Every order
+  alert_on_order_fill: true  # Every fill
+  alert_on_order_cancel: true  # Every cancellation
+  alert_on_error: true  # Any error
+  alert_on_circuit_breaker: true  # Circuit breaker trip (CRITICAL)
+  alert_on_daily_pnl: true  # Daily summary
+  alert_on_balance_low: true  # Balance below threshold
+  alert_on_api_error: true  # API issues
+
+  # Alert thresholds
+  alert_on_loss_usd: 50.0  # Alert on $50+ loss
+  alert_on_profit_usd: 100.0  # Alert on $100+ profit
+  alert_on_balance_below: 500.0  # Alert if balance drops below $500
+
+# ========================================
+# 🛑 SAFETY LIMITS (HARD STOPS)
+# ========================================
+safety:
+  # 🔴 EMERGENCY KILL SWITCH
+  # Create this file to immediately stop all trading:
+  # touch .kill_switch
+  kill_switch_file: ".kill_switch"
+  check_kill_switch_interval_sec: 5  # Check every 5 seconds
+
+  # Balance protection
+  min_balance_to_trade: 200.0  # Stop if balance < $200
+  min_balance_pct: 0.20  # Stop if lost >80% of initial balance
+
+  # Daily hard limits
+  max_trades_per_day: 10  # Hard cap
+  max_loss_per_day_usd: 500.0  # Stop at $500 daily loss
+  max_profit_per_day_usd: 2000.0  # Take profits at $2000 (optional)
+
+  # Position limits
+  max_position_value_usd: 500.0  # Max $500 per position
+
+  # API safety
+  max_api_errors_per_minute: 3  # Trip circuit breaker
+  max_order_rejections: 5  # Stop after 5 rejections
+
+  # Staleness checks
+  max_data_age_sec: 60  # Don't trade on data older than 1 minute
+  require_live_orderbook: true  # Require fresh orderbook data
+
+# ========================================
+# 📋 COMPLIANCE & RECORD KEEPING
+# ========================================
+compliance:
+  # Trade logging (for tax purposes)
+  log_all_trades: true
+  trade_log_file: "logs/trade_journal.csv"
+
+  # Include in logs:
+  log_timestamp: true
+  log_price: true
+  log_quantity: true
+  log_fees: true
+  log_pnl: true
+  log_strategy_signals: true
+
+  # Snapshots (for audit trail)
+  snapshot_interval_hours: 6
+  snapshot_directory: "data/snapshots"
+
+# ========================================
+# ⚠️  RECOMMENDED WORKFLOW
+# ========================================
+#
+# WEEK 1 (Monitoring Only):
+# - Enable bot with MONITORING mode (no trading)
+# - Verify signals are generated correctly
+# - Check alerts work properly
+# - Review logs daily
+#
+# WEEK 2 (Micro Positions):
+# - Enable trading with 10% of target size
+# - Example: If target is $100/trade, start with $10/trade
+# - Monitor EVERY trade manually
+# - Verify fills, fees, slippage
+#
+# WEEK 3-4 (Small Positions):
+# - Increase to 25% of target size ($25/trade)
+# - Continue daily monitoring
+# - Track all performance metrics
+#
+# MONTH 2+ (Gradual Scale):
+# - Slowly increase to 50%, then 75%, then 100%
+# - ONLY if consistently profitable
+# - NEVER rush the process!
+#
+# ONGOING:
+# - Review performance weekly
+# - Adjust risk parameters quarterly
+# - Keep detailed notes of changes
+# - Never "set and forget"
+#
+# ========================================
+# 🚨 EMERGENCY PROCEDURES
+# ========================================
+#
+# IF THINGS GO WRONG:
+#
+# 1. IMMEDIATE ACTIONS:
+#    - Create kill switch: touch .kill_switch
+#    - Or manually close all positions
+#    - Screenshot everything
+#
+# 2. REVIEW:
+#    - Check logs/live_trading.log
+#    - Check database: data/live_trading_orders.db
+#    - Review telegram/email alerts
+#
+# 3. ANALYSIS:
+#    - Was it a bug or expected behavior?
+#    - Did circuit breakers work?
+#    - What can be improved?
+#
+# 4. RECOVERY:
+#    - Fix issues before resuming
+#    - Test in paper trading again
+#    - Start with even smaller sizes
+#
+# EMERGENCY CONTACTS:
+# - Exchange support: https://www.binance.com/en/support
+# - Your contact: [ADD YOUR PHONE/EMAIL]
+#
+# ========================================
+# ✅ PRE-LAUNCH CHECKLIST
+# ========================================
+#
+# VERIFY BEFORE STARTING:
+# [ ] Paper trading completed (2+ weeks minimum)
+# [ ] Strategy is profitable (Sharpe > 1.0, Win Rate > 45%)
+# [ ] All alerts configured and tested
+# [ ] Kill switch tested (create/delete .kill_switch file)
+# [ ] API keys have correct permissions (trading, NOT withdrawal)
+# [ ] API keys restricted to your IP address
+# [ ] Starting with 10% of planned position sizes
+# [ ] Understand EVERY parameter in this file
+# [ ] Have emergency plan written down
+# [ ] Monitoring setup ready (phone nearby for alerts)
+# [ ] Backups configured
+# [ ] Starting balance documented
+# [ ] Tax implications understood
+# [ ] Not trading with money you can't afford to lose
+#
+# ⚠️  IF ANY CHECKBOX IS UNCHECKED, DO NOT START LIVE TRADING!
+#
+# ========================================
+# 📞 SUPPORT & RESOURCES
+# ========================================
+#
+# Documentation: /docs
+# Logs: logs/live_trading.log
+# Database: data/live_trading_orders.db
+# Kill Switch: touch .kill_switch
+#
+# Remember: SLOW AND STEADY WINS THE RACE
+# It's better to miss opportunities than lose money!
+#
+# ========================================

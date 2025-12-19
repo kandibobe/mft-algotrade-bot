@@ -28,15 +28,26 @@ from typing import Dict, List, Optional
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+
+try:
+    import seaborn as sns
+    sns.set_style("whitegrid")
+except ImportError:
+    sns = None  # Optional dependency
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.ml.training.labeling import TripleBarrierLabeler, TripleBarrierConfig
 from src.ml.training.feature_engineering import FeatureEngineer, FeatureConfig
-from src.data.loader import load_ohlcv_data  # Assuming this exists
-from src.order_manager.slippage_simulator import SlippageSimulator, SlippageModel
+from src.data.loader import get_ohlcv
+
+# Optional imports
+try:
+    from src.order_manager.slippage_simulator import SlippageSimulator, SlippageModel
+except ImportError:
+    SlippageSimulator = None
+    SlippageModel = None
 
 logging.basicConfig(
     level=logging.INFO,
@@ -95,9 +106,17 @@ class BacktestEngine:
     def __init__(self, config: BacktestConfig):
         """Initialize backtest engine."""
         self.config = config
-        self.slippage_simulator = SlippageSimulator(
-            model=SlippageModel[config.slippage_model.upper()]
-        )
+
+        # Initialize slippage simulator if available
+        if SlippageSimulator is not None:
+            try:
+                self.slippage_simulator = SlippageSimulator(
+                    model=SlippageModel[config.slippage_model.upper()]
+                )
+            except:
+                self.slippage_simulator = None
+        else:
+            self.slippage_simulator = None
 
         # Results storage
         self.trades: List[Dict] = []

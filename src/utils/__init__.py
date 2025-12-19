@@ -4,8 +4,9 @@ Stoic Citadel - Utilities Module
 
 Provides common utilities:
 - indicators: Technical analysis indicators
-- risk: Risk management calculations  
+- risk: Risk management calculations
 - ordersim: Order execution simulation
+- rate_limiter: API rate limiting to prevent bans
 """
 
 from .indicators import (
@@ -21,6 +22,12 @@ from .indicators import (
     calculate_all_indicators
 )
 
+from .rate_limiter import (
+    TokenBucketLimiter,
+    ExchangeRateLimiter,
+    rate_limit
+)
+
 __all__ = [
     'calculate_ema',
     'calculate_rsi',
@@ -31,5 +38,8 @@ __all__ = [
     'calculate_vwap',
     'calculate_obv',
     'calculate_adx',
-    'calculate_all_indicators'
+    'calculate_all_indicators',
+    'TokenBucketLimiter',
+    'ExchangeRateLimiter',
+    'rate_limit'
 ]

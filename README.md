@@ -3,11 +3,24 @@
 [![CI/CD](https://github.com/kandibobe/stoic-citadel/actions/workflows/ci.yml/badge.svg)](https://github.com/kandibobe/stoic-citadel/actions)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![Freqtrade](https://img.shields.io/badge/freqtrade-2024.11-green.svg)](https://www.freqtrade.io/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
 > *"The wise man accepts losses with equanimity."*
 
 Professional-grade algorithmic trading system built on Freqtrade with advanced order management, ML pipeline, and production-ready risk management.
+
+## ⚠️ IMPORTANT NOTICE
+
+**This software is PROPRIETARY and CONFIDENTIAL.**
+
+- ❌ **NO unauthorized copying, modification, or distribution**
+- ❌ **NO commercial use without explicit permission**
+- ❌ **Trading strategies and ML models are trade secrets**
+- ✅ **Personal use only by authorized individuals**
+
+See [LICENSE](LICENSE) for full terms. Unauthorized use is strictly prohibited.
+
+**Trading Risk Warning:** This software is for educational purposes. Cryptocurrency trading carries significant risk. You can lose all your capital. Never invest more than you can afford to lose.
 
 ## ✨ Key Features
 

@@ -199,7 +199,7 @@ class FeatureEngineer:
     def _add_price_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add price-based features."""
         # Returns
-        df['returns'] = df['close'].pct_change()
+        df['returns'] = df['close'].pct_change(fill_method=None)
         df['returns_log'] = np.log(df['close'] / df['close'].shift(1))
 
         # Price position in range
@@ -216,7 +216,7 @@ class FeatureEngineer:
     def _add_volume_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add volume-based features."""
         # Volume changes
-        df['volume_change'] = df['volume'].pct_change()
+        df['volume_change'] = df['volume'].pct_change(fill_method=None)
 
         # Volume moving averages
         df['volume_sma'] = df['volume'].rolling(self.config.short_period).mean()

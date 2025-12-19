@@ -124,17 +124,19 @@ class TestTripleBarrierBasic:
     def test_both_barriers_hit_same_candle(self):
         """Test behavior when both TP and SL hit in same candle."""
         # Create candle with large range hitting both barriers
+        # Entry at index 0: price = 100.0
+        # Index 1: Both TP (101) and SL (99) are hit, close above entry
         df = pd.DataFrame({
             'open': [100.0, 100.0, 100.0],
-            'high': [101.5, 100.5, 100.5],  # Hits TP (1%)
-            'low': [99.0, 99.5, 99.5],      # Also hits SL (1%)
-            'close': [100.8, 100.0, 100.0],  # Close above entry = TP wins
+            'high': [100.5, 101.5, 100.5],  # Index 1 hits TP (>101)
+            'low': [99.5, 98.5, 99.5],      # Index 1 also hits SL (<99)
+            'close': [100.0, 100.8, 100.0],  # Index 1: close above entry = TP wins
             'volume': [1000, 1000, 1000],
         })
 
         config = TripleBarrierConfig(
-            take_profit=0.01,  # 1%
-            stop_loss=0.01,    # 1%
+            take_profit=0.01,  # 1% -> barrier at 101
+            stop_loss=0.01,    # 1% -> barrier at 99
             max_holding_period=2,
             fee_adjustment=0.0
         )
@@ -142,22 +144,25 @@ class TestTripleBarrierBasic:
         labeler = TripleBarrierLabeler(config)
         labels = labeler.label(df)
 
-        # Should use close price to determine: close > entry => label=1
+        # Entry at 100, both barriers hit at index 1
+        # close[1] = 100.8 > entry = 100 => label should be 1
         assert labels.iloc[0] == 1, f"Expected label=1 (close above entry), got {labels.iloc[0]}"
 
     def test_both_barriers_close_below_entry(self):
         """Test when both hit but close is below entry."""
+        # Entry at index 0: price = 100.0
+        # Index 1: Both barriers hit, close below entry
         df = pd.DataFrame({
             'open': [100.0, 100.0, 100.0],
-            'high': [101.5, 100.5, 100.5],  # Hits TP
-            'low': [99.0, 99.5, 99.5],      # Hits SL
-            'close': [99.2, 100.0, 100.0],  # Close BELOW entry = SL wins
+            'high': [100.5, 101.5, 100.5],  # Index 1 hits TP (>101)
+            'low': [99.5, 98.5, 99.5],      # Index 1 hits SL (<99)
+            'close': [100.0, 99.2, 100.0],  # Index 1: close BELOW entry = SL wins
             'volume': [1000, 1000, 1000],
         })
 
         config = TripleBarrierConfig(
-            take_profit=0.01,
-            stop_loss=0.01,
+            take_profit=0.01,  # 1% -> barrier at 101
+            stop_loss=0.01,    # 1% -> barrier at 99
             max_holding_period=2,
             fee_adjustment=0.0
         )
@@ -165,7 +170,8 @@ class TestTripleBarrierBasic:
         labeler = TripleBarrierLabeler(config)
         labels = labeler.label(df)
 
-        # Close < entry => label=-1
+        # Entry at 100, both barriers hit at index 1
+        # close[1] = 99.2 < entry = 100 => label should be -1
         assert labels.iloc[0] == -1, f"Expected label=-1 (close below entry), got {labels.iloc[0]}"
 
 

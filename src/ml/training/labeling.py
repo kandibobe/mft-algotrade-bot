@@ -144,20 +144,26 @@ class TripleBarrierLabeler:
             Label: 1 (hit TP), -1 (hit SL), 0 (time barrier/no clear signal)
         """
         for j in range(len(highs)):
-            # Check if upper barrier hit (TP)
-            if highs[j] >= upper_barrier:
-                # Also check if lower barrier hit in same bar
-                if lows[j] <= lower_barrier:
-                    # Both hit - use close to determine which was first
-                    # This is a simplification; in reality would need tick data
-                    if closes[j] >= entry_price:
-                        return 1
-                    else:
-                        return -1
+            # Check if BOTH barriers hit in same candle
+            upper_hit = highs[j] >= upper_barrier
+            lower_hit = lows[j] <= lower_barrier
+
+            if upper_hit and lower_hit:
+                # Both barriers hit - use close to determine which was "first"
+                # This is a simplification; in reality would need tick data
+                # If close > entry, assume TP was hit (price went up then down)
+                # If close < entry, assume SL was hit (price went down then up)
+                if closes[j] >= entry_price:
+                    return 1
+                else:
+                    return -1
+
+            # Only upper barrier hit (TP)
+            if upper_hit:
                 return 1
 
-            # Check if lower barrier hit (SL)
-            if lows[j] <= lower_barrier:
+            # Only lower barrier hit (SL)
+            if lower_hit:
                 return -1
 
         # Time barrier hit - no clear signal
@@ -252,11 +258,24 @@ class TripleBarrierLabeler:
     ) -> Tuple[int, str, int, float]:
         """Get detailed barrier information."""
         for j in range(len(highs)):
-            if highs[j] >= upper_barrier:
+            # Check both barriers
+            upper_hit = highs[j] >= upper_barrier
+            lower_hit = lows[j] <= lower_barrier
+
+            if upper_hit and lower_hit:
+                # Both hit - use close to determine
+                if closes[j] >= entry_price:
+                    return_pct = (upper_barrier - entry_price) / entry_price
+                    return 1, 'take_profit', j + 1, return_pct
+                else:
+                    return_pct = (lower_barrier - entry_price) / entry_price
+                    return -1, 'stop_loss', j + 1, return_pct
+
+            if upper_hit:
                 return_pct = (upper_barrier - entry_price) / entry_price
                 return 1, 'take_profit', j + 1, return_pct
 
-            if lows[j] <= lower_barrier:
+            if lower_hit:
                 return_pct = (lower_barrier - entry_price) / entry_price
                 return -1, 'stop_loss', j + 1, return_pct
 

@@ -1,7 +1,7 @@
 # 🔍 AUDIT REPORT - Stoic Citadel Trading Bot
 **Date:** 2025-12-18
 **Auditor:** Senior Python QA & Architect
-**Project:** HFT Algo-Trade Bot (Freqtrade-based, Python 3.10+)
+**Project:** MFT (Medium-Frequency Trading) Algo-Trade Bot (Freqtrade-based, Python 3.10+)
 
 ---
 

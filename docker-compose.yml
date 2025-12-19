@@ -41,10 +41,71 @@ services:
     networks:
       - stoic_network
 
-  # Jupyter и Postgres пока можно оставить как есть или закомментировать, 
-  # если они не нужны прямо сейчас, чтобы ускорить первый запуск.
-  # Я оставил их, но если будут ошибки ресурсов - можно временно отключить.
+  # PostgreSQL - Production database for trade history and analytics
+  postgres:
+    image: postgres:15-alpine
+    container_name: stoic_postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-stoic_trader}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD not set in .env}
+      - POSTGRES_DB=${POSTGRES_DB:-trading_analytics}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/setup_postgres.sql:/docker-entrypoint-initdb.d/setup.sql
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    networks:
+      - stoic_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stoic_trader}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - Caching for ML predictions, order book snapshots, and rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: stoic_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --appendfsync everysec --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    networks:
+      - stoic_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Jupyter Lab - Optional: For research and analysis
+  # Uncomment to enable
+  # jupyter:
+  #   image: jupyter/scipy-notebook:latest
+  #   container_name: stoic_jupyter
+  #   restart: unless-stopped
+  #   environment:
+  #     - JUPYTER_ENABLE_LAB=yes
+  #     - JUPYTER_TOKEN=${JUPYTER_TOKEN:?JUPYTER_TOKEN not set in .env}
+  #   volumes:
+  #     - ./research:/home/jovyan/work
+  #     - ./src:/home/jovyan/src
+  #     - ./user_data:/home/jovyan/user_data
+  #   ports:
+  #     - "127.0.0.1:${JUPYTER_PORT:-8888}:8888"
+  #   networks:
+  #     - stoic_network
 
 networks:
   stoic_network:
     driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

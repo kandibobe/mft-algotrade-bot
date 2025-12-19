@@ -9,15 +9,49 @@
 .env.local
 .env.*.local
 .env.generated
+.env.production
+.env.dev
 *.pem
 *.key
+*.crt
+*.p12
+*.pfx
 *_secret*
+*secret.txt
+*secrets.txt
 secrets/
 CREDENTIALS.md
+credentials.json
+api_keys.yml
+api_keys.yaml
+
+# SSH & GPG keys
+id_rsa
+id_rsa.pub
+id_dsa
+id_dsa.pub
+id_ecdsa
+id_ecdsa.pub
+id_ed25519
+id_ed25519.pub
 
 # Generated config with credentials
 user_data/config/config.json
 user_data/config/config_local.json
+user_data/config/*_live.json
+user_data/config/*_production.json
+
+# ML Models (proprietary)
+user_data/models/*.pkl
+user_data/models/*.h5
+user_data/models/*.pt
+user_data/models/*.pth
+user_data/models/*.onnx
+!user_data/models/.gitkeep
+
+# Trading strategies (proprietary)
+user_data/strategies/*_private.py
+user_data/strategies/*_prod.py
 
 # ============================================================
 # PYTHON

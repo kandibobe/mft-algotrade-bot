@@ -1,29 +1,67 @@
-MIT License
+PROPRIETARY LICENSE
 
-Copyright (c) 2024 Stoic Citadel
+Copyright (c) 2024-2025 Stoic Citadel / kandibobe
+All Rights Reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+NOTICE: This software and all associated files are proprietary and confidential.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+TERMS AND CONDITIONS:
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+1. OWNERSHIP
+   This software, including all algorithms, trading strategies, machine learning
+   models, source code, documentation, and configuration files (collectively,
+   the "Software") is the exclusive property of the copyright holder.
 
----
+2. RESTRICTIONS
+   You MAY NOT, without express written permission:
+   - Copy, modify, or distribute this Software
+   - Reverse engineer, decompile, or disassemble this Software
+   - Use this Software for commercial purposes
+   - Share, sell, lease, or sublicense this Software
+   - Remove or modify any proprietary notices or labels
+   - Use the trading strategies, algorithms, or ML models in other projects
 
-DISCLAIMER: This software is for educational purposes only. Trading 
-cryptocurrencies carries significant risk. Past performance does not 
-guarantee future results. You can lose all your capital. The authors 
-are not responsible for your trading losses. Always test extensively 
-in dry-run mode first. Never invest more than you can afford to lose.
+3. PERSONAL USE ONLY
+   This Software is licensed solely for personal, non-commercial use by the
+   copyright holder. Any other use requires explicit written authorization.
+
+4. TRADING STRATEGIES & ALGORITHMS
+   All trading strategies, machine learning models, feature engineering methods,
+   risk management systems, and algorithmic approaches contained herein are
+   proprietary trade secrets and confidential information.
+
+5. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+6. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR
+   OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+   IN THE SOFTWARE.
+
+7. TRADING RISK DISCLAIMER
+   Trading cryptocurrencies and financial instruments carries significant risk.
+   You can lose all your invested capital. Past performance does not guarantee
+   future results. The copyright holder is not responsible for any trading losses,
+   damages, or financial outcomes resulting from the use of this Software.
+
+   NEVER trade with money you cannot afford to lose. Always test extensively in
+   paper trading mode before deploying real capital. This Software is for
+   educational and research purposes only.
+
+8. TERMINATION
+   This license is effective until terminated. Your rights under this license
+   will terminate automatically without notice if you fail to comply with any
+   of its terms.
+
+9. GOVERNING LAW
+   This license shall be governed by and construed in accordance with applicable
+   international intellectual property laws.
+
+For licensing inquiries, permissions, or questions:
+Contact: [Repository Owner - kandibobe]
+Repository: https://github.com/kandibobe/mft-algotrade-bot
+
+Last Updated: 2025-12-19

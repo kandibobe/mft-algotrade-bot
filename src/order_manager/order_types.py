@@ -97,6 +97,10 @@ class Order:
     retry_count: int = 0
     max_retries: int = 3
 
+    # Timeout management
+    timeout_seconds: int = 300  # 5 minutes default timeout
+    timeout_at: Optional[datetime] = None
+
     def __post_init__(self):
         """Initialize calculated fields."""
         self.remaining_quantity = self.quantity
@@ -145,6 +149,81 @@ class Order:
         if self.quantity == 0:
             return 0.0
         return (self.filled_quantity / self.quantity) * 100
+
+    @property
+    def is_timed_out(self) -> bool:
+        """
+        Check if order has exceeded timeout.
+
+        Returns:
+            True if order is timed out and should be cancelled
+        """
+        if not self.is_active:
+            return False
+
+        if self.timeout_at is None:
+            # Set timeout on first check
+            self._set_timeout()
+            return False
+
+        return datetime.now() >= self.timeout_at
+
+    def _set_timeout(self) -> None:
+        """Calculate and set timeout timestamp."""
+        from datetime import timedelta
+
+        base_time = self.submitted_at or self.created_at
+        self.timeout_at = base_time + timedelta(seconds=self.timeout_seconds)
+
+        logger.debug(
+            f"Order {self.order_id} timeout set to {self.timeout_at} "
+            f"({self.timeout_seconds}s from {base_time})"
+        )
+
+    def check_timeout(self) -> bool:
+        """
+        Check if order has timed out and handle accordingly.
+
+        Returns:
+            True if order timed out (and status updated to EXPIRED)
+        """
+        if self.is_timed_out:
+            logger.warning(
+                f"Order {self.order_id} timed out after {self.timeout_seconds}s. "
+                f"Status: {self.status.value}, Fill: {self.fill_percentage:.1f}%"
+            )
+
+            # Update status to EXPIRED
+            self.update_status(
+                OrderStatus.EXPIRED,
+                error=f"Order timed out after {self.timeout_seconds} seconds"
+            )
+
+            return True
+
+        return False
+
+    def extend_timeout(self, additional_seconds: int = 60) -> None:
+        """
+        Extend order timeout by additional seconds.
+
+        Useful for orders that are partially filled and need more time.
+
+        Args:
+            additional_seconds: Seconds to add to timeout
+        """
+        from datetime import timedelta
+
+        if self.timeout_at is None:
+            self._set_timeout()
+
+        old_timeout = self.timeout_at
+        self.timeout_at += timedelta(seconds=additional_seconds)
+
+        logger.info(
+            f"Order {self.order_id} timeout extended from {old_timeout} "
+            f"to {self.timeout_at} (+{additional_seconds}s)"
+        )
 
     def update_status(self, new_status: OrderStatus, error: Optional[str] = None):
         """

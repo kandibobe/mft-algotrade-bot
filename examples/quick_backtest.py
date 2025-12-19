@@ -173,8 +173,9 @@ def run_quick_backtest():
         # 5. Save report (if matplotlib available)
         try:
             print(f"\n💾 Generating visual report...")
-            report_path = engine.generate_report(results, data, save_path="reports/quick_backtest.png")
-            print(f"   Report saved to: {report_path}")
+            engine.generate_report(output_dir="reports")
+            print(f"   ✅ Report saved to: reports/backtest_report.png")
+            print(f"   ✅ Metrics saved to: reports/metrics.json")
         except Exception as e:
             print(f"   ⚠️  Could not generate visual report: {e}")
 

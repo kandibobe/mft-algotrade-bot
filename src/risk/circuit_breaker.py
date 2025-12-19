@@ -44,22 +44,27 @@ class CircuitBreakerConfig:
     daily_loss_limit_pct: float = 0.05      # 5% daily loss limit
     consecutive_loss_limit: int = 5          # Max consecutive losses
     max_drawdown_pct: float = 0.15           # 15% max drawdown
-    
+
     # Volatility limits
     max_volatility_threshold: float = 0.08   # 8% volatility threshold
     volatility_lookback_hours: int = 24
-    
+
     # API error limits
     max_api_errors: int = 10
     api_error_window_minutes: int = 5
-    
+
     # Recovery settings
     cooldown_minutes: int = 30
     recovery_trade_size_pct: float = 0.25    # 25% of normal size
     recovery_trades_required: int = 3
-    
+
     # Auto-reset
     auto_reset_after_hours: int = 24
+
+    # Adaptive thresholds
+    enable_adaptive_thresholds: bool = True
+    baseline_volatility: Optional[float] = None  # Will be learned from data
+    max_volatility_multiplier: float = 2.0      # Max adaptive increase
 
 
 @dataclass
@@ -170,9 +175,101 @@ class CircuitBreaker:
                 self._trip(TripReason.API_ERRORS)
     
     def check_volatility(self, current_volatility: float) -> None:
-        """Check if volatility exceeds threshold."""
-        if current_volatility > self.config.max_volatility_threshold:
+        """
+        Check if volatility exceeds threshold.
+
+        Uses adaptive thresholds based on market regime.
+        """
+        threshold = self._get_adaptive_volatility_threshold(current_volatility)
+
+        if current_volatility > threshold:
+            logger.warning(
+                f"High volatility detected: {current_volatility:.2%} "
+                f"(threshold: {threshold:.2%})"
+            )
             self._trip(TripReason.HIGH_VOLATILITY)
+
+    def _get_adaptive_volatility_threshold(self, current_volatility: float) -> float:
+        """
+        Calculate adaptive volatility threshold based on market regime.
+
+        In high volatility periods, threshold increases to avoid
+        unnecessary circuit breaker trips during normal market stress.
+
+        Args:
+            current_volatility: Current market volatility
+
+        Returns:
+            Adjusted volatility threshold
+        """
+        base_threshold = self.config.max_volatility_threshold
+
+        if not self.config.enable_adaptive_thresholds:
+            return base_threshold
+
+        # Initialize baseline if not set
+        if self.config.baseline_volatility is None:
+            self.config.baseline_volatility = current_volatility
+            logger.info(
+                f"Baseline volatility initialized: {current_volatility:.2%}"
+            )
+            return base_threshold
+
+        # Calculate volatility multiplier
+        vol_ratio = current_volatility / self.config.baseline_volatility
+
+        # Increase threshold in high volatility, but cap the increase
+        multiplier = min(vol_ratio, self.config.max_volatility_multiplier)
+
+        adjusted_threshold = base_threshold * multiplier
+
+        # Don't go below base threshold
+        adjusted_threshold = max(adjusted_threshold, base_threshold)
+
+        logger.debug(
+            f"Adaptive threshold: {adjusted_threshold:.2%} "
+            f"(base: {base_threshold:.2%}, multiplier: {multiplier:.2f})"
+        )
+
+        return adjusted_threshold
+
+    def update_baseline_volatility(
+        self,
+        returns: List[float],
+        window_size: int = 100
+    ) -> None:
+        """
+        Update baseline volatility from recent returns.
+
+        Should be called periodically (e.g., daily) to adapt to
+        changing market conditions.
+
+        Args:
+            returns: List of recent returns
+            window_size: Number of recent samples to use
+        """
+        if not returns or len(returns) < 10:
+            return
+
+        import numpy as np
+
+        # Use recent window
+        recent_returns = returns[-window_size:]
+        new_baseline = float(np.std(recent_returns))
+
+        # Exponential moving average for smooth adaptation
+        if self.config.baseline_volatility is None:
+            self.config.baseline_volatility = new_baseline
+        else:
+            alpha = 0.1  # Smoothing factor
+            self.config.baseline_volatility = (
+                alpha * new_baseline +
+                (1 - alpha) * self.config.baseline_volatility
+            )
+
+        logger.info(
+            f"Baseline volatility updated: {self.config.baseline_volatility:.2%}"
+        )
     
     def can_trade(self) -> bool:
         """Check if trading is allowed."""

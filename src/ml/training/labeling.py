@@ -72,11 +72,17 @@ class TripleBarrierLabeler:
         Apply Triple Barrier Method to create labels.
 
         Args:
-            df: DataFrame with OHLCV data
+            df: DataFrame with OHLCV data (MUST be time-sorted)
 
         Returns:
             Series with labels: 1 (buy), 0 (hold), -1 (sell/avoid)
+
+        Raises:
+            ValueError: If data validation fails (e.g., not time-sorted)
         """
+        # CRITICAL: Validate data to prevent future data leakage
+        self._validate_data(df)
+
         logger.info(f"Applying Triple Barrier labeling to {len(df)} rows")
         logger.info(f"Config: TP={self.config.take_profit:.3%}, "
                    f"SL={self.config.stop_loss:.3%}, "
@@ -119,6 +125,86 @@ class TripleBarrierLabeler:
         logger.info(f"Label distribution: {label_counts.to_dict()}")
 
         return labels
+
+    def _validate_data(self, df: pd.DataFrame) -> None:
+        """
+        Validate data to prevent future data leakage.
+
+        Checks:
+        - Data is sorted chronologically
+        - No duplicate timestamps
+        - Required OHLCV columns present
+        - No NaN values in price data
+
+        Args:
+            df: DataFrame to validate
+
+        Raises:
+            ValueError: If validation fails
+        """
+        # Check required columns
+        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+
+        if missing_cols:
+            raise ValueError(
+                f"Missing required columns: {missing_cols}. "
+                f"DataFrame must have OHLCV data."
+            )
+
+        # Check if index is datetime
+        if not isinstance(df.index, pd.DatetimeIndex):
+            logger.warning(
+                "Index is not DatetimeIndex. Cannot validate time ordering. "
+                "Ensure data is sorted chronologically to prevent future data leakage!"
+            )
+        else:
+            # CRITICAL: Check data is sorted by time (no future data leakage)
+            if not df.index.is_monotonic_increasing:
+                raise ValueError(
+                    "Data is NOT sorted chronologically! This would cause future "
+                    "data leakage where labels use information from the past. "
+                    "Sort your data by timestamp before labeling:\n"
+                    "df = df.sort_index()  # or df.sort_values('timestamp')"
+                )
+
+            # Check for duplicate timestamps
+            if df.index.duplicated().any():
+                dup_count = df.index.duplicated().sum()
+                logger.warning(
+                    f"Found {dup_count} duplicate timestamps. "
+                    f"This may cause unexpected behavior in labeling."
+                )
+
+        # Check for NaN in price data
+        price_cols = ['open', 'high', 'low', 'close']
+        for col in price_cols:
+            nan_count = df[col].isna().sum()
+            if nan_count > 0:
+                raise ValueError(
+                    f"Found {nan_count} NaN values in '{col}' column. "
+                    f"Price data must not contain NaN values. "
+                    f"Clean your data first:\n"
+                    f"df = df.dropna(subset=['open', 'high', 'low', 'close'])"
+                )
+
+        # Check for invalid price relationships
+        invalid_ohlc = (
+            (df['high'] < df['low']) |
+            (df['close'] > df['high']) |
+            (df['close'] < df['low']) |
+            (df['open'] > df['high']) |
+            (df['open'] < df['low'])
+        )
+
+        if invalid_ohlc.any():
+            invalid_count = invalid_ohlc.sum()
+            logger.warning(
+                f"Found {invalid_count} rows with invalid OHLC relationships "
+                f"(e.g., high < low, close > high). Check your data quality."
+            )
+
+        logger.debug("✅ Data validation passed - safe for labeling")
 
     def _get_barrier_label(
         self,

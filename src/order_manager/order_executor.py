@@ -343,9 +343,15 @@ class OrderExecutor:
                     if self._is_retryable_error(error) and order.can_retry():
                         retry_count += 1
                         order.increment_retry()
-                        time.sleep(self.retry_delay_ms / 1000)
+
+                        # Exponential backoff: delay * (2 ^ retry_count)
+                        delay_seconds = (self.retry_delay_ms / 1000) * (2 ** (retry_count - 1))
+                        delay_seconds = min(delay_seconds, 30.0)  # Cap at 30 seconds
+
+                        time.sleep(delay_seconds)
                         logger.warning(
-                            f"Retrying order {order.order_id} (attempt {retry_count}/{self.max_retries})"
+                            f"Retrying order {order.order_id} (attempt {retry_count}/"
+                            f"{self.max_retries}) after {delay_seconds:.2f}s delay"
                         )
                         continue
                     else:
@@ -358,7 +364,16 @@ class OrderExecutor:
                 if order.can_retry():
                     retry_count += 1
                     order.increment_retry()
-                    time.sleep(self.retry_delay_ms / 1000)
+
+                    # Exponential backoff for exceptions
+                    delay_seconds = (self.retry_delay_ms / 1000) * (2 ** (retry_count - 1))
+                    delay_seconds = min(delay_seconds, 30.0)  # Cap at 30 seconds
+
+                    logger.warning(
+                        f"Retrying after exception (attempt {retry_count}/"
+                        f"{self.max_retries}) after {delay_seconds:.2f}s delay"
+                    )
+                    time.sleep(delay_seconds)
                     continue
                 else:
                     order.update_status(OrderStatus.FAILED, error)

@@ -35,7 +35,7 @@ def print_banner():
     print(f"{Colors.CYAN}║                                                                    ║{Colors.NC}")
     print(f"{Colors.CYAN}║                    {Colors.MAGENTA}STOIC CITADEL{Colors.CYAN}                                 ║{Colors.NC}")
     print(f"{Colors.CYAN}║                                                                    ║{Colors.NC}")
-    print(f"{Colors.CYAN}║         {Colors.YELLOW}Professional HFT-lite Trading Infrastructure{Colors.CYAN}            ║{Colors.NC}")
+    print(f"{Colors.CYAN}║         {Colors.YELLOW}Professional MFT Trading Infrastructure{Colors.CYAN}               ║{Colors.NC}")
     print(f"{Colors.CYAN}║                                                                    ║{Colors.NC}")
     print(f"{Colors.CYAN}║                    {Colors.GREEN}Setup Wizard v1.0{Colors.CYAN}                              ║{Colors.NC}")
     print(f"{Colors.CYAN}║                                                                    ║{Colors.NC}")

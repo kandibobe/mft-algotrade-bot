@@ -68,11 +68,15 @@ def download_data(
             cmd,
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=300  # 5 minute timeout to prevent infinite hangs
         )
         logger.info(f"Download completed successfully")
         logger.debug(result.stdout)
         return True
+    except subprocess.TimeoutExpired:
+        logger.error(f"Download timed out after 300 seconds")
+        return False
     except subprocess.CalledProcessError as e:
         logger.error(f"Download failed: {e.stderr}")
         return False
@@ -111,10 +115,17 @@ def download_data_docker(
             cmd,
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=600  # 10 minute timeout for Docker (slower startup)
         )
         logger.info("Download completed successfully")
         return True
+    except subprocess.TimeoutExpired:
+        logger.error(f"Docker download timed out after 600 seconds")
+        return False
     except subprocess.CalledProcessError as e:
         logger.error(f"Download failed: {e.stderr}")
+        return False
+    except FileNotFoundError:
+        logger.error("Docker Compose not found. Install Docker.")
         return False

@@ -7,7 +7,7 @@ param(
     [string]$Doc = "menu"
 )
 
-$PROJECT_DIR = "C:\hft-algotrade-bot"
+$PROJECT_DIR = "C:\mft-algotrade-bot"
 
 function Write-ColorOutput($ForegroundColor) {
     $fc = $host.UI.RawUI.ForegroundColor
@@ -90,8 +90,8 @@ switch ($Doc.ToLower()) {
     "strategies"    { explorer "user_data\strategies" }
     "12"            { explorer "user_data\config" }
     "configs"       { explorer "user_data\config" }
-    "13"            { Start-Process "https://github.com/kandibobe/hft-algotrade-bot" }
-    "github"        { Start-Process "https://github.com/kandibobe/hft-algotrade-bot" }
+    "13"            { Start-Process "https://github.com/kandibobe/mft-algotrade-bot" }
+    "github"        { Start-Process "https://github.com/kandibobe/mft-algotrade-bot" }
     
     default {
         Write-ColorOutput Red "вќЊ РќРµРёР·РІРµСЃС‚РЅС‹Р№ РґРѕРєСѓРјРµРЅС‚: $Doc"

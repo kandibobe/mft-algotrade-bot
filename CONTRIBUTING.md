@@ -51,8 +51,8 @@ Feature requests are welcome! Please provide:
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/hft-algotrade-bot.git
-cd hft-algotrade-bot
+git clone https://github.com/YOUR_USERNAME/mft-algotrade-bot.git
+cd mft-algotrade-bot
 
 # Run setup
 make setup

@@ -147,7 +147,7 @@ networks:
     driver: bridge
   stoic_network:
     external: true
-    name: hft-algotrade-bot_stoic_network
+    name: mft-algotrade-bot_stoic_network
 
 volumes:
   prometheus_data:

@@ -411,7 +411,7 @@ def test_my_indicator():
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/kandibobe/hft-algotrade-bot/issues)
+- **Issues**: [GitHub Issues](https://github.com/kandibobe/mft-algotrade-bot/issues)
 - **Docs**: [Main README](../README.md)
 - **Testing**: [docs/TESTING_GUIDE.md](../docs/TESTING_GUIDE.md)
 

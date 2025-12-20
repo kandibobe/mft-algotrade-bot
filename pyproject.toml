@@ -53,10 +53,10 @@ research = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/kandibobe/hft-algotrade-bot"
-Documentation = "https://github.com/kandibobe/hft-algotrade-bot#readme"
-Repository = "https://github.com/kandibobe/hft-algotrade-bot"
-Issues = "https://github.com/kandibobe/hft-algotrade-bot/issues"
+Homepage = "https://github.com/kandibobe/mft-algotrade-bot"
+Documentation = "https://github.com/kandibobe/mft-algotrade-bot#readme"
+Repository = "https://github.com/kandibobe/mft-algotrade-bot"
+Issues = "https://github.com/kandibobe/mft-algotrade-bot/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

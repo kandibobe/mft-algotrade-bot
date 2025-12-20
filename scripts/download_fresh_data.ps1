@@ -87,4 +87,4 @@ Write-Host "========================================`n" -ForegroundColor Cyan
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "  1. Inspect data:  python scripts/inspect_data.py --pair BTC/USDT" -ForegroundColor White
 Write-Host "  2. Run backtest:  python scripts/run_backtest.py --profile full" -ForegroundColor White
-Write-Host "`n"
+Write-Host ""

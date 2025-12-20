@@ -2,7 +2,7 @@
 # HEALTH CHECK - РџСЂРѕРІРµСЂРєР° Р·РґРѕСЂРѕРІСЊСЏ СЃРёСЃС‚РµРјС‹
 # ==============================================================================
 
-$PROJECT_DIR = "C:\hft-algotrade-bot"
+$PROJECT_DIR = "C:\mft-algotrade-bot"
 
 function Write-ColorOutput($ForegroundColor) {
     $fc = $host.UI.RawUI.ForegroundColor

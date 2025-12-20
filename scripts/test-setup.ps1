@@ -2,7 +2,7 @@
 # Run this after setup to verify everything works
 
 $ErrorActionPreference = "Continue"
-$PROJECT_DIR = "C:\hft-algotrade-bot"
+$PROJECT_DIR = "C:\mft-algotrade-bot"
 
 function Write-Test($message, $status) {
     $color = if ($status -eq "PASS") { "Green" } elseif ($status -eq "FAIL") { "Red" } else { "Yellow" }

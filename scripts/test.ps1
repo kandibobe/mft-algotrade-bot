@@ -18,7 +18,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$PROJECT_DIR = "C:\hft-algotrade-bot"
+$PROJECT_DIR = "C:\mft-algotrade-bot"
 
 function Write-ColorOutput($ForegroundColor) {
     $fc = $host.UI.RawUI.ForegroundColor

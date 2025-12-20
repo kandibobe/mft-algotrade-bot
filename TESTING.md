@@ -4,7 +4,7 @@
 
 ```bash
 # 1. Activate virtual environment / Активировать виртуальное окружение
-cd C:\Users\Владислав\Documents\GitHub\hft-algotrade-bot
+cd C:\mft-algotrade-bot
 .venv\Scripts\Activate.ps1
 
 # 2. Install dependencies / Установить зависимости
@@ -157,7 +157,7 @@ ModuleNotFoundError: No module named 'src'
 **Solution / Решение:**
 ```bash
 # Add project root to PYTHONPATH
-$env:PYTHONPATH = "C:\Users\Владислав\Documents\GitHub\hft-algotrade-bot"
+$env:PYTHONPATH = "C:\mft-algotrade-bot"
 pytest tests/ -v
 ```
 
@@ -250,4 +250,4 @@ jobs:
 
 1. Check logs: `user_data/logs/freqtrade.log`
 2. Run with debug: `pytest tests/ -v -s --tb=long`
-3. Open issue: https://github.com/kandibobe/hft-algotrade-bot/issues
+3. Open issue: https://github.com/kandibobe/mft-algotrade-bot/issues

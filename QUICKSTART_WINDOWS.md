@@ -16,7 +16,7 @@ Step-by-step guide для запуска на Windows.
 
 ```powershell
 # В PowerShell
-cd C:\hft-algotrade-bot
+cd C:\mft-algotrade-bot
 
 # Запустить все контейнеры
 docker-compose up -d

@@ -151,6 +151,8 @@ stoic-citadel/
 - **[docs/ORDER_MANAGEMENT.md](docs/ORDER_MANAGEMENT.md)** - Order Management System API
 - **[docs/ML_TRAINING_PIPELINE.md](docs/ML_TRAINING_PIPELINE.md)** - ML Pipeline API
 - **[docs/STRATEGY_DEVELOPMENT_GUIDE.md](docs/STRATEGY_DEVELOPMENT_GUIDE.md)** - Strategy development
+- **[docs/STRUCTURED_LOGGING_ELK.md](docs/STRUCTURED_LOGGING_ELK.md)** - Structured logging with ELK stack
+- **[docs/HEALTH_CHECK_SYSTEM.md](docs/HEALTH_CHECK_SYSTEM.md)** - Health check system for Kubernetes
 
 ---
 

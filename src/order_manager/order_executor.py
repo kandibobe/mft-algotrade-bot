@@ -17,12 +17,12 @@ from datetime import datetime
 from typing import Optional, Callable, Dict, Any
 from enum import Enum
 import time
-import logging
 
 from src.order_manager.order_types import Order, OrderStatus, OrderType, OrderSide
 from src.order_manager.slippage_simulator import SlippageSimulator, SlippageModel
 from src.order_manager.circuit_breaker import CircuitBreaker
 from typing import Protocol, runtime_checkable
+from src.utils.logger import get_logger
 
 # Try to import metrics exporter
 try:
@@ -31,7 +31,7 @@ try:
 except ImportError:
     METRICS_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # =============================================================================
@@ -151,7 +151,11 @@ class OrderExecutor:
         if slippage_simulator is None and mode in [ExecutionMode.BACKTEST, ExecutionMode.PAPER]:
             # Create default slippage simulator only if needed
             slippage_simulator = SlippageSimulator(model=SlippageModel.REALISTIC)
-            logger.info("Created default slippage simulator for backtest/paper mode")
+            logger.info("slippage_simulator_created",
+                mode=mode.value,
+                model=SlippageModel.REALISTIC.value,
+                reason="default_for_backtest_paper"
+            )
         
         self.circuit_breaker = circuit_breaker
         self.slippage_simulator = slippage_simulator
@@ -165,12 +169,24 @@ class OrderExecutor:
 
         # Validate dependencies implement required interfaces
         if self.slippage_simulator and not isinstance(self.slippage_simulator, ISlippageSimulator):
-            logger.warning("slippage_simulator does not implement ISlippageSimulator interface")
+            logger.warning("interface_validation_failed",
+                component="slippage_simulator",
+                interface="ISlippageSimulator"
+            )
         
         if self.circuit_breaker and not isinstance(self.circuit_breaker, ICircuitBreaker):
-            logger.warning("circuit_breaker does not implement ICircuitBreaker interface")
+            logger.warning("interface_validation_failed",
+                component="circuit_breaker",
+                interface="ICircuitBreaker"
+            )
 
-        logger.info(f"OrderExecutor initialized in {mode.value} mode with DI")
+        logger.info("order_executor_initialized",
+            mode=mode.value,
+            max_retries=max_retries,
+            retry_delay_ms=retry_delay_ms,
+            has_circuit_breaker=self.circuit_breaker is not None,
+            has_slippage_simulator=self.slippage_simulator is not None
+        )
 
     def execute(
         self,
@@ -255,7 +271,10 @@ class OrderExecutor:
                         filled=False
                     )
             except Exception as e:
-                logger.warning(f"Failed to record metrics: {e}")
+                logger.warning("metrics_recording_failed",
+                    error=str(e),
+                    component="metrics_exporter"
+                )
 
         return result
 
@@ -342,9 +361,14 @@ class OrderExecutor:
 
             latency_ms = (time.time() - start_time) * 1000
 
-            logger.info(
-                f"[PAPER] Order executed: {order.symbol} {order.side.value} "
-                f"{order.quantity} @ {execution_price:.2f}"
+            logger.info("paper_order_executed",
+                symbol=order.symbol,
+                side=order.side.value,
+                quantity=order.quantity,
+                execution_price=execution_price,
+                commission=commission,
+                latency_ms=latency_ms,
+                mode="paper"
             )
 
             return ExecutionResult(
@@ -434,9 +458,12 @@ class OrderExecutor:
                         delay_seconds = min(delay_seconds, 30.0)  # Cap at 30 seconds
 
                         time.sleep(delay_seconds)
-                        logger.warning(
-                            f"Retrying order {order.order_id} (attempt {retry_count}/"
-                            f"{self.max_retries}) after {delay_seconds:.2f}s delay"
+                        logger.warning("order_retry",
+                            order_id=order.order_id,
+                            attempt=retry_count,
+                            max_attempts=self.max_retries,
+                            delay_seconds=delay_seconds,
+                            reason="transient_error"
                         )
                         continue
                     else:
@@ -444,7 +471,13 @@ class OrderExecutor:
 
             except Exception as e:
                 error = f"Execution exception: {str(e)}"
-                logger.error(error)
+                logger.error("execution_exception",
+                    error_type="execution",
+                    message=str(e),
+                    order_id=order.order_id,
+                    symbol=order.symbol,
+                    retry_count=retry_count
+                )
 
                 if order.can_retry():
                     retry_count += 1
@@ -454,9 +487,12 @@ class OrderExecutor:
                     delay_seconds = (self.retry_delay_ms / 1000) * (2 ** (retry_count - 1))
                     delay_seconds = min(delay_seconds, 30.0)  # Cap at 30 seconds
 
-                    logger.warning(
-                        f"Retrying after exception (attempt {retry_count}/"
-                        f"{self.max_retries}) after {delay_seconds:.2f}s delay"
+                    logger.warning("exception_retry",
+                        order_id=order.order_id,
+                        attempt=retry_count,
+                        max_attempts=self.max_retries,
+                        delay_seconds=delay_seconds,
+                        reason="exception"
                     )
                     time.sleep(delay_seconds)
                     continue
@@ -526,7 +562,12 @@ class OrderExecutor:
             }
 
         except Exception as e:
-            logger.error(f"Error fetching order status: {e}")
+            logger.error("order_status_fetch_error",
+                error_type="connection",
+                message=str(e),
+                order_id=order.exchange_order_id,
+                symbol=order.symbol
+            )
             return {"filled": False}
 
     def _validate_order(self, order: Order, market_data: Optional[Dict]) -> tuple[bool, Optional[str]]:
@@ -584,19 +625,26 @@ class OrderExecutor:
     def _log_execution(self, result: ExecutionResult):
         """Log execution result."""
         if result.success:
-            logger.info(
-                f"✅ Order executed: {result.order.order_id} | "
-                f"{result.order.symbol} {result.order.side.value} "
-                f"{result.filled_quantity} @ {result.execution_price:.2f} | "
-                f"Commission: {result.commission:.4f} | "
-                f"Latency: {result.latency_ms:.1f}ms"
+            logger.info("order_execution_success",
+                order_id=result.order.order_id,
+                symbol=result.order.symbol,
+                side=result.order.side.value,
+                filled_quantity=result.filled_quantity,
+                execution_price=result.execution_price,
+                commission=result.commission,
+                latency_ms=result.latency_ms,
+                order_type=result.order.order_type.value,
+                mode=self.mode.value
             )
         else:
-            logger.error(
-                f"❌ Order failed: {result.order.order_id} | "
-                f"{result.order.symbol} {result.order.side.value} | "
-                f"Error: {result.error_message} | "
-                f"Retries: {result.retry_count}"
+            logger.error("order_execution_failed",
+                order_id=result.order.order_id,
+                symbol=result.order.symbol,
+                side=result.order.side.value,
+                error_message=result.error_message,
+                retry_count=result.retry_count,
+                order_type=result.order.order_type.value,
+                mode=self.mode.value
             )
 
     def get_statistics(self) -> Dict:

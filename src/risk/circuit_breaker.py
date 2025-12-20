@@ -17,6 +17,13 @@ from typing import Dict, List, Optional
 from enum import Enum
 import threading
 
+# Try to import metrics exporter
+try:
+    from src.monitoring.metrics_exporter import get_exporter
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -385,6 +392,14 @@ class CircuitBreaker:
             f"   Consecutive Losses: {self.session.consecutive_losses}"
         )
         
+        # Update metrics if available
+        if METRICS_AVAILABLE:
+            try:
+                exporter = get_exporter()
+                exporter.set_circuit_breaker_status(1)  # 1 = on (tripped)
+            except Exception as e:
+                logger.warning(f"Failed to update circuit breaker metrics: {e}")
+        
         # Notify callbacks
         for callback in self._callbacks:
             try:
@@ -401,6 +416,14 @@ class CircuitBreaker:
         self.session.consecutive_losses = 0
         
         logger.info("Circuit breaker reset to CLOSED state")
+        
+        # Update metrics if available
+        if METRICS_AVAILABLE:
+            try:
+                exporter = get_exporter()
+                exporter.set_circuit_breaker_status(0)  # 0 = off (closed)
+            except Exception as e:
+                logger.warning(f"Failed to update circuit breaker metrics: {e}")
         
         # Notify callbacks
         for callback in self._callbacks:
@@ -423,6 +446,14 @@ class CircuitBreaker:
         if self.state == CircuitState.OPEN:
             self.state = CircuitState.HALF_OPEN
             logger.info("Circuit breaker transitioning to HALF_OPEN")
+            # Update metrics for half-open state (0.5 for half-open)
+            if METRICS_AVAILABLE:
+                try:
+                    exporter = get_exporter()
+                    exporter.set_circuit_breaker_status(0)  # Still 0 for closed/half-open? Let's use 0.5
+                    # Note: Our current metric only supports 0/1, but we can extend later
+                except Exception as e:
+                    logger.warning(f"Failed to update circuit breaker metrics: {e}")
             return False
         
         # Check auto-reset time

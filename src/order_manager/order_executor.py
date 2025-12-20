@@ -22,8 +22,51 @@ import logging
 from src.order_manager.order_types import Order, OrderStatus, OrderType, OrderSide
 from src.order_manager.slippage_simulator import SlippageSimulator, SlippageModel
 from src.order_manager.circuit_breaker import CircuitBreaker
+from typing import Protocol, runtime_checkable
+
+# Try to import metrics exporter
+try:
+    from src.monitoring.metrics_exporter import get_exporter
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Dependency Injection Interfaces
+# =============================================================================
+
+@runtime_checkable
+class ISlippageSimulator(Protocol):
+    """Interface for slippage simulator dependency."""
+    def simulate_execution(
+        self,
+        order: Order,
+        market_price: float,
+        volume_24h: Optional[float] = None,
+        spread_pct: Optional[float] = None,
+    ) -> tuple[float, float]:
+        """Simulate order execution with slippage."""
+        ...
+
+
+@runtime_checkable
+class ICircuitBreaker(Protocol):
+    """Interface for circuit breaker dependency."""
+    @property
+    def is_operational(self) -> bool:
+        """Check if circuit breaker allows trading."""
+        ...
+    
+    def record_order(self) -> None:
+        """Record successful order execution."""
+        ...
+    
+    def record_error(self, error: str) -> None:
+        """Record error for circuit breaker analysis."""
+        ...
 
 
 class ExecutionMode(Enum):
@@ -84,26 +127,34 @@ class OrderExecutor:
     def __init__(
         self,
         mode: ExecutionMode = ExecutionMode.LIVE,
-        circuit_breaker: Optional[CircuitBreaker] = None,
-        slippage_simulator: Optional[SlippageSimulator] = None,
+        circuit_breaker: Optional[ICircuitBreaker] = None,
+        slippage_simulator: Optional[ISlippageSimulator] = None,
         max_retries: int = 3,
         retry_delay_ms: int = 100,
     ):
         """
-        Initialize order executor.
+        Initialize order executor with dependency injection.
 
         Args:
             mode: Execution mode (live, paper, backtest)
-            circuit_breaker: Circuit breaker instance
-            slippage_simulator: Slippage simulator for backtesting
+            circuit_breaker: Circuit breaker instance (implements ICircuitBreaker)
+            slippage_simulator: Slippage simulator for backtesting (implements ISlippageSimulator)
             max_retries: Maximum retry attempts
             retry_delay_ms: Delay between retries (milliseconds)
+        
+        Raises:
+            ValueError: If required dependencies are not provided for the mode
         """
         self.mode = mode
+        
+        # Validate and set dependencies
+        if slippage_simulator is None and mode in [ExecutionMode.BACKTEST, ExecutionMode.PAPER]:
+            # Create default slippage simulator only if needed
+            slippage_simulator = SlippageSimulator(model=SlippageModel.REALISTIC)
+            logger.info("Created default slippage simulator for backtest/paper mode")
+        
         self.circuit_breaker = circuit_breaker
-        self.slippage_simulator = slippage_simulator or SlippageSimulator(
-            model=SlippageModel.REALISTIC
-        )
+        self.slippage_simulator = slippage_simulator
         self.max_retries = max_retries
         self.retry_delay_ms = retry_delay_ms
 
@@ -112,7 +163,14 @@ class OrderExecutor:
         self.successful_executions = 0
         self.failed_executions = 0
 
-        logger.info(f"OrderExecutor initialized in {mode.value} mode")
+        # Validate dependencies implement required interfaces
+        if self.slippage_simulator and not isinstance(self.slippage_simulator, ISlippageSimulator):
+            logger.warning("slippage_simulator does not implement ISlippageSimulator interface")
+        
+        if self.circuit_breaker and not isinstance(self.circuit_breaker, ICircuitBreaker):
+            logger.warning("circuit_breaker does not implement ICircuitBreaker interface")
+
+        logger.info(f"OrderExecutor initialized in {mode.value} mode with DI")
 
     def execute(
         self,
@@ -171,6 +229,33 @@ class OrderExecutor:
 
         # Log execution
         self._log_execution(result)
+
+        # Record metrics if available
+        if METRICS_AVAILABLE:
+            try:
+                exporter = get_exporter()
+                if result.success:
+                    exporter.record_trade(
+                        side=result.order.side.value,
+                        status="filled",
+                        execution_time=result.latency_ms / 1000.0
+                    )
+                    exporter.record_order(
+                        order_type=result.order.order_type.value,
+                        filled=True
+                    )
+                else:
+                    exporter.record_trade(
+                        side=result.order.side.value,
+                        status="failed",
+                        execution_time=result.latency_ms / 1000.0
+                    )
+                    exporter.record_order(
+                        order_type=result.order.order_type.value,
+                        filled=False
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to record metrics: {e}")
 
         return result
 

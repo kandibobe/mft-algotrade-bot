@@ -187,7 +187,7 @@ class WebSocketDataStream:
             websocket_client: WebSocket client instance (implements IWebSocketClient)
         """
         self.config = config
-        self._ws = None
+        self._ws: Optional[IWebSocketClient] = None
         self._websocket_client = websocket_client
         self._running = False
         self._reconnect_delay = config.reconnect_delay
@@ -196,9 +196,9 @@ class WebSocketDataStream:
         self._exchange_handler: ExchangeHandler = create_exchange_handler(config.exchange)
         
         # Callback handlers
-        self._ticker_handlers: List[Callable] = []
-        self._trade_handlers: List[Callable] = []
-        self._error_handlers: List[Callable] = []
+        self._ticker_handlers: List[Callable[[TickerData], Any]] = []
+        self._trade_handlers: List[Callable[[TradeData], Any]] = []
+        self._error_handlers: List[Callable[[Exception], Any]] = []
         
         # Message queue for buffering
         self._message_queue: asyncio.Queue = asyncio.Queue(
@@ -407,6 +407,10 @@ class WebSocketDataStream:
         if symbol in self._subscribed:
             return
         
+        if self._ws is None:
+            logger.error("Cannot subscribe symbol: WebSocket not connected")
+            return
+        
         await self._exchange_handler.subscribe_symbol(
             self._ws, 
             symbol, 
@@ -418,6 +422,10 @@ class WebSocketDataStream:
     async def unsubscribe_symbol(self, symbol: str):
         """Remove symbol from subscription using exchange handler."""
         if symbol not in self._subscribed:
+            return
+        
+        if self._ws is None:
+            logger.error("Cannot unsubscribe symbol: WebSocket not connected")
             return
         
         await self._exchange_handler.unsubscribe_symbol(

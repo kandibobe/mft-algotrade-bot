@@ -209,6 +209,49 @@ Before deploying to production / Перед продакшеном:
 
 ---
 
+## Load Testing with Locust / Нагрузочное тестирование с Locust
+
+Для тестирования производительности API эндпоинтов используется Locust.
+
+### Установка / Installation
+```bash
+pip install locust
+```
+
+### Быстрый старт / Quick Start
+```bash
+# Запустить Locust с указанием хоста
+locust -f tests/load_test.py --host http://localhost:8080
+
+# Открыть веб-интерфейс: http://localhost:8089
+# Указать количество пользователей и скорость создания
+```
+
+### Примеры сценариев / Example Scenarios
+
+```bash
+# 100 пользователей, скорость создания 10 в секунду
+locust -f tests/load_test.py --host http://localhost:8080 --users 100 --spawn-rate 10
+
+# Запуск на 1 час
+locust -f tests/load_test.py --host http://localhost:8080 --users 50 --spawn-rate 5 --run-time 1h
+
+# Без веб-интерфейса (headless)
+locust -f tests/load_test.py --host http://localhost:8080 --users 100 --spawn-rate 10 --headless
+```
+
+### Тестируемые эндпоинты / Tested Endpoints
+
+1. **GET /api/v1/signal** - ML inference для генерации сигналов
+2. **POST /api/v1/orders** - размещение ордеров
+3. **GET /health** - проверка здоровья системы
+
+### Цели производительности / Performance Targets
+
+- Время отклика < 100 мс для 95% запросов
+- Обработка > 100 RPS (запросов в секунду)
+- Устойчивость к нагрузке 1000+ одновременных пользователей
+
 ## Docker Testing / Тестирование в Docker
 
 ```bash

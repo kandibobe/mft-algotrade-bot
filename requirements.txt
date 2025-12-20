@@ -24,6 +24,7 @@ pytest-asyncio>=0.23.0
 ccxt>=4.0.0  # Cryptocurrency exchange APIs
 tenacity>=8.0.0  # Retry logic
 aiohttp>=3.9.0  # Async HTTP
+structlog>=24.0.0  # Structured logging for ELK
 
 # Testing
 pytest>=7.0.0

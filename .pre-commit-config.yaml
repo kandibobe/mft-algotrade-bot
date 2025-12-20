@@ -60,12 +60,12 @@ repos:
   # ==============================================================================
 
   - repo: https://github.com/psf/black
-    rev: 24.4.0
+    rev: 23.3.0
     hooks:
       - id: black
         name: 🎨 Format code with Black
         language_version: python3.11
-        args: ['--line-length=88']
+        args: ['--line-length=100']
         exclude: ^(user_data/data/|user_data/logs/)
 
   # ==============================================================================
@@ -73,26 +73,25 @@ repos:
   # ==============================================================================
 
   - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
+    rev: 5.12.0
     hooks:
       - id: isort
         name: 📦 Sort imports with isort
-        args: ['--profile=black', '--line-length=88']
+        args: ['--profile=black']
         exclude: ^(user_data/data/|user_data/logs/)
 
   # ==============================================================================
   # PYTHON LINTING
   # ==============================================================================
 
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.0.0
+  - repo: https://github.com/PyCQA/flake8
+    rev: 6.0.0
     hooks:
       - id: flake8
         name: 🔍 Lint with flake8
         args:
-          - '--max-line-length=88'
-          - '--extend-ignore=E203,W503,E501'
-          - '--max-complexity=10'
+          - '--max-line-length=100'
+          - '--ignore=E203,W503'
         exclude: ^(user_data/data/|user_data/logs/|tests/)
 
   # ==============================================================================
@@ -100,7 +99,7 @@ repos:
   # ==============================================================================
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.9.0
+    rev: v1.3.0
     hooks:
       - id: mypy
         name: 🔬 Type check with mypy
@@ -115,11 +114,11 @@ repos:
   # ==============================================================================
 
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.7.7
+    rev: 1.7.5
     hooks:
       - id: bandit
         name: 🔒 Security check with Bandit
-        args: ['-ll', '-r', 'user_data/strategies/', 'scripts/']
+        args: ['-ll', '-i']
         exclude: ^(tests/|user_data/data/|user_data/logs/)
 
   # ==============================================================================

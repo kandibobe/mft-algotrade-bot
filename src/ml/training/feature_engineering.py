@@ -5,13 +5,14 @@ Feature Engineering Pipeline
 Transform raw OHLCV data into ML-ready features.
 """
 
-from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Tuple
-import pandas as pd
-import numpy as np
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import joblib
+import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,7 @@ class FeatureEngineer:
         is_valid, issues = self.validate_features(
             result,
             fix_issues=True,  # Auto-fix issues in training
-            raise_on_error=False  # Don't fail, just warn
+            raise_on_error=False,  # Don't fail, just warn
         )
 
         # Remove highly correlated features (learn which to remove from train)
@@ -124,8 +125,9 @@ class FeatureEngineer:
             result = self._fit_scale_features(result)
 
         # Store feature names (after correlation removal)
-        self.feature_names = [col for col in result.columns
-                            if col not in ['open', 'high', 'low', 'close', 'volume']]
+        self.feature_names = [
+            col for col in result.columns if col not in ["open", "high", "low", "close", "volume"]
+        ]
 
         self._is_fitted = True
         logger.info(f"Generated {len(self.feature_names)} features (scaler fitted)")
@@ -165,13 +167,13 @@ class FeatureEngineer:
         is_valid, issues = self.validate_features(
             result,
             fix_issues=False,  # Don't auto-fix in test mode
-            raise_on_error=True  # Fail if critical issues found
+            raise_on_error=True,  # Fail if critical issues found
         )
 
         # Apply same correlation filter (use stored feature names)
         if self.config.remove_correlated and self.feature_names:
             # Keep only features that were kept during training
-            cols_to_keep = ['open', 'high', 'low', 'close', 'volume'] + [
+            cols_to_keep = ["open", "high", "low", "close", "volume"] + [
                 col for col in self.feature_names if col in result.columns
             ]
             result = result[[col for col in cols_to_keep if col in result.columns]]
@@ -185,10 +187,7 @@ class FeatureEngineer:
         return result
 
     def validate_features(
-        self,
-        df: pd.DataFrame,
-        fix_issues: bool = False,
-        raise_on_error: bool = True
+        self, df: pd.DataFrame, fix_issues: bool = False, raise_on_error: bool = True
     ) -> Tuple[bool, Dict[str, Any]]:
         """
         Validate feature data quality.
@@ -211,25 +210,23 @@ class FeatureEngineer:
             ValueError: If raise_on_error=True and validation fails
         """
         issues = {
-            'nan_columns': [],
-            'inf_columns': [],
-            'low_variance_columns': [],
-            'outlier_columns': [],
-            'warnings': []
+            "nan_columns": [],
+            "inf_columns": [],
+            "low_variance_columns": [],
+            "outlier_columns": [],
+            "warnings": [],
         }
 
         # Check for NaN values
         nan_cols = df.columns[df.isnull().any()].tolist()
         if nan_cols:
             nan_counts = df[nan_cols].isnull().sum().to_dict()
-            issues['nan_columns'] = nan_counts
-            issues['warnings'].append(
-                f"Found NaN values in {len(nan_cols)} columns: {nan_counts}"
-            )
+            issues["nan_columns"] = nan_counts
+            issues["warnings"].append(f"Found NaN values in {len(nan_cols)} columns: {nan_counts}")
 
             if fix_issues:
                 logger.warning(f"Filling NaN values in {nan_cols}")
-                df[nan_cols] = df[nan_cols].fillna(method='ffill').fillna(0)
+                df[nan_cols] = df[nan_cols].fillna(method="ffill").fillna(0)
 
         # Check for Inf values
         numeric_cols = df.select_dtypes(include=[np.number]).columns
@@ -238,15 +235,13 @@ class FeatureEngineer:
 
         if inf_cols:
             inf_counts = inf_mask[inf_cols].sum().to_dict()
-            issues['inf_columns'] = inf_counts
-            issues['warnings'].append(
-                f"Found Inf values in {len(inf_cols)} columns: {inf_counts}"
-            )
+            issues["inf_columns"] = inf_counts
+            issues["warnings"].append(f"Found Inf values in {len(inf_cols)} columns: {inf_counts}")
 
             if fix_issues:
                 logger.warning(f"Replacing Inf values in {inf_cols}")
                 df[inf_cols] = df[inf_cols].replace([np.inf, -np.inf], np.nan)
-                df[inf_cols] = df[inf_cols].fillna(method='ffill').fillna(0)
+                df[inf_cols] = df[inf_cols].fillna(method="ffill").fillna(0)
 
         # Check for low variance features (potentially useless)
         if len(df) > 1:
@@ -255,15 +250,15 @@ class FeatureEngineer:
             low_var_cols = variance[variance < low_var_threshold].index.tolist()
 
             if low_var_cols:
-                issues['low_variance_columns'] = low_var_cols
-                issues['warnings'].append(
+                issues["low_variance_columns"] = low_var_cols
+                issues["warnings"].append(
                     f"Found {len(low_var_cols)} low-variance features "
                     f"(var < {low_var_threshold}): {low_var_cols[:5]}..."
                 )
 
         # Check for extreme outliers (beyond 5 std devs)
         for col in numeric_cols:
-            if col in ['open', 'high', 'low', 'close', 'volume']:
+            if col in ["open", "high", "low", "close", "volume"]:
                 continue  # Skip OHLCV columns
 
             mean = df[col].mean()
@@ -274,11 +269,9 @@ class FeatureEngineer:
                 if len(outliers) > 0:
                     outlier_pct = len(outliers) / len(df) * 100
                     if outlier_pct > 1.0:  # More than 1% outliers
-                        issues['outlier_columns'].append({
-                            'column': col,
-                            'count': len(outliers),
-                            'percentage': outlier_pct
-                        })
+                        issues["outlier_columns"].append(
+                            {"column": col, "count": len(outliers), "percentage": outlier_pct}
+                        )
 
                         if fix_issues:
                             # Clip to ±5 std devs
@@ -287,16 +280,14 @@ class FeatureEngineer:
                             df[col] = df[col].clip(lower_bound, upper_bound)
 
         # Check if any critical issues found
-        has_critical_issues = bool(
-            issues['nan_columns'] or issues['inf_columns']
-        )
+        has_critical_issues = bool(issues["nan_columns"] or issues["inf_columns"])
 
         # Log results
         if has_critical_issues:
             logger.error(
                 f"Feature validation FAILED: {sum(len(v) if isinstance(v, (list, dict)) else 0 for v in issues.values())} issues found"
             )
-            for warning in issues['warnings']:
+            for warning in issues["warnings"]:
                 logger.error(f"  - {warning}")
 
             if raise_on_error:
@@ -304,9 +295,9 @@ class FeatureEngineer:
                     f"Feature validation failed. Issues: {issues}. "
                     f"Set fix_issues=True to attempt automatic fixes."
                 )
-        elif issues['warnings']:
+        elif issues["warnings"]:
             logger.warning("Feature validation passed with warnings:")
-            for warning in issues['warnings']:
+            for warning in issues["warnings"]:
                 logger.warning(f"  - {warning}")
         else:
             logger.info("✅ Feature validation passed - data quality OK")
@@ -342,119 +333,120 @@ class FeatureEngineer:
     def _add_price_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add price-based features."""
         # Returns
-        df['returns'] = df['close'].pct_change(fill_method=None)
-        df['returns_log'] = np.log(df['close'] / df['close'].shift(1))
+        df["returns"] = df["close"].pct_change(fill_method=None)
+        df["returns_log"] = np.log(df["close"] / df["close"].shift(1))
 
         # Price position in range
-        df['price_position'] = (df['close'] - df['low']) / (df['high'] - df['low'] + 1e-10)
+        df["price_position"] = (df["close"] - df["low"]) / (df["high"] - df["low"] + 1e-10)
 
         # Gap features
-        df['gap'] = (df['open'] - df['close'].shift(1)) / df['close'].shift(1)
+        df["gap"] = (df["open"] - df["close"].shift(1)) / df["close"].shift(1)
 
         # Price change from open
-        df['intraday_return'] = (df['close'] - df['open']) / df['open']
+        df["intraday_return"] = (df["close"] - df["open"]) / df["open"]
 
         return df
 
     def _add_volume_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add volume-based features."""
         # Volume changes
-        df['volume_change'] = df['volume'].pct_change(fill_method=None)
+        df["volume_change"] = df["volume"].pct_change(fill_method=None)
 
         # Volume moving averages
-        df['volume_sma'] = df['volume'].rolling(self.config.short_period).mean()
-        df['volume_ratio'] = df['volume'] / (df['volume_sma'] + 1e-10)
+        df["volume_sma"] = df["volume"].rolling(self.config.short_period).mean()
+        df["volume_ratio"] = df["volume"] / (df["volume_sma"] + 1e-10)
 
         # Volume-price features
         # ✅ FIXED: Use rolling window instead of cumsum to prevent data leakage
         # VWAP should only use past data, not future data
         vwap_window = self.config.short_period
-        typical_price = (df['high'] + df['low'] + df['close']) / 3
-        df['vwap'] = (
-            (typical_price * df['volume']).rolling(vwap_window).sum() /
-            df['volume'].rolling(vwap_window).sum()
-        )
-        df['vwap_diff'] = (df['close'] - df['vwap']) / (df['vwap'] + 1e-10)
+        typical_price = (df["high"] + df["low"] + df["close"]) / 3
+        df["vwap"] = (typical_price * df["volume"]).rolling(vwap_window).sum() / df[
+            "volume"
+        ].rolling(vwap_window).sum()
+        df["vwap_diff"] = (df["close"] - df["vwap"]) / (df["vwap"] + 1e-10)
 
         return df
 
     def _add_momentum_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add momentum indicators."""
         # RSI
-        delta = df['close'].diff()
+        delta = df["close"].diff()
         gain = (delta.where(delta > 0, 0)).rolling(self.config.short_period).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(self.config.short_period).mean()
         rs = gain / (loss + 1e-10)
-        df['rsi'] = 100 - (100 / (1 + rs))
+        df["rsi"] = 100 - (100 / (1 + rs))
 
         # MACD
-        ema_short = df['close'].ewm(span=12, adjust=False).mean()
-        ema_long = df['close'].ewm(span=26, adjust=False).mean()
-        df['macd'] = ema_short - ema_long
-        df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
-        df['macd_hist'] = df['macd'] - df['macd_signal']
+        ema_short = df["close"].ewm(span=12, adjust=False).mean()
+        ema_long = df["close"].ewm(span=26, adjust=False).mean()
+        df["macd"] = ema_short - ema_long
+        df["macd_signal"] = df["macd"].ewm(span=9, adjust=False).mean()
+        df["macd_hist"] = df["macd"] - df["macd_signal"]
 
         # Stochastic
-        low_min = df['low'].rolling(self.config.short_period).min()
-        high_max = df['high'].rolling(self.config.short_period).max()
-        df['stoch_k'] = 100 * (df['close'] - low_min) / (high_max - low_min + 1e-10)
-        df['stoch_d'] = df['stoch_k'].rolling(3).mean()
+        low_min = df["low"].rolling(self.config.short_period).min()
+        high_max = df["high"].rolling(self.config.short_period).max()
+        df["stoch_k"] = 100 * (df["close"] - low_min) / (high_max - low_min + 1e-10)
+        df["stoch_d"] = df["stoch_k"].rolling(3).mean()
 
         return df
 
     def _add_volatility_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add volatility indicators."""
         # ATR
-        high_low = df['high'] - df['low']
-        high_close = np.abs(df['high'] - df['close'].shift())
-        low_close = np.abs(df['low'] - df['close'].shift())
+        high_low = df["high"] - df["low"]
+        high_close = np.abs(df["high"] - df["close"].shift())
+        low_close = np.abs(df["low"] - df["close"].shift())
         ranges = pd.concat([high_low, high_close, low_close], axis=1)
         true_range = ranges.max(axis=1)
-        df['atr'] = true_range.rolling(self.config.short_period).mean()
-        df['atr_percent'] = df['atr'] / df['close']
+        df["atr"] = true_range.rolling(self.config.short_period).mean()
+        df["atr_percent"] = df["atr"] / df["close"]
 
         # Bollinger Bands
-        sma = df['close'].rolling(self.config.medium_period).mean()
-        std = df['close'].rolling(self.config.medium_period).std()
-        df['bb_upper'] = sma + (2 * std)
-        df['bb_lower'] = sma - (2 * std)
-        df['bb_width'] = (df['bb_upper'] - df['bb_lower']) / sma
-        df['bb_position'] = (df['close'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'] + 1e-10)
+        sma = df["close"].rolling(self.config.medium_period).mean()
+        std = df["close"].rolling(self.config.medium_period).std()
+        df["bb_upper"] = sma + (2 * std)
+        df["bb_lower"] = sma - (2 * std)
+        df["bb_width"] = (df["bb_upper"] - df["bb_lower"]) / sma
+        df["bb_position"] = (df["close"] - df["bb_lower"]) / (
+            df["bb_upper"] - df["bb_lower"] + 1e-10
+        )
 
         # Historical volatility
-        df['volatility'] = df['returns'].rolling(self.config.medium_period).std()
+        df["volatility"] = df["returns"].rolling(self.config.medium_period).std()
 
         return df
 
     def _add_trend_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add trend indicators."""
         # Moving averages
-        df['sma_short'] = df['close'].rolling(self.config.short_period).mean()
-        df['sma_medium'] = df['close'].rolling(self.config.medium_period).mean()
-        df['sma_long'] = df['close'].rolling(self.config.long_period).mean()
+        df["sma_short"] = df["close"].rolling(self.config.short_period).mean()
+        df["sma_medium"] = df["close"].rolling(self.config.medium_period).mean()
+        df["sma_long"] = df["close"].rolling(self.config.long_period).mean()
 
         # EMA
-        df['ema_short'] = df['close'].ewm(span=self.config.short_period, adjust=False).mean()
-        df['ema_medium'] = df['close'].ewm(span=self.config.medium_period, adjust=False).mean()
+        df["ema_short"] = df["close"].ewm(span=self.config.short_period, adjust=False).mean()
+        df["ema_medium"] = df["close"].ewm(span=self.config.medium_period, adjust=False).mean()
 
         # Price vs MA
-        df['price_vs_sma_short'] = (df['close'] - df['sma_short']) / df['sma_short']
-        df['price_vs_sma_medium'] = (df['close'] - df['sma_medium']) / df['sma_medium']
+        df["price_vs_sma_short"] = (df["close"] - df["sma_short"]) / df["sma_short"]
+        df["price_vs_sma_medium"] = (df["close"] - df["sma_medium"]) / df["sma_medium"]
 
         # MA crossovers
-        df['ma_cross_short_medium'] = (df['sma_short'] > df['sma_medium']).astype(int)
-        df['ma_cross_medium_long'] = (df['sma_medium'] > df['sma_long']).astype(int)
+        df["ma_cross_short_medium"] = (df["sma_short"] > df["sma_medium"]).astype(int)
+        df["ma_cross_medium_long"] = (df["sma_medium"] > df["sma_long"]).astype(int)
 
         # ADX (trend strength)
-        high_diff = df['high'].diff()
-        low_diff = -df['low'].diff()
+        high_diff = df["high"].diff()
+        low_diff = -df["low"].diff()
         plus_dm = high_diff.where((high_diff > low_diff) & (high_diff > 0), 0)
         minus_dm = low_diff.where((low_diff > high_diff) & (low_diff > 0), 0)
 
         # Calculate true range for ADX
-        high_low = df['high'] - df['low']
-        high_close = np.abs(df['high'] - df['close'].shift())
-        low_close = np.abs(df['low'] - df['close'].shift())
+        high_low = df["high"] - df["low"]
+        high_close = np.abs(df["high"] - df["close"].shift())
+        low_close = np.abs(df["low"] - df["close"].shift())
         ranges = pd.concat([high_low, high_close, low_close], axis=1)
         true_range = ranges.max(axis=1)
 
@@ -462,7 +454,7 @@ class FeatureEngineer:
         plus_di = 100 * (plus_dm.rolling(self.config.short_period).mean() / (atr + 1e-10))
         minus_di = 100 * (minus_dm.rolling(self.config.short_period).mean() / (atr + 1e-10))
         dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di + 1e-10)
-        df['adx'] = dx.rolling(self.config.short_period).mean()
+        df["adx"] = dx.rolling(self.config.short_period).mean()
 
         return df
 
@@ -472,26 +464,27 @@ class FeatureEngineer:
             return df
 
         # Hour, day of week, month
-        df['hour'] = df.index.hour
-        df['day_of_week'] = df.index.dayofweek
-        df['month'] = df.index.month
+        df["hour"] = df.index.hour
+        df["day_of_week"] = df.index.dayofweek
+        df["month"] = df.index.month
 
         # Cyclical encoding (sin/cos for periodicity)
-        df['hour_sin'] = np.sin(2 * np.pi * df['hour'] / 24)
-        df['hour_cos'] = np.cos(2 * np.pi * df['hour'] / 24)
-        df['day_sin'] = np.sin(2 * np.pi * df['day_of_week'] / 7)
-        df['day_cos'] = np.cos(2 * np.pi * df['day_of_week'] / 7)
+        df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
+        df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
+        df["day_sin"] = np.sin(2 * np.pi * df["day_of_week"] / 7)
+        df["day_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
 
         return df
 
     def _remove_correlated_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Remove highly correlated features."""
         # Preserve OHLCV columns
-        base_cols = ['open', 'high', 'low', 'close', 'volume']
+        base_cols = ["open", "high", "low", "close", "volume"]
 
         # Get numeric columns only, excluding base OHLCV columns
-        numeric_cols = [col for col in df.select_dtypes(include=[np.number]).columns
-                       if col not in base_cols]
+        numeric_cols = [
+            col for col in df.select_dtypes(include=[np.number]).columns if col not in base_cols
+        ]
 
         if len(numeric_cols) < 2:
             return df
@@ -500,13 +493,12 @@ class FeatureEngineer:
         corr_matrix = df[numeric_cols].corr().abs()
 
         # Find pairs of highly correlated features
-        upper_tri = corr_matrix.where(
-            np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
-        )
+        upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
 
         # Drop features with high correlation (never drop base OHLCV columns)
         to_drop = [
-            column for column in upper_tri.columns
+            column
+            for column in upper_tri.columns
             if any(upper_tri[column] > self.config.correlation_threshold)
             and column not in base_cols
         ]
@@ -524,10 +516,10 @@ class FeatureEngineer:
         This learns the scaling parameters (mean/std for StandardScaler,
         min/max for MinMaxScaler) from the training data.
         """
-        from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+        from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
         # Don't scale OHLCV columns
-        base_cols = ['open', 'high', 'low', 'close', 'volume']
+        base_cols = ["open", "high", "low", "close", "volume"]
         feature_cols = [col for col in df.columns if col not in base_cols]
 
         if not feature_cols:
@@ -545,7 +537,9 @@ class FeatureEngineer:
             self.scaler = RobustScaler()
 
         # FIT on training data and transform
-        logger.info(f"Fitting scaler ({self.config.scaling_method}) on {len(feature_cols)} features")
+        logger.info(
+            f"Fitting scaler ({self.config.scaling_method}) on {len(feature_cols)} features"
+        )
         df[feature_cols] = self.scaler.fit_transform(df[feature_cols])
 
         return df
@@ -592,7 +586,7 @@ class FeatureEngineer:
             "config": {
                 "scaling_method": self.config.scaling_method,
                 "correlation_threshold": self.config.correlation_threshold,
-            }
+            },
         }
 
         joblib.dump(scaler_data, output_path)

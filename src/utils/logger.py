@@ -32,10 +32,11 @@ Usage:
     # strategy:"ensemble_v1" AND pnl:<0
 """
 
-import structlog
 import logging
 import sys
 from typing import Any, Dict, Optional
+
+import structlog
 
 
 def setup_structured_logging(
@@ -63,9 +64,7 @@ def setup_structured_logging(
 
     # Configure standard logging
     logging.basicConfig(
-        format="%(message)s",
-        level=log_level,
-        handlers=[]  # We'll add handlers below
+        format="%(message)s", level=log_level, handlers=[]  # We'll add handlers below
     )
 
     # Create handlers
@@ -110,12 +109,13 @@ def setup_structured_logging(
 
     # Log initialization
     log = structlog.get_logger()
-    log.info("structured_logging_initialized",
+    log.info(
+        "structured_logging_initialized",
         level=level,
         json_output=json_output,
         enable_console=enable_console,
         enable_file=enable_file,
-        file_path=file_path
+        file_path=file_path,
     )
 
 
@@ -151,10 +151,7 @@ def ensure_initialized() -> None:
         except KeyError:
             # Not configured, set up with defaults
             setup_structured_logging(
-                level="INFO",
-                json_output=True,
-                enable_console=True,
-                enable_file=False
+                level="INFO", json_output=True, enable_console=True, enable_file=False
             )
         _structlog_initialized = True
 
@@ -169,7 +166,7 @@ def log_trade(
     strategy: Optional[str] = None,
     order_id: Optional[str] = None,
     exchange: Optional[str] = None,
-    **additional_context: Any
+    **additional_context: Any,
 ) -> None:
     """
     Log a trade execution with structured data.
@@ -191,7 +188,7 @@ def log_trade(
         "side": side,
         "quantity": quantity,
         "price": price,
-        "event_type": "trade_executed"
+        "event_type": "trade_executed",
     }
     if pnl is not None:
         context["pnl"] = pnl
@@ -215,7 +212,7 @@ def log_order(
     price: Optional[float] = None,
     status: str = "created",
     reason: Optional[str] = None,
-    **additional_context: Any
+    **additional_context: Any,
 ) -> None:
     """
     Log order creation/update with structured data.
@@ -239,7 +236,7 @@ def log_order(
         "side": side,
         "quantity": quantity,
         "status": status,
-        "event_type": "order_update"
+        "event_type": "order_update",
     }
     if price is not None:
         context["price"] = price
@@ -256,7 +253,7 @@ def log_strategy_signal(
     signal: str,
     confidence: Optional[float] = None,
     indicators: Optional[Dict[str, Any]] = None,
-    **additional_context: Any
+    **additional_context: Any,
 ) -> None:
     """
     Log strategy signal with structured data.
@@ -274,7 +271,7 @@ def log_strategy_signal(
         "strategy": strategy,
         "symbol": symbol,
         "signal": signal,
-        "event_type": "strategy_signal"
+        "event_type": "strategy_signal",
     }
     if confidence is not None:
         context["confidence"] = confidence
@@ -290,7 +287,7 @@ def log_error(
     message: str,
     exception: Optional[Exception] = None,
     component: Optional[str] = None,
-    **additional_context: Any
+    **additional_context: Any,
 ) -> None:
     """
     Log error with structured data.
@@ -303,11 +300,7 @@ def log_error(
         **additional_context: Additional key-value pairs to log
     """
     ensure_initialized()
-    context = {
-        "error_type": error_type,
-        "message": message,
-        "event_type": "error"
-    }
+    context = {"error_type": error_type, "message": message, "event_type": "error"}
     if component is not None:
         context["component"] = component
     context.update(additional_context)
@@ -323,7 +316,7 @@ def log_metric(
     value: float,
     metric_type: str = "gauge",
     tags: Optional[Dict[str, str]] = None,
-    **additional_context: Any
+    **additional_context: Any,
 ) -> None:
     """
     Log metric for monitoring.
@@ -340,7 +333,7 @@ def log_metric(
         "metric_name": name,
         "metric_value": value,
         "metric_type": metric_type,
-        "event_type": "metric"
+        "event_type": "metric",
     }
     if tags is not None:
         context["tags"] = tags

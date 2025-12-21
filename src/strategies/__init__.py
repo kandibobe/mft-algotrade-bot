@@ -18,7 +18,4 @@ Strategies use the utilities from src/utils for:
 from .base_strategy import BaseStrategy
 from .strategy_config import StrategyConfig
 
-__all__ = [
-    'BaseStrategy',
-    'StrategyConfig'
-]
+__all__ = ["BaseStrategy", "StrategyConfig"]

@@ -21,13 +21,13 @@ Copyright (c) 2024-2025 Stoic Citadel
 PROPRIETARY - All Rights Reserved
 """
 
-import time
-import logging
 import asyncio
+import logging
+import time
 from collections import deque
 from functools import wraps
-from typing import Callable, Optional
 from threading import Lock
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class TokenBucketLimiter:
         max_calls: int,
         period: float,
         burst_limit: Optional[int] = None,
-        enable_backoff: bool = True
+        enable_backoff: bool = True,
     ):
         """
         Initialize rate limiter.
@@ -110,7 +110,7 @@ class TokenBucketLimiter:
             return 0.0
 
         # Exponential backoff: 0.5s, 1s, 2s, 4s, 8s (max)
-        backoff = min(0.5 * (2 ** self.consecutive_limits), 8.0)
+        backoff = min(0.5 * (2**self.consecutive_limits), 8.0)
         return backoff
 
     def acquire(self) -> None:
@@ -179,9 +179,7 @@ class TokenBucketLimiter:
                 self.consecutive_limits += 1
                 self.last_limit_hit = now
 
-                logger.warning(
-                    f"Rate limit reached (async). Sleeping {sleep_time:.2f}s"
-                )
+                logger.warning(f"Rate limit reached (async). Sleeping {sleep_time:.2f}s")
 
             await asyncio.sleep(sleep_time)
 
@@ -200,12 +198,12 @@ class TokenBucketLimiter:
             utilization = (current_calls / self.max_calls) * 100
 
             return {
-                'current_calls': current_calls,
-                'max_calls': self.max_calls,
-                'period': self.period,
-                'utilization_pct': utilization,
-                'consecutive_limits': self.consecutive_limits,
-                'time_until_reset': self.period if self.calls else 0
+                "current_calls": current_calls,
+                "max_calls": self.max_calls,
+                "period": self.period,
+                "utilization_pct": utilization,
+                "consecutive_limits": self.consecutive_limits,
+                "time_until_reset": self.period if self.calls else 0,
             }
 
     def __call__(self, func: Callable) -> Callable:
@@ -217,6 +215,7 @@ class TokenBucketLimiter:
             def my_api_call():
                 return exchange.fetch_ticker('BTC/USDT')
         """
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             self.acquire()

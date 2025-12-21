@@ -24,39 +24,41 @@ State Machine for Order Lifecycle:
                      |-> CANCELLED -> FAILED
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional, Dict, Any, Callable
-from enum import Enum
-import time
 import asyncio
 import logging
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any, Callable, Dict, Optional
 
-from src.order_manager.order_types import Order, OrderType, OrderSide, OrderStatus, LimitOrder
+from src.order_manager.order_types import LimitOrder, Order, OrderSide, OrderStatus, OrderType
 
 logger = logging.getLogger(__name__)
 
 
 class ExecutionState(Enum):
     """State machine states for smart limit order execution."""
-    PENDING = "pending"                  # Order created, not yet placed
-    PLACED = "placed"                    # Limit order placed on exchange
-    CHECKING = "checking"                # Checking order status
+
+    PENDING = "pending"  # Order created, not yet placed
+    PLACED = "placed"  # Limit order placed on exchange
+    CHECKING = "checking"  # Checking order status
     PARTIALLY_FILLED = "partially_filled"  # Some quantity filled
-    CHASING = "chasing"                  # Updating price to chase market
+    CHASING = "chasing"  # Updating price to chase market
     MARKET_FALLBACK = "market_fallback"  # Converting to market order
-    FILLED = "filled"                    # Order fully filled
-    CANCELLED = "cancelled"              # Order cancelled
-    TIMEOUT = "timeout"                  # Max wait time exceeded
-    FAILED = "failed"                    # Execution failed
+    FILLED = "filled"  # Order fully filled
+    CANCELLED = "cancelled"  # Order cancelled
+    TIMEOUT = "timeout"  # Max wait time exceeded
+    FAILED = "failed"  # Execution failed
 
 
 class ChasingStrategy(Enum):
     """Limit order chasing strategy."""
-    PASSIVE = "passive"          # Place at bid/ask, don't chase
-    MODERATE = "moderate"        # Chase slowly (every 5 seconds)
-    AGGRESSIVE = "aggressive"    # Chase quickly (every 1 second)
-    ADAPTIVE = "adaptive"        # Adjust based on volatility
+
+    PASSIVE = "passive"  # Place at bid/ask, don't chase
+    MODERATE = "moderate"  # Chase slowly (every 5 seconds)
+    AGGRESSIVE = "aggressive"  # Chase quickly (every 1 second)
+    ADAPTIVE = "adaptive"  # Adjust based on volatility
 
 
 @dataclass
@@ -67,12 +69,12 @@ class SmartLimitConfig:
     chasing_strategy: ChasingStrategy = ChasingStrategy.MODERATE
 
     # Timeouts
-    max_wait_seconds: float = 30.0     # Max time to wait for fill
+    max_wait_seconds: float = 30.0  # Max time to wait for fill
     chase_interval_seconds: float = 3.0  # How often to update price
 
     # Price offset from best bid/ask (in bps)
-    initial_offset_bps: float = 0.0    # 0 = exactly at best bid/ask
-    max_offset_bps: float = 5.0        # Max offset before converting to market
+    initial_offset_bps: float = 0.0  # 0 = exactly at best bid/ask
+    max_offset_bps: float = 5.0  # Max offset before converting to market
 
     # Convert to market order if not filled within threshold
     convert_to_market: bool = True
@@ -80,14 +82,14 @@ class SmartLimitConfig:
 
     # Partial fill handling
     allow_partial_fills: bool = True
-    min_fill_ratio: float = 0.5        # Minimum 50% fill to consider success
+    min_fill_ratio: float = 0.5  # Minimum 50% fill to consider success
 
     # Fee assumptions (for cost calculation)
-    maker_fee_bps: float = 2.0         # 0.02% maker fee
-    taker_fee_bps: float = 10.0        # 0.10% taker fee
+    maker_fee_bps: float = 2.0  # 0.02% maker fee
+    taker_fee_bps: float = 10.0  # 0.10% taker fee
 
     # Spread threshold - don't post if spread is too wide
-    max_spread_bps: float = 50.0       # 0.5% max spread
+    max_spread_bps: float = 50.0  # 0.5% max spread
 
 
 @dataclass
@@ -144,7 +146,7 @@ class SmartLimitExecutor:
         order: Order,
         exchange_api: Any,
         orderbook: Dict[str, Any],
-        on_update: Optional[Callable[[str, float], None]] = None
+        on_update: Optional[Callable[[str, float], None]] = None,
     ) -> SmartExecutionResult:
         """
         Execute order using smart limit strategy.
@@ -162,18 +164,14 @@ class SmartLimitExecutor:
 
         # Validate inputs
         if not orderbook or not orderbook.get("bids") or not orderbook.get("asks"):
-            return self._create_failure_result(
-                order, "Invalid order book data", start_time
-            )
+            return self._create_failure_result(order, "Invalid order book data", start_time)
 
         # Check spread
         best_bid = orderbook["bids"][0][0] if orderbook["bids"] else None
         best_ask = orderbook["asks"][0][0] if orderbook["asks"] else None
 
         if not best_bid or not best_ask:
-            return self._create_failure_result(
-                order, "No bid/ask in order book", start_time
-            )
+            return self._create_failure_result(order, "No bid/ask in order book", start_time)
 
         spread_bps = ((best_ask - best_bid) / best_bid) * 10000
 
@@ -182,7 +180,9 @@ class SmartLimitExecutor:
                 f"Spread too wide: {spread_bps:.1f} bps > {self.config.max_spread_bps} bps"
             )
             # Fall back to market order
-            return self._execute_as_market(order, exchange_api, best_ask if order.is_buy else best_bid, start_time)
+            return self._execute_as_market(
+                order, exchange_api, best_ask if order.is_buy else best_bid, start_time
+            )
 
         # Calculate initial limit price
         limit_price = self._calculate_limit_price(order, best_bid, best_ask)
@@ -198,15 +198,10 @@ class SmartLimitExecutor:
             exchange_api=exchange_api,
             initial_price=limit_price,
             start_time=start_time,
-            on_update=on_update
+            on_update=on_update,
         )
 
-    def _calculate_limit_price(
-        self,
-        order: Order,
-        best_bid: float,
-        best_ask: float
-    ) -> float:
+    def _calculate_limit_price(self, order: Order, best_bid: float, best_ask: float) -> float:
         """
         Calculate initial limit price.
 
@@ -234,7 +229,7 @@ class SmartLimitExecutor:
         exchange_api: Any,
         initial_price: float,
         start_time: float,
-        on_update: Optional[Callable] = None
+        on_update: Optional[Callable] = None,
     ) -> SmartExecutionResult:
         """Execute limit order and chase if needed."""
         current_price = initial_price
@@ -269,14 +264,19 @@ class SmartLimitExecutor:
 
             # Check if should convert to market
             if self.config.convert_to_market:
-                convert_threshold = self.config.max_wait_seconds * self.config.market_conversion_threshold
+                convert_threshold = (
+                    self.config.max_wait_seconds * self.config.market_conversion_threshold
+                )
                 if elapsed >= convert_threshold:
                     logger.info(f"Converting to market order after {elapsed:.1f}s")
                     # Cancel limit and place market
                     self._cancel_order(exchange_order_id, order.symbol, exchange_api)
                     return self._execute_as_market(
-                        order, exchange_api, current_price, start_time,
-                        already_filled=filled_quantity
+                        order,
+                        exchange_api,
+                        current_price,
+                        start_time,
+                        already_filled=filled_quantity,
                     )
 
             # Check order status
@@ -306,7 +306,7 @@ class SmartLimitExecutor:
                         total_fee=fee,
                         fee_saved_vs_market=fee_saved,
                         chase_count=chase_count,
-                        total_time_seconds=time.time() - start_time
+                        total_time_seconds=time.time() - start_time,
                     )
 
                 elif status["status"] == "partially_filled":
@@ -338,9 +338,7 @@ class SmartLimitExecutor:
                         current_price = new_price
                         chase_count += 1
 
-                        logger.info(
-                            f"Chase #{chase_count}: Updated price to {new_price:.2f}"
-                        )
+                        logger.info(f"Chase #{chase_count}: Updated price to {new_price:.2f}")
 
                         if on_update:
                             on_update("chased", new_price)
@@ -364,7 +362,7 @@ class SmartLimitExecutor:
                     filled_quantity=filled_quantity,
                     total_fee=self._calculate_maker_fee(filled_quantity * current_price),
                     chase_count=chase_count,
-                    total_time_seconds=time.time() - start_time
+                    total_time_seconds=time.time() - start_time,
                 )
 
         return self._create_failure_result(
@@ -372,11 +370,7 @@ class SmartLimitExecutor:
         )
 
     def _calculate_chase_price(
-        self,
-        order: Order,
-        current_price: float,
-        orderbook: Dict,
-        chase_count: int
+        self, order: Order, current_price: float, orderbook: Dict, chase_count: int
     ) -> float:
         """Calculate new price for chasing."""
         best_bid = orderbook["bids"][0][0] if orderbook.get("bids") else current_price
@@ -384,8 +378,7 @@ class SmartLimitExecutor:
 
         # Increase offset with each chase
         offset_bps = min(
-            self.config.initial_offset_bps + (chase_count * 1.0),
-            self.config.max_offset_bps
+            self.config.initial_offset_bps + (chase_count * 1.0), self.config.max_offset_bps
         )
         offset_ratio = offset_bps / 10000
 
@@ -401,29 +394,18 @@ class SmartLimitExecutor:
 
         return current_price
 
-    def _place_limit_order(
-        self,
-        order: Order,
-        price: float,
-        exchange_api: Any
-    ) -> Dict:
+    def _place_limit_order(self, order: Order, price: float, exchange_api: Any) -> Dict:
         """Place limit order on exchange."""
         try:
             result = exchange_api.create_limit_order(
-                symbol=order.symbol,
-                side=order.side.value,
-                amount=order.quantity,
-                price=price
+                symbol=order.symbol, side=order.side.value, amount=order.quantity, price=price
             )
             return {
                 "success": True,
                 "order_id": result.get("id"),
             }
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _cancel_order(self, order_id: str, symbol: str, exchange_api: Any) -> bool:
         """Cancel order on exchange."""
@@ -434,12 +416,7 @@ class SmartLimitExecutor:
             logger.warning(f"Failed to cancel order {order_id}: {e}")
             return False
 
-    def _check_order_status(
-        self,
-        order_id: str,
-        symbol: str,
-        exchange_api: Any
-    ) -> Dict:
+    def _check_order_status(self, order_id: str, symbol: str, exchange_api: Any) -> Dict:
         """Check order status on exchange."""
         result = exchange_api.fetch_order(order_id, symbol)
         return {
@@ -454,7 +431,7 @@ class SmartLimitExecutor:
         exchange_api: Any,
         reference_price: float,
         start_time: float,
-        already_filled: float = 0.0
+        already_filled: float = 0.0,
     ) -> SmartExecutionResult:
         """Fall back to market order execution."""
         remaining_quantity = order.quantity - already_filled
@@ -467,14 +444,12 @@ class SmartLimitExecutor:
                 average_price=reference_price,
                 filled_quantity=already_filled,
                 total_fee=self._calculate_maker_fee(already_filled * reference_price),
-                total_time_seconds=time.time() - start_time
+                total_time_seconds=time.time() - start_time,
             )
 
         try:
             result = exchange_api.create_market_order(
-                symbol=order.symbol,
-                side=order.side.value,
-                amount=remaining_quantity
+                symbol=order.symbol, side=order.side.value, amount=remaining_quantity
             )
 
             avg_price = result.get("average", reference_price)
@@ -482,7 +457,9 @@ class SmartLimitExecutor:
 
             total_filled = already_filled + remaining_quantity
             total_fee = fee + (
-                self._calculate_maker_fee(already_filled * reference_price) if already_filled > 0 else 0
+                self._calculate_maker_fee(already_filled * reference_price)
+                if already_filled > 0
+                else 0
             )
 
             order.update_fill(remaining_quantity, avg_price, fee)
@@ -495,7 +472,7 @@ class SmartLimitExecutor:
                 filled_quantity=total_filled,
                 total_fee=total_fee,
                 fee_saved_vs_market=0.0,  # No savings when using market order
-                total_time_seconds=time.time() - start_time
+                total_time_seconds=time.time() - start_time,
             )
 
         except Exception as e:
@@ -510,11 +487,7 @@ class SmartLimitExecutor:
         return value * (self.config.taker_fee_bps / 10000)
 
     def _create_failure_result(
-        self,
-        order: Order,
-        error: str,
-        start_time: float,
-        chase_count: int = 0
+        self, order: Order, error: str, start_time: float, chase_count: int = 0
     ) -> SmartExecutionResult:
         """Create failure result."""
         return SmartExecutionResult(
@@ -523,7 +496,7 @@ class SmartLimitExecutor:
             execution_type="failed",
             error_message=error,
             chase_count=chase_count,
-            total_time_seconds=time.time() - start_time
+            total_time_seconds=time.time() - start_time,
         )
 
     def get_statistics(self) -> Dict:
@@ -540,7 +513,7 @@ class SmartLimitExecutor:
             "total_fees_saved": self.total_fees_saved,
             "average_chase_count": (
                 sum(r.chase_count for r in self.execution_history) / max(1, total_executions)
-            )
+            ),
         }
 
 
@@ -591,7 +564,7 @@ class AsyncSmartLimitExecutor:
         order: Order,
         exchange_api: Any,
         orderbook: Dict[str, Any],
-        on_state_change: Optional[Callable[[ExecutionState, Dict], None]] = None
+        on_state_change: Optional[Callable[[ExecutionState, Dict], None]] = None,
     ) -> SmartExecutionResult:
         """
         Execute order asynchronously with state machine.
@@ -611,9 +584,7 @@ class AsyncSmartLimitExecutor:
         # Validate inputs
         if not orderbook or not orderbook.get("bids") or not orderbook.get("asks"):
             self._transition_to(ExecutionState.FAILED)
-            return self._create_failure_result(
-                order, "Invalid order book data", start_time
-            )
+            return self._create_failure_result(order, "Invalid order book data", start_time)
 
         best_bid = orderbook["bids"][0][0]
         best_ask = orderbook["asks"][0][0]
@@ -655,14 +626,15 @@ class AsyncSmartLimitExecutor:
                 if self.config.convert_to_market and filled_quantity < order.quantity:
                     self._transition_to(ExecutionState.MARKET_FALLBACK)
                     return await self._execute_market_async(
-                        order, exchange_api, current_price, start_time,
-                        already_filled=filled_quantity
+                        order,
+                        exchange_api,
+                        current_price,
+                        start_time,
+                        already_filled=filled_quantity,
                     )
                 else:
                     self._transition_to(ExecutionState.FAILED)
-                    return self._create_failure_result(
-                        order, "Timeout", start_time, chase_count
-                    )
+                    return self._create_failure_result(order, "Timeout", start_time, chase_count)
 
             # State: PENDING -> Place order
             if self._current_state == ExecutionState.PENDING:
@@ -715,7 +687,7 @@ class AsyncSmartLimitExecutor:
                         total_fee=fee,
                         fee_saved_vs_market=fee_saved,
                         chase_count=chase_count,
-                        total_time_seconds=time.time() - start_time
+                        total_time_seconds=time.time() - start_time,
                     )
 
                 elif status["status"] == "partially_filled":
@@ -732,7 +704,9 @@ class AsyncSmartLimitExecutor:
 
                 elif status["status"] == "open":
                     # Not filled yet - should we chase?
-                    convert_threshold = self.config.max_wait_seconds * self.config.market_conversion_threshold
+                    convert_threshold = (
+                        self.config.max_wait_seconds * self.config.market_conversion_threshold
+                    )
 
                     if elapsed >= convert_threshold:
                         # Convert to market - use lock to prevent race
@@ -747,8 +721,11 @@ class AsyncSmartLimitExecutor:
                                     exchange_order_id, order.symbol, exchange_api
                                 )
                                 return await self._execute_market_async(
-                                    order, exchange_api, current_price, start_time,
-                                    already_filled=filled_quantity
+                                    order,
+                                    exchange_api,
+                                    current_price,
+                                    start_time,
+                                    already_filled=filled_quantity,
                                 )
                             elif fresh_status["status"] == "closed":
                                 # Order filled between checks - update and return
@@ -764,9 +741,12 @@ class AsyncSmartLimitExecutor:
                                     average_price=avg_price,
                                     filled_quantity=filled_quantity,
                                     total_fee=fee,
-                                    fee_saved_vs_market=self._calculate_taker_fee(filled_quantity * avg_price) - fee,
+                                    fee_saved_vs_market=self._calculate_taker_fee(
+                                        filled_quantity * avg_price
+                                    )
+                                    - fee,
                                     chase_count=chase_count,
-                                    total_time_seconds=time.time() - start_time
+                                    total_time_seconds=time.time() - start_time,
                                 )
                     else:
                         # Chase the price
@@ -795,7 +775,9 @@ class AsyncSmartLimitExecutor:
                                     exchange_order_id, order.symbol, exchange_api
                                 )
 
-                                result = await self._place_order_async(order, new_price, exchange_api)
+                                result = await self._place_order_async(
+                                    order, new_price, exchange_api
+                                )
                                 if result["success"]:
                                     exchange_order_id = result.get("order_id")
                                     current_price = new_price
@@ -804,12 +786,14 @@ class AsyncSmartLimitExecutor:
                                     logger.info(f"Chase #{chase_count}: New price {new_price:.2f}")
 
                                     if on_state_change:
-                                        on_state_change(self._current_state, {
-                                            "price": new_price,
-                                            "chase_count": chase_count
-                                        })
+                                        on_state_change(
+                                            self._current_state,
+                                            {"price": new_price, "chase_count": chase_count},
+                                        )
                             else:
-                                logger.info(f"Order status changed to {status['status']}, skipping chase")
+                                logger.info(
+                                    f"Order status changed to {status['status']}, skipping chase"
+                                )
 
                     self._transition_to(ExecutionState.PLACED)
 
@@ -817,12 +801,7 @@ class AsyncSmartLimitExecutor:
                     logger.warning(f"Chase error: {e}")
                     self._transition_to(ExecutionState.PLACED)
 
-    def _calculate_limit_price(
-        self,
-        order: Order,
-        best_bid: float,
-        best_ask: float
-    ) -> float:
+    def _calculate_limit_price(self, order: Order, best_bid: float, best_ask: float) -> float:
         """Calculate initial limit price."""
         offset_ratio = self.config.initial_offset_bps / 10000
 
@@ -836,19 +815,14 @@ class AsyncSmartLimitExecutor:
         return round(price, 8)
 
     def _calculate_chase_price(
-        self,
-        order: Order,
-        current_price: float,
-        orderbook: Dict,
-        chase_count: int
+        self, order: Order, current_price: float, orderbook: Dict, chase_count: int
     ) -> float:
         """Calculate new chase price."""
         best_bid = orderbook["bids"][0][0] if orderbook.get("bids") else current_price
         best_ask = orderbook["asks"][0][0] if orderbook.get("asks") else current_price
 
         offset_bps = min(
-            self.config.initial_offset_bps + (chase_count * 1.0),
-            self.config.max_offset_bps
+            self.config.initial_offset_bps + (chase_count * 1.0), self.config.max_offset_bps
         )
         offset_ratio = offset_bps / 10000
 
@@ -863,28 +837,17 @@ class AsyncSmartLimitExecutor:
 
         return current_price
 
-    async def _place_order_async(
-        self,
-        order: Order,
-        price: float,
-        exchange_api: Any
-    ) -> Dict:
+    async def _place_order_async(self, order: Order, price: float, exchange_api: Any) -> Dict:
         """Place limit order (async wrapper)."""
         try:
             # Support both sync and async APIs
             if asyncio.iscoroutinefunction(exchange_api.create_limit_order):
                 result = await exchange_api.create_limit_order(
-                    symbol=order.symbol,
-                    side=order.side.value,
-                    amount=order.quantity,
-                    price=price
+                    symbol=order.symbol, side=order.side.value, amount=order.quantity, price=price
                 )
             else:
                 result = exchange_api.create_limit_order(
-                    symbol=order.symbol,
-                    side=order.side.value,
-                    amount=order.quantity,
-                    price=price
+                    symbol=order.symbol, side=order.side.value, amount=order.quantity, price=price
                 )
 
             return {"success": True, "order_id": result.get("id")}
@@ -892,12 +855,7 @@ class AsyncSmartLimitExecutor:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _cancel_order_async(
-        self,
-        order_id: str,
-        symbol: str,
-        exchange_api: Any
-    ) -> bool:
+    async def _cancel_order_async(self, order_id: str, symbol: str, exchange_api: Any) -> bool:
         """Cancel order (async wrapper)."""
         try:
             if asyncio.iscoroutinefunction(exchange_api.cancel_order):
@@ -909,12 +867,7 @@ class AsyncSmartLimitExecutor:
             logger.warning(f"Cancel failed: {e}")
             return False
 
-    async def _check_status_async(
-        self,
-        order_id: str,
-        symbol: str,
-        exchange_api: Any
-    ) -> Dict:
+    async def _check_status_async(self, order_id: str, symbol: str, exchange_api: Any) -> Dict:
         """Check order status (async wrapper)."""
         try:
             if asyncio.iscoroutinefunction(exchange_api.fetch_order):
@@ -937,7 +890,7 @@ class AsyncSmartLimitExecutor:
         exchange_api: Any,
         reference_price: float,
         start_time: float,
-        already_filled: float = 0.0
+        already_filled: float = 0.0,
     ) -> SmartExecutionResult:
         """Execute as market order (async)."""
         remaining = order.quantity - already_filled
@@ -950,21 +903,17 @@ class AsyncSmartLimitExecutor:
                 average_price=reference_price,
                 filled_quantity=already_filled,
                 total_fee=self._calculate_maker_fee(already_filled * reference_price),
-                total_time_seconds=time.time() - start_time
+                total_time_seconds=time.time() - start_time,
             )
 
         try:
             if asyncio.iscoroutinefunction(exchange_api.create_market_order):
                 result = await exchange_api.create_market_order(
-                    symbol=order.symbol,
-                    side=order.side.value,
-                    amount=remaining
+                    symbol=order.symbol, side=order.side.value, amount=remaining
                 )
             else:
                 result = exchange_api.create_market_order(
-                    symbol=order.symbol,
-                    side=order.side.value,
-                    amount=remaining
+                    symbol=order.symbol, side=order.side.value, amount=remaining
                 )
 
             avg_price = result.get("average", reference_price)
@@ -980,7 +929,7 @@ class AsyncSmartLimitExecutor:
                 filled_quantity=already_filled + remaining,
                 total_fee=fee,
                 fee_saved_vs_market=0.0,
-                total_time_seconds=time.time() - start_time
+                total_time_seconds=time.time() - start_time,
             )
 
         except Exception as e:
@@ -996,11 +945,7 @@ class AsyncSmartLimitExecutor:
         return value * (self.config.taker_fee_bps / 10000)
 
     def _create_failure_result(
-        self,
-        order: Order,
-        error: str,
-        start_time: float,
-        chase_count: int = 0
+        self, order: Order, error: str, start_time: float, chase_count: int = 0
     ) -> SmartExecutionResult:
         """Create failure result."""
         return SmartExecutionResult(
@@ -1009,5 +954,5 @@ class AsyncSmartLimitExecutor:
             execution_type="failed",
             error_message=error,
             chase_count=chase_count,
-            total_time_seconds=time.time() - start_time
+            total_time_seconds=time.time() - start_time,
         )

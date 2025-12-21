@@ -31,14 +31,15 @@ Usage:
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
 from enum import Enum
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class CheckResult(Enum):
     """Result of pre-trade check."""
+
     PASSED = "passed"
     FAILED_BALANCE = "insufficient_balance"
     FAILED_NOTIONAL = "below_min_notional"
@@ -51,6 +52,7 @@ class CheckResult(Enum):
 @dataclass
 class ValidationResult:
     """Result of order validation."""
+
     passed: bool
     result: CheckResult
     reason: str
@@ -164,9 +166,7 @@ class PreTradeChecker:
 
         # 4. Check balance
         if current_balance > 0 and order_price is not None:
-            result = self._check_balance(
-                quantity, order_price, current_balance, side
-            )
+            result = self._check_balance(quantity, order_price, current_balance, side)
             if not result.passed:
                 return result
 
@@ -181,14 +181,10 @@ class PreTradeChecker:
             return result
 
         # All checks passed
-        logger.info(
-            f"✅ Pre-trade checks PASSED for {symbol} {side} {quantity} @ {order_price}"
-        )
+        logger.info(f"✅ Pre-trade checks PASSED for {symbol} {side} {quantity} @ {order_price}")
 
         return ValidationResult(
-            passed=True,
-            result=CheckResult.PASSED,
-            reason="All pre-trade checks passed"
+            passed=True, result=CheckResult.PASSED, reason="All pre-trade checks passed"
         )
 
     def _check_quantity(self, quantity: float) -> ValidationResult:
@@ -198,7 +194,7 @@ class PreTradeChecker:
                 passed=False,
                 result=CheckResult.FAILED_SIZE,
                 reason=f"Quantity {quantity} below minimum {self.config.min_quantity}",
-                details={"quantity": quantity, "min": self.config.min_quantity}
+                details={"quantity": quantity, "min": self.config.min_quantity},
             )
 
         if quantity > self.config.max_quantity:
@@ -206,13 +202,11 @@ class PreTradeChecker:
                 passed=False,
                 result=CheckResult.FAILED_SIZE,
                 reason=f"Quantity {quantity} exceeds maximum {self.config.max_quantity}",
-                details={"quantity": quantity, "max": self.config.max_quantity}
+                details={"quantity": quantity, "max": self.config.max_quantity},
             )
 
         return ValidationResult(
-            passed=True,
-            result=CheckResult.PASSED,
-            reason="Quantity check passed"
+            passed=True, result=CheckResult.PASSED, reason="Quantity check passed"
         )
 
     def _check_notional(self, quantity: float, price: float) -> ValidationResult:
@@ -228,8 +222,8 @@ class PreTradeChecker:
                     "notional": notional,
                     "min_notional": self.config.min_notional_usd,
                     "quantity": quantity,
-                    "price": price
-                }
+                    "price": price,
+                },
             )
 
         if notional > self.config.max_notional_usd:
@@ -237,24 +231,15 @@ class PreTradeChecker:
                 passed=False,
                 result=CheckResult.FAILED_NOTIONAL,
                 reason=f"Order notional ${notional:.2f} exceeds maximum ${self.config.max_notional_usd}",
-                details={
-                    "notional": notional,
-                    "max_notional": self.config.max_notional_usd
-                }
+                details={"notional": notional, "max_notional": self.config.max_notional_usd},
             )
 
         return ValidationResult(
-            passed=True,
-            result=CheckResult.PASSED,
-            reason="Notional check passed"
+            passed=True, result=CheckResult.PASSED, reason="Notional check passed"
         )
 
     def _check_balance(
-        self,
-        quantity: float,
-        price: float,
-        balance: float,
-        side: str
+        self, quantity: float, price: float, balance: float, side: str
     ) -> ValidationResult:
         """Check if sufficient balance for order."""
         notional = quantity * price
@@ -268,8 +253,8 @@ class PreTradeChecker:
                 details={
                     "required": required_balance,
                     "available": balance,
-                    "shortfall": required_balance - balance
-                }
+                    "shortfall": required_balance - balance,
+                },
             )
 
         # Check max per trade
@@ -279,25 +264,16 @@ class PreTradeChecker:
                 passed=False,
                 result=CheckResult.FAILED_RISK,
                 reason=f"Order ${notional:.2f} exceeds max per trade ${max_allowed:.2f} "
-                       f"({self.config.max_balance_per_trade:.0%} of balance)",
-                details={
-                    "order_size": notional,
-                    "max_allowed": max_allowed,
-                    "balance": balance
-                }
+                f"({self.config.max_balance_per_trade:.0%} of balance)",
+                details={"order_size": notional, "max_allowed": max_allowed, "balance": balance},
             )
 
         return ValidationResult(
-            passed=True,
-            result=CheckResult.PASSED,
-            reason="Balance check passed"
+            passed=True, result=CheckResult.PASSED, reason="Balance check passed"
         )
 
     def _check_price_deviation(
-        self,
-        order_price: float,
-        market_price: float,
-        side: str
+        self, order_price: float, market_price: float, side: str
     ) -> ValidationResult:
         """Check if price is within acceptable range of market price."""
         deviation = abs((order_price - market_price) / market_price) * 100
@@ -311,8 +287,8 @@ class PreTradeChecker:
                     "order_price": order_price,
                     "market_price": market_price,
                     "deviation_pct": deviation,
-                    "max_deviation": self.config.max_price_deviation_pct
-                }
+                    "max_deviation": self.config.max_price_deviation_pct,
+                },
             )
 
         # Additional check: buy orders shouldn't be too high, sell too low
@@ -327,9 +303,7 @@ class PreTradeChecker:
             )
 
         return ValidationResult(
-            passed=True,
-            result=CheckResult.PASSED,
-            reason="Price deviation check passed"
+            passed=True, result=CheckResult.PASSED, reason="Price deviation check passed"
         )
 
     def _check_position_limits(self, current_positions: int) -> ValidationResult:
@@ -341,14 +315,12 @@ class PreTradeChecker:
                 reason=f"Max positions limit reached: {current_positions}/{self.config.max_open_positions}",
                 details={
                     "current_positions": current_positions,
-                    "max_positions": self.config.max_open_positions
-                }
+                    "max_positions": self.config.max_open_positions,
+                },
             )
 
         return ValidationResult(
-            passed=True,
-            result=CheckResult.PASSED,
-            reason="Position limit check passed"
+            passed=True, result=CheckResult.PASSED, reason="Position limit check passed"
         )
 
     def _check_daily_limits(self, daily_trade_count: int) -> ValidationResult:
@@ -360,21 +332,15 @@ class PreTradeChecker:
                 reason=f"Daily trade limit reached: {daily_trade_count}/{self.config.max_daily_trades}",
                 details={
                     "daily_trades": daily_trade_count,
-                    "max_daily_trades": self.config.max_daily_trades
-                }
+                    "max_daily_trades": self.config.max_daily_trades,
+                },
             )
 
         return ValidationResult(
-            passed=True,
-            result=CheckResult.PASSED,
-            reason="Daily limit check passed"
+            passed=True, result=CheckResult.PASSED, reason="Daily limit check passed"
         )
 
-    def validate_leverage(
-        self,
-        position_size: float,
-        collateral: float
-    ) -> ValidationResult:
+    def validate_leverage(self, position_size: float, collateral: float) -> ValidationResult:
         """
         Validate leverage is within limits.
 
@@ -390,7 +356,7 @@ class PreTradeChecker:
                 passed=False,
                 result=CheckResult.FAILED_LEVERAGE,
                 reason="Margin trading is disabled",
-                details={"allow_margin": False}
+                details={"allow_margin": False},
             )
 
         if collateral <= 0:
@@ -398,7 +364,7 @@ class PreTradeChecker:
                 passed=False,
                 result=CheckResult.FAILED_BALANCE,
                 reason="No collateral available",
-                details={"collateral": collateral}
+                details={"collateral": collateral},
             )
 
         leverage = position_size / collateral
@@ -412,22 +378,19 @@ class PreTradeChecker:
                     "leverage": leverage,
                     "max_leverage": self.config.max_leverage,
                     "position_size": position_size,
-                    "collateral": collateral
-                }
+                    "collateral": collateral,
+                },
             )
 
         return ValidationResult(
             passed=True,
             result=CheckResult.PASSED,
             reason="Leverage check passed",
-            details={"leverage": leverage}
+            details={"leverage": leverage},
         )
 
     def get_max_order_size(
-        self,
-        balance: float,
-        price: float,
-        include_buffer: bool = True
+        self, balance: float, price: float, include_buffer: bool = True
     ) -> float:
         """
         Calculate maximum allowed order size.
@@ -441,12 +404,11 @@ class PreTradeChecker:
             Maximum quantity
         """
         max_notional = min(
-            balance * self.config.max_balance_per_trade,
-            self.config.max_notional_usd
+            balance * self.config.max_balance_per_trade, self.config.max_notional_usd
         )
 
         if include_buffer:
-            max_notional *= (1 - self.config.min_balance_buffer)
+            max_notional *= 1 - self.config.min_balance_buffer
 
         max_quantity = max_notional / price
 

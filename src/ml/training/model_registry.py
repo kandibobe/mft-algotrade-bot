@@ -5,24 +5,25 @@ Model Registry
 Manage ML model versions and deployment.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List
-from datetime import datetime
-from pathlib import Path
-from enum import Enum
 import json
 import logging
 import shutil
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class ModelStatus(Enum):
     """Model status in registry."""
-    STAGED = "staged"              # In testing
-    PRODUCTION = "production"       # Active in production
-    ARCHIVED = "archived"           # No longer in use
-    FAILED = "failed"               # Failed validation
+
+    STAGED = "staged"  # In testing
+    PRODUCTION = "production"  # Active in production
+    ARCHIVED = "archived"  # No longer in use
+    FAILED = "failed"  # Failed validation
 
 
 @dataclass
@@ -235,23 +236,17 @@ class ModelRegistry:
             for metric, min_value in min_metrics.items():
                 actual_value = metadata.metrics.get(metric, 0)
                 if actual_value < min_value:
-                    validation_errors.append(
-                        f"{metric}: {actual_value:.4f} < {min_value:.4f}"
-                    )
+                    validation_errors.append(f"{metric}: {actual_value:.4f} < {min_value:.4f}")
 
         # Check backtest results
         if metadata.backtest_results:
             sharpe = metadata.backtest_results.get("sharpe_ratio", 0)
             if sharpe < min_backtest_sharpe:
-                validation_errors.append(
-                    f"Sharpe ratio: {sharpe:.2f} < {min_backtest_sharpe:.2f}"
-                )
+                validation_errors.append(f"Sharpe ratio: {sharpe:.2f} < {min_backtest_sharpe:.2f}")
 
             trades = metadata.backtest_results.get("total_trades", 0)
             if trades < min_backtest_trades:
-                validation_errors.append(
-                    f"Total trades: {trades} < {min_backtest_trades}"
-                )
+                validation_errors.append(f"Total trades: {trades} < {min_backtest_trades}")
 
         # Update metadata
         if validation_errors:
@@ -273,12 +268,7 @@ class ModelRegistry:
             logger.info(f"Validation PASSED for {model_name} v{version}")
             return True
 
-    def promote_to_production(
-        self,
-        model_name: str,
-        version: str,
-        notes: str = ""
-    ) -> bool:
+    def promote_to_production(self, model_name: str, version: str, notes: str = "") -> bool:
         """
         Promote model to production.
 
@@ -337,11 +327,7 @@ class ModelRegistry:
         """
         logger.warning(f"Rolling back {model_name} to v{version}")
 
-        return self.promote_to_production(
-            model_name,
-            version,
-            notes=f"Rolled back from production"
-        )
+        return self.promote_to_production(model_name, version, notes=f"Rolled back from production")
 
     def get_production_model(self, model_name: str) -> Optional[ModelMetadata]:
         """
@@ -375,11 +361,7 @@ class ModelRegistry:
         if model_name not in self.models:
             return []
 
-        return sorted(
-            self.models[model_name],
-            key=lambda m: m.trained_at,
-            reverse=True
-        )
+        return sorted(self.models[model_name], key=lambda m: m.trained_at, reverse=True)
 
     def get_model_history(self, model_name: str) -> Dict[str, Any]:
         """
@@ -397,8 +379,7 @@ class ModelRegistry:
             "model_name": model_name,
             "total_versions": len(versions),
             "production_version": next(
-                (v.version for v in versions if v.status == ModelStatus.PRODUCTION),
-                None
+                (v.version for v in versions if v.status == ModelStatus.PRODUCTION), None
             ),
             "versions": [
                 {
@@ -409,7 +390,7 @@ class ModelRegistry:
                     "validated": v.validation_passed,
                 }
                 for v in versions
-            ]
+            ],
         }
 
     def archive_model(self, model_name: str, version: str):
@@ -423,10 +404,7 @@ class ModelRegistry:
         metadata = self._get_model(model_name, version)
         if metadata:
             if metadata.status == ModelStatus.PRODUCTION:
-                logger.error(
-                    "Cannot archive production model. "
-                    "Promote another version first."
-                )
+                logger.error("Cannot archive production model. " "Promote another version first.")
                 return
 
             metadata.status = ModelStatus.ARCHIVED
@@ -463,10 +441,7 @@ class ModelRegistry:
                 logger.error(f"Failed to delete model file: {e}")
 
         # Remove from registry
-        self.models[model_name] = [
-            m for m in self.models[model_name]
-            if m.version != version
-        ]
+        self.models[model_name] = [m for m in self.models[model_name] if m.version != version]
 
         self._save_registry()
 
@@ -524,6 +499,7 @@ class ModelRegistry:
 
             # On Windows, copy file instead of symlink (requires admin for symlinks)
             import platform
+
             if platform.system() == "Windows":
                 shutil.copy2(model_path, production_link)
             else:
@@ -559,7 +535,11 @@ class ModelRegistry:
                         feature_names=v.get("feature_names", []),
                         validation_passed=v.get("validation_passed", False),
                         validation_notes=v.get("validation_notes", ""),
-                        deployed_at=datetime.fromisoformat(v["deployed_at"]) if v.get("deployed_at") else None,
+                        deployed_at=(
+                            datetime.fromisoformat(v["deployed_at"])
+                            if v.get("deployed_at")
+                            else None
+                        ),
                         deployment_notes=v.get("deployment_notes", ""),
                         tags=v.get("tags", []),
                     )

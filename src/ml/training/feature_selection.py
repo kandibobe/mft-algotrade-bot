@@ -15,11 +15,11 @@ Methods:
 4. Noise Threshold - Removes features weaker than random noise
 """
 
-from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Tuple
-from pathlib import Path
 import json
 import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -82,10 +82,7 @@ class FeatureSelector:
         self.correlation_matrix: Optional[pd.DataFrame] = None
 
     def fit_transform(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        model: Optional[Any] = None
+        self, X: pd.DataFrame, y: pd.Series, model: Optional[Any] = None
     ) -> Tuple[pd.DataFrame, List[str]]:
         """
         Fit feature selector and transform data.
@@ -118,21 +115,15 @@ class FeatureSelector:
             shap_importance = {}
 
         if self.config.method in ["permutation", "both"]:
-            perm_importance = self._calculate_permutation_importance(
-                X_uncorrelated, y, model
-            )
+            perm_importance = self._calculate_permutation_importance(X_uncorrelated, y, model)
         else:
             perm_importance = {}
 
         # Combine importances
-        self.feature_importance = self._combine_importances(
-            shap_importance, perm_importance
-        )
+        self.feature_importance = self._combine_importances(shap_importance, perm_importance)
 
         # Step 3: Add noise feature and filter
-        X_with_noise, noise_importance = self._add_noise_feature(
-            X_uncorrelated, y, model
-        )
+        X_with_noise, noise_importance = self._add_noise_feature(X_uncorrelated, y, model)
 
         # Step 4: Filter features below noise threshold
         noise_threshold = noise_importance * self.config.noise_multiplier
@@ -143,23 +134,21 @@ class FeatureSelector:
             if importance >= noise_threshold:
                 filtered_features.append((feat, importance))
             else:
-                self.dropped_features[feat] = f"below_noise_threshold ({importance:.4f} < {noise_threshold:.4f})"
+                self.dropped_features[feat] = (
+                    f"below_noise_threshold ({importance:.4f} < {noise_threshold:.4f})"
+                )
 
         # Sort by importance
         filtered_features.sort(key=lambda x: x[1], reverse=True)
 
         # Step 5: Apply max/min feature limits
         if self.config.max_features:
-            filtered_features = filtered_features[:self.config.max_features]
+            filtered_features = filtered_features[: self.config.max_features]
 
         if len(filtered_features) < self.config.min_features:
             # Keep top min_features regardless of threshold
-            all_features = sorted(
-                self.feature_importance.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )
-            filtered_features = all_features[:self.config.min_features]
+            all_features = sorted(self.feature_importance.items(), key=lambda x: x[1], reverse=True)
+            filtered_features = all_features[: self.config.min_features]
             logger.warning(
                 f"Only {len(filtered_features)} features above threshold, "
                 f"keeping top {self.config.min_features}"
@@ -191,10 +180,7 @@ class FeatureSelector:
 
         return X[self.selected_features]
 
-    def _remove_correlated(
-        self,
-        X: pd.DataFrame
-    ) -> Tuple[pd.DataFrame, List[str]]:
+    def _remove_correlated(self, X: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
         """Remove highly correlated features."""
         # Calculate correlation matrix
         self.correlation_matrix = X.corr().abs()
@@ -219,17 +205,10 @@ class FeatureSelector:
         from sklearn.ensemble import RandomForestClassifier
 
         return RandomForestClassifier(
-            n_estimators=100,
-            max_depth=10,
-            random_state=self.config.random_state,
-            n_jobs=-1
+            n_estimators=100, max_depth=10, random_state=self.config.random_state, n_jobs=-1
         )
 
-    def _calculate_shap_importance(
-        self,
-        X: pd.DataFrame,
-        model: Any
-    ) -> Dict[str, float]:
+    def _calculate_shap_importance(self, X: pd.DataFrame, model: Any) -> Dict[str, float]:
         """Calculate SHAP-based feature importance."""
         try:
             import shap
@@ -237,7 +216,7 @@ class FeatureSelector:
             logger.info("Calculating SHAP values...")
 
             # Use TreeExplainer for tree-based models
-            if hasattr(model, 'estimators_'):
+            if hasattr(model, "estimators_"):
                 explainer = shap.TreeExplainer(model)
             else:
                 explainer = shap.Explainer(model, X)
@@ -265,10 +244,7 @@ class FeatureSelector:
             return {}
 
     def _calculate_permutation_importance(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        model: Any
+        self, X: pd.DataFrame, y: pd.Series, model: Any
     ) -> Dict[str, float]:
         """Calculate permutation-based feature importance."""
         from sklearn.inspection import permutation_importance
@@ -279,11 +255,13 @@ class FeatureSelector:
         try:
             # Use cross-validated permutation importance for stability
             result = permutation_importance(
-                model, X, y,
+                model,
+                X,
+                y,
                 n_repeats=10,
                 random_state=self.config.random_state,
                 n_jobs=-1,
-                scoring='accuracy'
+                scoring="accuracy",
             )
 
             importance = result.importances_mean
@@ -293,14 +271,12 @@ class FeatureSelector:
         except Exception as e:
             logger.warning(f"Permutation importance failed: {e}")
             # Fall back to model's built-in importance
-            if hasattr(model, 'feature_importances_'):
+            if hasattr(model, "feature_importances_"):
                 return dict(zip(X.columns, model.feature_importances_))
             return {}
 
     def _combine_importances(
-        self,
-        shap_importance: Dict[str, float],
-        perm_importance: Dict[str, float]
+        self, shap_importance: Dict[str, float], perm_importance: Dict[str, float]
     ) -> Dict[str, float]:
         """Combine SHAP and permutation importance scores."""
         all_features = set(shap_importance.keys()) | set(perm_importance.keys())
@@ -330,10 +306,7 @@ class FeatureSelector:
         return combined
 
     def _add_noise_feature(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        model: Any
+        self, X: pd.DataFrame, y: pd.Series, model: Any
     ) -> Tuple[pd.DataFrame, float]:
         """
         Add random noise feature to establish importance baseline.
@@ -344,22 +317,22 @@ class FeatureSelector:
 
         # Add random feature
         X_with_noise = X.copy()
-        X_with_noise['_random_noise_'] = np.random.randn(len(X))
+        X_with_noise["_random_noise_"] = np.random.randn(len(X))
 
         # Retrain model
         model_with_noise = self._create_default_model()
         model_with_noise.fit(X_with_noise, y)
 
         # Get noise feature importance
-        if hasattr(model_with_noise, 'feature_importances_'):
-            noise_idx = list(X_with_noise.columns).index('_random_noise_')
+        if hasattr(model_with_noise, "feature_importances_"):
+            noise_idx = list(X_with_noise.columns).index("_random_noise_")
             noise_importance = model_with_noise.feature_importances_[noise_idx]
         else:
             noise_importance = 0.01  # Default threshold
 
         logger.info(f"Random noise feature importance: {noise_importance:.4f}")
 
-        return X_with_noise.drop(columns=['_random_noise_']), noise_importance
+        return X_with_noise.drop(columns=["_random_noise_"]), noise_importance
 
     def save_selected_features(self, path: Optional[str] = None):
         """
@@ -380,10 +353,10 @@ class FeatureSelector:
                 "correlation_threshold": self.config.correlation_threshold,
                 "noise_multiplier": self.config.noise_multiplier,
                 "max_features": self.config.max_features,
-            }
+            },
         }
 
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(data, f, indent=2)
 
         logger.info(f"Selected features saved to {output_path}")
@@ -400,7 +373,7 @@ class FeatureSelector:
         """
         input_path = Path(path or self.config.output_path)
 
-        with open(input_path, 'r') as f:
+        with open(input_path, "r") as f:
             data = json.load(f)
 
         self.selected_features = data["selected_features"]
@@ -454,8 +427,8 @@ class RecursiveFeatureEliminator:
         min_features: int = 5,
         step: int = 1,
         cv_folds: int = 5,
-        scoring: str = 'accuracy',
-        random_state: int = 42
+        scoring: str = "accuracy",
+        random_state: int = 42,
     ):
         """Initialize RFE."""
         self.min_features = min_features
@@ -467,10 +440,7 @@ class RecursiveFeatureEliminator:
         self.cv_scores: Dict[int, float] = {}
 
     def fit_transform(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        model: Optional[Any] = None
+        self, X: pd.DataFrame, y: pd.Series, model: Optional[Any] = None
     ) -> Tuple[pd.DataFrame, List[str]]:
         """
         Perform RFECV to find optimal features.
@@ -483,17 +453,14 @@ class RecursiveFeatureEliminator:
         Returns:
             (filtered_X, selected_features)
         """
-        from sklearn.feature_selection import RFECV
         from sklearn.ensemble import RandomForestClassifier
+        from sklearn.feature_selection import RFECV
 
         logger.info("Starting Recursive Feature Elimination with CV...")
 
         if model is None:
             model = RandomForestClassifier(
-                n_estimators=100,
-                max_depth=10,
-                random_state=self.random_state,
-                n_jobs=-1
+                n_estimators=100, max_depth=10, random_state=self.random_state, n_jobs=-1
             )
 
         rfecv = RFECV(
@@ -502,13 +469,13 @@ class RecursiveFeatureEliminator:
             cv=self.cv_folds,
             scoring=self.scoring,
             min_features_to_select=self.min_features,
-            n_jobs=-1
+            n_jobs=-1,
         )
 
         rfecv.fit(X, y)
 
         self.selected_features = list(X.columns[rfecv.support_])
-        self.cv_scores = dict(enumerate(rfecv.cv_results_['mean_test_score'], 1))
+        self.cv_scores = dict(enumerate(rfecv.cv_results_["mean_test_score"], 1))
 
         logger.info(f"Optimal number of features: {rfecv.n_features_}")
         logger.info(f"Selected features: {self.selected_features}")

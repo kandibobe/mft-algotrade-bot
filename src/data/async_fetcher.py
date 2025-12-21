@@ -21,14 +21,16 @@ Usage:
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
-import pandas as pd
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
 import numpy as np
+import pandas as pd
 
 try:
     import ccxt.async_support as ccxt_async
+
     CCXT_ASYNC_AVAILABLE = True
 except ImportError:
     CCXT_ASYNC_AVAILABLE = False
@@ -36,12 +38,13 @@ except ImportError:
 
 try:
     from tenacity import (
+        before_sleep_log,
         retry,
+        retry_if_exception_type,
         stop_after_attempt,
         wait_exponential,
-        retry_if_exception_type,
-        before_sleep_log,
     )
+
     TENACITY_AVAILABLE = True
 except ImportError:
     TENACITY_AVAILABLE = False
@@ -98,9 +101,7 @@ class AsyncDataFetcher:
     def __init__(self, config: Optional[FetcherConfig] = None):
         """Initialize async fetcher."""
         if not CCXT_ASYNC_AVAILABLE:
-            raise ImportError(
-                "ccxt.async_support not available. Install with: pip install ccxt"
-            )
+            raise ImportError("ccxt.async_support not available. Install with: pip install ccxt")
 
         self.config = config or FetcherConfig()
         self.exchange: Optional[Any] = None
@@ -182,10 +183,7 @@ class AsyncDataFetcher:
         if not ohlcv:
             return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"])
 
-        df = pd.DataFrame(
-            ohlcv,
-            columns=["timestamp", "open", "high", "low", "close", "volume"]
-        )
+        df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
         df.set_index("timestamp", inplace=True)
 
@@ -223,8 +221,7 @@ class AsyncDataFetcher:
             ) as e:
                 last_error = e
                 wait_time = min(
-                    self.config.retry_min_wait * (2 ** attempt),
-                    self.config.retry_max_wait
+                    self.config.retry_min_wait * (2**attempt), self.config.retry_max_wait
                 )
                 logger.warning(
                     f"Fetch attempt {attempt + 1}/{self.config.max_retries} failed: {e}. "
@@ -238,20 +235,16 @@ class AsyncDataFetcher:
                 if any(x in error_str for x in ["rate limit", "too many requests", "ddos"]):
                     last_error = e
                     wait_time = min(
-                        self.config.retry_min_wait * (2 ** attempt),
-                        self.config.retry_max_wait
+                        self.config.retry_min_wait * (2**attempt), self.config.retry_max_wait
                     )
                     logger.warning(
-                        f"Rate limited on attempt {attempt + 1}. "
-                        f"Waiting {wait_time:.1f}s..."
+                        f"Rate limited on attempt {attempt + 1}. " f"Waiting {wait_time:.1f}s..."
                     )
                     await asyncio.sleep(wait_time)
                 elif any(x in error_str for x in ["not available", "maintenance"]):
                     last_error = e
                     wait_time = self.config.retry_max_wait
-                    logger.warning(
-                        f"Exchange unavailable. Waiting {wait_time:.1f}s..."
-                    )
+                    logger.warning(f"Exchange unavailable. Waiting {wait_time:.1f}s...")
                     await asyncio.sleep(wait_time)
                 else:
                     # Non-retryable error
@@ -282,10 +275,7 @@ class AsyncDataFetcher:
         if not self._connected:
             await self.connect()
 
-        tasks = [
-            self.fetch_ohlcv(symbol, timeframe, limit=limit)
-            for symbol in symbols
-        ]
+        tasks = [self.fetch_ohlcv(symbol, timeframe, limit=limit) for symbol in symbols]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -324,7 +314,7 @@ class AsyncDataFetcher:
                 except Exception as e:
                     error_str = str(e).lower()
                     if any(x in error_str for x in ["rate limit", "timeout", "connection"]):
-                        wait_time = self.config.retry_min_wait * (2 ** attempt)
+                        wait_time = self.config.retry_min_wait * (2**attempt)
                         logger.warning(f"Orderbook fetch failed: {e}. Retrying...")
                         await asyncio.sleep(wait_time)
                     else:
@@ -427,8 +417,8 @@ class AsyncDataFetcher:
 
         # Filter to exact date range
         combined = combined[
-            (combined.index >= pd.Timestamp(start_date)) &
-            (combined.index <= pd.Timestamp(end_date))
+            (combined.index >= pd.Timestamp(start_date))
+            & (combined.index <= pd.Timestamp(end_date))
         ]
 
         logger.info(
@@ -501,12 +491,14 @@ class AsyncOrderExecutor:
         if not exchange_class:
             raise ValueError(f"Exchange '{self.config.exchange}' not supported")
 
-        self.exchange = exchange_class({
-            "apiKey": self.config.api_key,
-            "secret": self.config.api_secret,
-            "enableRateLimit": self.config.rate_limit,
-            "timeout": self.config.timeout,
-        })
+        self.exchange = exchange_class(
+            {
+                "apiKey": self.config.api_key,
+                "secret": self.config.api_secret,
+                "enableRateLimit": self.config.rate_limit,
+                "timeout": self.config.timeout,
+            }
+        )
 
         if self.config.sandbox:
             self.exchange.set_sandbox_mode(True)
@@ -549,8 +541,7 @@ class AsyncOrderExecutor:
 
         async with self._semaphore:
             return await self._execute_with_retry(
-                self.exchange.create_limit_order,
-                symbol, side, amount, price, params or {}
+                self.exchange.create_limit_order, symbol, side, amount, price, params or {}
             )
 
     async def create_market_order(
@@ -577,8 +568,7 @@ class AsyncOrderExecutor:
 
         async with self._semaphore:
             return await self._execute_with_retry(
-                self.exchange.create_market_order,
-                symbol, side, amount, params or {}
+                self.exchange.create_market_order, symbol, side, amount, params or {}
             )
 
     async def cancel_order(
@@ -591,10 +581,7 @@ class AsyncOrderExecutor:
             await self.connect()
 
         async with self._semaphore:
-            return await self._execute_with_retry(
-                self.exchange.cancel_order,
-                order_id, symbol
-            )
+            return await self._execute_with_retry(self.exchange.cancel_order, order_id, symbol)
 
     async def fetch_order(
         self,
@@ -606,17 +593,9 @@ class AsyncOrderExecutor:
             await self.connect()
 
         async with self._semaphore:
-            return await self._execute_with_retry(
-                self.exchange.fetch_order,
-                order_id, symbol
-            )
+            return await self._execute_with_retry(self.exchange.fetch_order, order_id, symbol)
 
-    async def _execute_with_retry(
-        self,
-        func,
-        *args,
-        **kwargs
-    ) -> Dict[str, Any]:
+    async def _execute_with_retry(self, func, *args, **kwargs) -> Dict[str, Any]:
         """Execute exchange function with retry logic."""
         last_error = None
 
@@ -629,15 +608,21 @@ class AsyncOrderExecutor:
                 error_str = str(e).lower()
 
                 # Check if retryable
-                retryable = any(x in error_str for x in [
-                    "rate limit", "timeout", "connection",
-                    "network", "temporary", "maintenance"
-                ])
+                retryable = any(
+                    x in error_str
+                    for x in [
+                        "rate limit",
+                        "timeout",
+                        "connection",
+                        "network",
+                        "temporary",
+                        "maintenance",
+                    ]
+                )
 
                 if retryable and attempt < self.config.max_retries - 1:
                     wait_time = min(
-                        self.config.retry_min_wait * (2 ** attempt),
-                        self.config.retry_max_wait
+                        self.config.retry_min_wait * (2**attempt), self.config.retry_max_wait
                     )
                     logger.warning(
                         f"Order attempt {attempt + 1} failed: {e}. "

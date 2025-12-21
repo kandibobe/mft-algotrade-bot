@@ -6,7 +6,7 @@ Type-safe protocol for exchange API interactions.
 Ensures all exchange implementations follow the same interface.
 """
 
-from typing import Protocol, Dict, Any, runtime_checkable, Optional
+from typing import Any, Dict, Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -24,11 +24,7 @@ class ExchangeAPI(Protocol):
     """
 
     async def create_limit_order(
-        self,
-        symbol: str,
-        side: str,
-        amount: float,
-        price: float
+        self, symbol: str, side: str, amount: float, price: float
     ) -> Dict[str, Any]:
         """
         Create a limit order.
@@ -50,12 +46,7 @@ class ExchangeAPI(Protocol):
         """
         ...
 
-    async def create_market_order(
-        self,
-        symbol: str,
-        side: str,
-        amount: float
-    ) -> Dict[str, Any]:
+    async def create_market_order(self, symbol: str, side: str, amount: float) -> Dict[str, Any]:
         """
         Create a market order.
 
@@ -69,11 +60,7 @@ class ExchangeAPI(Protocol):
         """
         ...
 
-    async def cancel_order(
-        self,
-        order_id: str,
-        symbol: str
-    ) -> Dict[str, Any]:
+    async def cancel_order(self, order_id: str, symbol: str) -> Dict[str, Any]:
         """
         Cancel an open order.
 
@@ -89,11 +76,7 @@ class ExchangeAPI(Protocol):
         """
         ...
 
-    async def fetch_order(
-        self,
-        order_id: str,
-        symbol: str
-    ) -> Dict[str, Any]:
+    async def fetch_order(self, order_id: str, symbol: str) -> Dict[str, Any]:
         """
         Fetch order status.
 
@@ -117,11 +100,7 @@ class ExchangeAPI(Protocol):
         """
         ...
 
-    def fetch_order_book(
-        self,
-        symbol: str,
-        limit: Optional[int] = None
-    ) -> Dict[str, Any]:
+    def fetch_order_book(self, symbol: str, limit: Optional[int] = None) -> Dict[str, Any]:
         """
         Fetch current order book.
 
@@ -149,42 +128,16 @@ class SyncExchangeAPI(Protocol):
     """
 
     def create_limit_order(
-        self,
-        symbol: str,
-        side: str,
-        amount: float,
-        price: float
-    ) -> Dict[str, Any]:
-        ...
+        self, symbol: str, side: str, amount: float, price: float
+    ) -> Dict[str, Any]: ...
 
-    def create_market_order(
-        self,
-        symbol: str,
-        side: str,
-        amount: float
-    ) -> Dict[str, Any]:
-        ...
+    def create_market_order(self, symbol: str, side: str, amount: float) -> Dict[str, Any]: ...
 
-    def cancel_order(
-        self,
-        order_id: str,
-        symbol: str
-    ) -> Dict[str, Any]:
-        ...
+    def cancel_order(self, order_id: str, symbol: str) -> Dict[str, Any]: ...
 
-    def fetch_order(
-        self,
-        order_id: str,
-        symbol: str
-    ) -> Dict[str, Any]:
-        ...
+    def fetch_order(self, order_id: str, symbol: str) -> Dict[str, Any]: ...
 
-    def fetch_order_book(
-        self,
-        symbol: str,
-        limit: Optional[int] = None
-    ) -> Dict[str, Any]:
-        ...
+    def fetch_order_book(self, symbol: str, limit: Optional[int] = None) -> Dict[str, Any]: ...
 
 
 # Type aliases for order responses

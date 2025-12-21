@@ -5,11 +5,11 @@ Experiment Tracker
 Track ML experiments with Weights & Biases or MLflow.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List
-from datetime import datetime
 import logging
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class ExperimentTracker:
         self,
         project: str = "stoic-citadel-ml",
         entity: Optional[str] = None,
-        backend: str = "wandb"  # "wandb" or "mlflow"
+        backend: str = "wandb",  # "wandb" or "mlflow"
     ):
         """
         Initialize experiment tracker.
@@ -70,6 +70,7 @@ class ExperimentTracker:
         if backend == "wandb":
             try:
                 import wandb
+
                 self.wandb = wandb
                 logger.info(f"Initialized W&B tracker for project: {project}")
             except ImportError:
@@ -78,6 +79,7 @@ class ExperimentTracker:
         elif backend == "mlflow":
             try:
                 import mlflow
+
                 self.mlflow = mlflow
                 mlflow.set_experiment(project)
                 logger.info(f"Initialized MLflow tracker for project: {project}")
@@ -94,7 +96,7 @@ class ExperimentTracker:
         name: str,
         description: str = "",
         config: Optional[Dict] = None,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
     ):
         """
         Start a new experiment run.
@@ -106,10 +108,7 @@ class ExperimentTracker:
             tags: List of tags
         """
         experiment = Experiment(
-            name=name,
-            description=description,
-            config=config or {},
-            tags=tags or []
+            name=name, description=description, config=config or {}, tags=tags or []
         )
 
         if self.backend == "wandb" and self.wandb:
@@ -119,7 +118,7 @@ class ExperimentTracker:
                 name=name,
                 config=config,
                 tags=tags,
-                notes=description
+                notes=description,
             )
             experiment.run_id = self.current_run.id
             logger.info(f"Started W&B run: {name} (ID: {experiment.run_id})")
@@ -207,9 +206,13 @@ class ExperimentTracker:
 
         # Log full results as artifact
         if self.backend == "wandb" and self.wandb:
-            self.wandb.log({"backtest_results": self.wandb.Table(
-                dataframe=backtest_results if isinstance(backtest_results, dict) else None
-            )})
+            self.wandb.log(
+                {
+                    "backtest_results": self.wandb.Table(
+                        dataframe=backtest_results if isinstance(backtest_results, dict) else None
+                    )
+                }
+            )
 
         logger.info(f"Logged backtest results: Sharpe={metrics['backtest/sharpe_ratio']:.2f}")
 
@@ -244,20 +247,16 @@ class ExperimentTracker:
             import pandas as pd
 
             # Create table
-            df = pd.DataFrame([
-                {"feature": feat, "importance": imp}
-                for feat, imp in feature_importance.items()
-            ]).sort_values("importance", ascending=False)
+            df = pd.DataFrame(
+                [{"feature": feat, "importance": imp} for feat, imp in feature_importance.items()]
+            ).sort_values("importance", ascending=False)
 
             self.wandb.log({"feature_importance": self.wandb.Table(dataframe=df)})
 
         logger.info(f"Logged feature importance for {len(feature_importance)} features")
 
     def log_confusion_matrix(
-        self,
-        y_true: List,
-        y_pred: List,
-        class_names: Optional[List[str]] = None
+        self, y_true: List, y_pred: List, class_names: Optional[List[str]] = None
     ):
         """
         Log confusion matrix.
@@ -268,22 +267,17 @@ class ExperimentTracker:
             class_names: Class names
         """
         if self.backend == "wandb" and self.wandb:
-            self.wandb.log({
-                "confusion_matrix": self.wandb.plot.confusion_matrix(
-                    y_true=y_true,
-                    preds=y_pred,
-                    class_names=class_names
-                )
-            })
+            self.wandb.log(
+                {
+                    "confusion_matrix": self.wandb.plot.confusion_matrix(
+                        y_true=y_true, preds=y_pred, class_names=class_names
+                    )
+                }
+            )
 
         logger.info("Logged confusion matrix")
 
-    def log_roc_curve(
-        self,
-        y_true: List,
-        y_probas: List,
-        class_names: Optional[List[str]] = None
-    ):
+    def log_roc_curve(self, y_true: List, y_probas: List, class_names: Optional[List[str]] = None):
         """
         Log ROC curve.
 
@@ -293,13 +287,13 @@ class ExperimentTracker:
             class_names: Class names
         """
         if self.backend == "wandb" and self.wandb:
-            self.wandb.log({
-                "roc_curve": self.wandb.plot.roc_curve(
-                    y_true=y_true,
-                    y_probas=y_probas,
-                    labels=class_names
-                )
-            })
+            self.wandb.log(
+                {
+                    "roc_curve": self.wandb.plot.roc_curve(
+                        y_true=y_true, y_probas=y_probas, labels=class_names
+                    )
+                }
+            )
 
         logger.info("Logged ROC curve")
 
@@ -347,19 +341,13 @@ class ExperimentTracker:
         Returns:
             Comparison dictionary
         """
-        experiments = [
-            exp for exp in self.experiments
-            if exp.name in experiment_names
-        ]
+        experiments = [exp for exp in self.experiments if exp.name in experiment_names]
 
         if not experiments:
             logger.warning("No experiments found for comparison")
             return {}
 
-        comparison = {
-            "experiments": [exp.name for exp in experiments],
-            "metrics": {}
-        }
+        comparison = {"experiments": [exp.name for exp in experiments], "metrics": {}}
 
         # Get all metric keys
         all_metrics = set()
@@ -369,19 +357,14 @@ class ExperimentTracker:
         # Compare each metric
         for metric in all_metrics:
             comparison["metrics"][metric] = {
-                exp.name: exp.metrics.get(metric, None)
-                for exp in experiments
+                exp.name: exp.metrics.get(metric, None) for exp in experiments
             }
 
         return comparison
 
 
 # Helper function for easy tracking
-def track_training(
-    project: str = "stoic-citadel-ml",
-    name: str = None,
-    config: Dict = None
-):
+def track_training(project: str = "stoic-citadel-ml", name: str = None, config: Dict = None):
     """
     Decorator to track training function.
 
@@ -391,6 +374,7 @@ def track_training(
             # training code
             return model, metrics
     """
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             tracker = ExperimentTracker(project=project)
@@ -415,4 +399,5 @@ def track_training(
                 raise
 
         return wrapper
+
     return decorator

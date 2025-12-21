@@ -8,13 +8,14 @@ Uses exponential backoff with jitter to prevent thundering herd.
 
 import logging
 from typing import Type
+
 from tenacity import (
+    RetryCallState,
+    before_sleep_log,
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
-    before_sleep_log,
-    RetryCallState,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,11 +56,7 @@ def create_retry_decorator(
     """
     return retry(
         stop=stop_after_attempt(max_attempts),
-        wait=wait_exponential(
-            multiplier=multiplier,
-            min=min_wait,
-            max=max_wait
-        ),
+        wait=wait_exponential(multiplier=multiplier, min=min_wait, max=max_wait),
         retry=retry_if_exception_type(exceptions),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,

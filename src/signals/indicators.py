@@ -13,8 +13,9 @@ License: MIT
 """
 
 from typing import Tuple
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 import talib.abstract as ta
 
 
@@ -31,10 +32,7 @@ class IndicatorLibrary:
 
     @staticmethod
     def calculate_ema_trio(
-        close: pd.Series,
-        fast: int = 50,
-        medium: int = 100,
-        slow: int = 200
+        close: pd.Series, fast: int = 50, medium: int = 100, slow: int = 200
     ) -> Tuple[pd.Series, pd.Series, pd.Series]:
         """
         Calculate EMA trio for trend detection.
@@ -60,10 +58,7 @@ class IndicatorLibrary:
 
     @staticmethod
     def calculate_adx(
-        high: pd.Series,
-        low: pd.Series,
-        close: pd.Series,
-        period: int = 14
+        high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
     ) -> pd.Series:
         """Calculate ADX (trend strength)."""
         return ta.ADX(high=high, low=low, close=close, timeperiod=period)
@@ -75,7 +70,7 @@ class IndicatorLibrary:
         close: pd.Series,
         fastk_period: int = 14,
         slowk_period: int = 3,
-        slowd_period: int = 3
+        slowd_period: int = 3,
     ) -> Tuple[pd.Series, pd.Series]:
         """
         Calculate Stochastic Oscillator.
@@ -89,16 +84,13 @@ class IndicatorLibrary:
             close=close,
             fastk_period=fastk_period,
             slowk_period=slowk_period,
-            slowd_period=slowd_period
+            slowd_period=slowd_period,
         )
-        return stoch['slowk'], stoch['slowd']
+        return stoch["slowk"], stoch["slowd"]
 
     @staticmethod
     def calculate_macd(
-        close: pd.Series,
-        fast: int = 12,
-        slow: int = 26,
-        signal: int = 9
+        close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9
     ) -> Tuple[pd.Series, pd.Series, pd.Series]:
         """
         Calculate MACD.
@@ -106,24 +98,12 @@ class IndicatorLibrary:
         Returns:
             Tuple of (macd, macdsignal, macdhist)
         """
-        macd_result = ta.MACD(
-            close,
-            fastperiod=fast,
-            slowperiod=slow,
-            signalperiod=signal
-        )
-        return (
-            macd_result['macd'],
-            macd_result['macdsignal'],
-            macd_result['macdhist']
-        )
+        macd_result = ta.MACD(close, fastperiod=fast, slowperiod=slow, signalperiod=signal)
+        return (macd_result["macd"], macd_result["macdsignal"], macd_result["macdhist"])
 
     @staticmethod
     def calculate_bollinger_bands(
-        close: pd.Series,
-        period: int = 20,
-        nbdevup: float = 2.0,
-        nbdevdn: float = 2.0
+        close: pd.Series, period: int = 20, nbdevup: float = 2.0, nbdevdn: float = 2.0
     ) -> Tuple[pd.Series, pd.Series, pd.Series]:
         """
         Calculate Bollinger Bands.
@@ -131,30 +111,19 @@ class IndicatorLibrary:
         Returns:
             Tuple of (upper, middle, lower)
         """
-        bb = ta.BBANDS(
-            close,
-            timeperiod=period,
-            nbdevup=nbdevup,
-            nbdevdn=nbdevdn
-        )
-        return bb['upperband'], bb['middleband'], bb['lowerband']
+        bb = ta.BBANDS(close, timeperiod=period, nbdevup=nbdevup, nbdevdn=nbdevdn)
+        return bb["upperband"], bb["middleband"], bb["lowerband"]
 
     @staticmethod
     def calculate_atr(
-        high: pd.Series,
-        low: pd.Series,
-        close: pd.Series,
-        period: int = 14
+        high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
     ) -> pd.Series:
         """Calculate Average True Range (volatility)."""
         return ta.ATR(high=high, low=low, close=close, timeperiod=period)
 
     @staticmethod
     def calculate_trend_score(
-        close: pd.Series,
-        ema_fast: pd.Series,
-        ema_medium: pd.Series,
-        ema_slow: pd.Series
+        close: pd.Series, ema_fast: pd.Series, ema_medium: pd.Series, ema_slow: pd.Series
     ) -> pd.Series:
         """
         Calculate trend strength score (0-3).
@@ -194,47 +163,42 @@ class SignalGenerator:
         df = dataframe.copy()
 
         # Trend indicators
-        df['ema_50'], df['ema_100'], df['ema_200'] = self.indicators.calculate_ema_trio(
-            df['close'], 50, 100, 200
+        df["ema_50"], df["ema_100"], df["ema_200"] = self.indicators.calculate_ema_trio(
+            df["close"], 50, 100, 200
         )
 
         # Oscillators
-        df['rsi'] = self.indicators.calculate_rsi(df['close'])
-        df['slowk'], df['slowd'] = self.indicators.calculate_stochastic(
-            df['high'], df['low'], df['close']
+        df["rsi"] = self.indicators.calculate_rsi(df["close"])
+        df["slowk"], df["slowd"] = self.indicators.calculate_stochastic(
+            df["high"], df["low"], df["close"]
         )
 
         # Trend strength
-        df['adx'] = self.indicators.calculate_adx(
-            df['high'], df['low'], df['close']
-        )
+        df["adx"] = self.indicators.calculate_adx(df["high"], df["low"], df["close"])
 
         # MACD
-        df['macd'], df['macdsignal'], df['macdhist'] = self.indicators.calculate_macd(
-            df['close']
-        )
+        df["macd"], df["macdsignal"], df["macdhist"] = self.indicators.calculate_macd(df["close"])
 
         # Bollinger Bands
-        df['bb_upper'], df['bb_middle'], df['bb_lower'] = \
-            self.indicators.calculate_bollinger_bands(df['close'])
-
-        df['bb_width'] = (df['bb_upper'] - df['bb_lower']) / df['bb_middle']
-
-        # Volatility
-        df['atr'] = self.indicators.calculate_atr(
-            df['high'], df['low'], df['close']
+        df["bb_upper"], df["bb_middle"], df["bb_lower"] = self.indicators.calculate_bollinger_bands(
+            df["close"]
         )
 
+        df["bb_width"] = (df["bb_upper"] - df["bb_lower"]) / df["bb_middle"]
+
+        # Volatility
+        df["atr"] = self.indicators.calculate_atr(df["high"], df["low"], df["close"])
+
         # Volume
-        df['volume_mean'] = df['volume'].rolling(window=20).mean()
+        df["volume_mean"] = df["volume"].rolling(window=20).mean()
 
         # Custom features
-        df['pct_change_1'] = df['close'].pct_change(1)
-        df['pct_change_3'] = df['close'].pct_change(3)
-        df['pct_change_5'] = df['close'].pct_change(5)
+        df["pct_change_1"] = df["close"].pct_change(1)
+        df["pct_change_3"] = df["close"].pct_change(3)
+        df["pct_change_5"] = df["close"].pct_change(5)
 
-        df['trend_score'] = self.indicators.calculate_trend_score(
-            df['close'], df['ema_50'], df['ema_100'], df['ema_200']
+        df["trend_score"] = self.indicators.calculate_trend_score(
+            df["close"], df["ema_50"], df["ema_100"], df["ema_200"]
         )
 
         return df
@@ -251,21 +215,21 @@ class SignalGenerator:
         """
         conditions = (
             # Trend filter
-            (dataframe['close'] > dataframe['ema_200']) &
-            (dataframe['ema_50'] > dataframe['ema_100']) &
-            (dataframe['adx'] > 20) &
-
+            (dataframe["close"] > dataframe["ema_200"])
+            & (dataframe["ema_50"] > dataframe["ema_100"])
+            & (dataframe["adx"] > 20)
+            &
             # Entry oscillator
-            (dataframe['rsi'] < 35) &
-            (dataframe['slowk'] < 30) &
-            (dataframe['slowk'] > dataframe['slowd']) &
-
+            (dataframe["rsi"] < 35)
+            & (dataframe["slowk"] < 30)
+            & (dataframe["slowk"] > dataframe["slowd"])
+            &
             # Volume
-            (dataframe['volume'] > dataframe['volume_mean'] * 0.8) &
-
+            (dataframe["volume"] > dataframe["volume_mean"] * 0.8)
+            &
             # Volatility
-            (dataframe['bb_width'] > 0.02) &
-            (dataframe['bb_width'] < 0.20)
+            (dataframe["bb_width"] > 0.02)
+            & (dataframe["bb_width"] < 0.20)
         )
 
         return conditions.astype(int)
@@ -280,11 +244,13 @@ class SignalGenerator:
         """
         conditions = (
             # Overbought
-            ((dataframe['rsi'] > 75) & (dataframe['slowk'] > 80)) |
-
+            ((dataframe["rsi"] > 75) & (dataframe["slowk"] > 80))
+            |
             # Trend reversal
-            ((dataframe['close'] < dataframe['ema_50']) &
-             (dataframe['macd'] < dataframe['macdsignal']))
+            (
+                (dataframe["close"] < dataframe["ema_50"])
+                & (dataframe["macd"] < dataframe["macdsignal"])
+            )
         )
 
         return conditions.astype(int)

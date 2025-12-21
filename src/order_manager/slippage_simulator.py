@@ -11,23 +11,25 @@ Models:
 - Commission tiers
 """
 
-from dataclasses import dataclass
-from typing import Optional, Tuple
-from enum import Enum
-import numpy as np
 import logging
+from dataclasses import dataclass
+from enum import Enum
+from typing import Optional, Tuple
 
-from src.order_manager.order_types import Order, OrderType, OrderSide
+import numpy as np
+
+from src.order_manager.order_types import Order, OrderSide, OrderType
 
 logger = logging.getLogger(__name__)
 
 
 class SlippageModel(Enum):
     """Slippage modeling approach."""
-    FIXED = "fixed"              # Fixed percentage
+
+    FIXED = "fixed"  # Fixed percentage
     VOLUME_BASED = "volume_based"  # Based on order size vs volume
     SPREAD_BASED = "spread_based"  # Based on bid-ask spread
-    REALISTIC = "realistic"      # Combines multiple factors
+    REALISTIC = "realistic"  # Combines multiple factors
 
 
 @dataclass
@@ -76,7 +78,7 @@ class SlippageSimulator:
     def __init__(
         self,
         model: SlippageModel = SlippageModel.REALISTIC,
-        config: Optional[SlippageConfig] = None
+        config: Optional[SlippageConfig] = None,
     ):
         """
         Initialize slippage simulator.
@@ -150,10 +152,7 @@ class SlippageSimulator:
         return execution_price, commission
 
     def _simulate_volume_based(
-        self,
-        order: Order,
-        market_price: float,
-        volume_24h: Optional[float]
+        self, order: Order, market_price: float, volume_24h: Optional[float]
     ) -> Tuple[float, float]:
         """Simulate slippage based on order size vs market volume."""
         if volume_24h is None or volume_24h == 0:
@@ -182,10 +181,7 @@ class SlippageSimulator:
         return execution_price, commission
 
     def _simulate_spread_based(
-        self,
-        order: Order,
-        market_price: float,
-        spread_pct: Optional[float]
+        self, order: Order, market_price: float, spread_pct: Optional[float]
     ) -> Tuple[float, float]:
         """Simulate slippage based on bid-ask spread."""
         spread = spread_pct if spread_pct else self.config.spread_pct
@@ -206,7 +202,7 @@ class SlippageSimulator:
         order: Order,
         market_price: float,
         volume_24h: Optional[float],
-        spread_pct: Optional[float]
+        spread_pct: Optional[float],
     ) -> Tuple[float, float]:
         """
         Realistic simulation combining multiple factors.
@@ -225,9 +221,7 @@ class SlippageSimulator:
         if volume_24h:
             order_value = order.quantity * market_price
             order_pct = (order_value / volume_24h) * 100
-            market_impact = (
-                order_pct * self.config.market_impact_factor / 100
-            )
+            market_impact = order_pct * self.config.market_impact_factor / 100
 
         # 3. Random microstructure noise (small random component)
         noise = np.random.normal(0, 0.0002)  # ~0.02% std dev
@@ -272,10 +266,7 @@ class SlippageSimulator:
         return commission
 
     def estimate_worst_case_slippage(
-        self,
-        order_value: float,
-        market_price: float,
-        volume_24h: float
+        self, order_value: float, market_price: float, volume_24h: float
     ) -> float:
         """
         Estimate worst-case slippage percentage.
@@ -301,10 +292,7 @@ class SlippageSimulator:
         return worst_case_pct
 
     def validate_order_size(
-        self,
-        order_value: float,
-        volume_24h: float,
-        max_slippage_pct: float = 0.5
+        self, order_value: float, volume_24h: float, max_slippage_pct: float = 0.5
     ) -> Tuple[bool, Optional[str]]:
         """
         Validate if order size is reasonable given market conditions.

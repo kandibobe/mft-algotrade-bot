@@ -11,15 +11,16 @@ Emergency stop mechanism for trading bot:
 """
 
 import logging
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
 from enum import Enum
-import threading
+from typing import Dict, List, Optional
 
 # Try to import metrics exporter
 try:
     from src.monitoring.metrics_exporter import get_exporter
+
     METRICS_AVAILABLE = True
 except ImportError:
     METRICS_AVAILABLE = False
@@ -29,13 +30,15 @@ logger = logging.getLogger(__name__)
 
 class CircuitState(Enum):
     """Circuit breaker states."""
-    CLOSED = "closed"       # Normal operation
-    OPEN = "open"           # Trading halted
-    HALF_OPEN = "half_open" # Testing recovery
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Trading halted
+    HALF_OPEN = "half_open"  # Testing recovery
 
 
 class TripReason(Enum):
     """Reasons for circuit breaker trip."""
+
     DAILY_LOSS_LIMIT = "daily_loss_limit"
     CONSECUTIVE_LOSSES = "consecutive_losses"
     MAX_DRAWDOWN = "max_drawdown"
@@ -47,13 +50,14 @@ class TripReason(Enum):
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for circuit breaker."""
+
     # Loss limits
-    daily_loss_limit_pct: float = 0.05      # 5% daily loss limit
-    consecutive_loss_limit: int = 5          # Max consecutive losses
-    max_drawdown_pct: float = 0.15           # 15% max drawdown
+    daily_loss_limit_pct: float = 0.05  # 5% daily loss limit
+    consecutive_loss_limit: int = 5  # Max consecutive losses
+    max_drawdown_pct: float = 0.15  # 15% max drawdown
 
     # Volatility limits
-    max_volatility_threshold: float = 0.08   # 8% volatility threshold
+    max_volatility_threshold: float = 0.08  # 8% volatility threshold
     volatility_lookback_hours: int = 24
 
     # API error limits
@@ -62,7 +66,7 @@ class CircuitBreakerConfig:
 
     # Recovery settings
     cooldown_minutes: int = 30
-    recovery_trade_size_pct: float = 0.25    # 25% of normal size
+    recovery_trade_size_pct: float = 0.25  # 25% of normal size
     recovery_trades_required: int = 3
 
     # Auto-reset
@@ -71,12 +75,13 @@ class CircuitBreakerConfig:
     # Adaptive thresholds
     enable_adaptive_thresholds: bool = True
     baseline_volatility: Optional[float] = None  # Will be learned from data
-    max_volatility_multiplier: float = 2.0      # Max adaptive increase
+    max_volatility_multiplier: float = 2.0  # Max adaptive increase
 
 
 @dataclass
 class TradingSession:
     """Track current trading session metrics."""
+
     start_time: datetime = field(default_factory=datetime.utcnow)
     initial_balance: float = 0.0
     current_balance: float = 0.0
@@ -84,13 +89,13 @@ class TradingSession:
     trades: List[Dict] = field(default_factory=list)
     consecutive_losses: int = 0
     api_errors: List[datetime] = field(default_factory=list)
-    
+
     @property
     def daily_pnl_pct(self) -> float:
         if self.initial_balance <= 0:
             return 0.0
         return (self.current_balance - self.initial_balance) / self.initial_balance
-    
+
     @property
     def drawdown_pct(self) -> float:
         if self.peak_balance <= 0:
@@ -101,11 +106,11 @@ class TradingSession:
 class CircuitBreaker:
     """
     Circuit breaker for trading risk management.
-    
+
     Automatically halts trading when risk limits are breached,
     with gradual recovery mechanism.
     """
-    
+
     def __init__(self, config: Optional[CircuitBreakerConfig] = None):
         self.config = config or CircuitBreakerConfig()
         self.state = CircuitState.CLOSED
@@ -115,72 +120,63 @@ class CircuitBreaker:
         self.recovery_trades: int = 0
         self._lock = threading.Lock()
         self._callbacks: List[callable] = []
-        
-    def initialize_session(
-        self,
-        initial_balance: float
-    ) -> None:
+
+    def initialize_session(self, initial_balance: float) -> None:
         """Initialize or reset trading session."""
         with self._lock:
             self.session = TradingSession(
                 start_time=datetime.utcnow(),
                 initial_balance=initial_balance,
                 current_balance=initial_balance,
-                peak_balance=initial_balance
+                peak_balance=initial_balance,
             )
             logger.info(f"Session initialized with balance: ${initial_balance:,.2f}")
-    
+
     def update_balance(self, new_balance: float) -> None:
         """Update current balance and track peak."""
         with self._lock:
             self.session.current_balance = new_balance
             if new_balance > self.session.peak_balance:
                 self.session.peak_balance = new_balance
-    
-    def record_trade(
-        self,
-        trade: Dict,
-        profit_pct: float
-    ) -> None:
+
+    def record_trade(self, trade: Dict, profit_pct: float) -> None:
         """
         Record trade result and check for circuit breaker conditions.
-        
+
         Args:
             trade: Trade details dictionary
             profit_pct: Trade profit/loss percentage
         """
         with self._lock:
             self.session.trades.append(trade)
-            
+
             # Track consecutive losses
             if profit_pct < 0:
                 self.session.consecutive_losses += 1
             else:
                 self.session.consecutive_losses = 0
-            
+
             # Update balance
             new_balance = self.session.current_balance * (1 + profit_pct)
             self.update_balance(new_balance)
-            
+
             # Check circuit breaker conditions
             self._check_conditions()
-    
+
     def record_api_error(self) -> None:
         """Record API error and check error rate."""
         with self._lock:
             now = datetime.utcnow()
             self.session.api_errors.append(now)
-            
+
             # Clean old errors
             cutoff = now - timedelta(minutes=self.config.api_error_window_minutes)
-            self.session.api_errors = [
-                t for t in self.session.api_errors if t > cutoff
-            ]
-            
+            self.session.api_errors = [t for t in self.session.api_errors if t > cutoff]
+
             # Check error rate
             if len(self.session.api_errors) >= self.config.max_api_errors:
                 self._trip(TripReason.API_ERRORS)
-    
+
     def check_volatility(self, current_volatility: float) -> None:
         """
         Check if volatility exceeds threshold.
@@ -217,9 +213,7 @@ class CircuitBreaker:
         # Initialize baseline if not set
         if self.config.baseline_volatility is None:
             self.config.baseline_volatility = current_volatility
-            logger.info(
-                f"Baseline volatility initialized: {current_volatility:.2%}"
-            )
+            logger.info(f"Baseline volatility initialized: {current_volatility:.2%}")
             return base_threshold
 
         # Calculate volatility multiplier
@@ -240,11 +234,7 @@ class CircuitBreaker:
 
         return adjusted_threshold
 
-    def update_baseline_volatility(
-        self,
-        returns: List[float],
-        window_size: int = 100
-    ) -> None:
+    def update_baseline_volatility(self, returns: List[float], window_size: int = 100) -> None:
         """
         Update baseline volatility from recent returns.
 
@@ -270,34 +260,31 @@ class CircuitBreaker:
         else:
             alpha = 0.1  # Smoothing factor
             self.config.baseline_volatility = (
-                alpha * new_baseline +
-                (1 - alpha) * self.config.baseline_volatility
+                alpha * new_baseline + (1 - alpha) * self.config.baseline_volatility
             )
 
-        logger.info(
-            f"Baseline volatility updated: {self.config.baseline_volatility:.2%}"
-        )
-    
+        logger.info(f"Baseline volatility updated: {self.config.baseline_volatility:.2%}")
+
     def can_trade(self) -> bool:
         """Check if trading is allowed."""
         with self._lock:
             if self.state == CircuitState.CLOSED:
                 return True
-            
+
             if self.state == CircuitState.HALF_OPEN:
                 return True  # Allow reduced trading
-            
+
             # Check auto-reset
             if self._should_auto_reset():
                 self._reset()
                 return True
-            
+
             return False
-    
+
     def get_position_multiplier(self) -> float:
         """
         Get position size multiplier based on circuit state.
-        
+
         Returns:
             1.0 for normal, reduced for half-open, 0.0 for open
         """
@@ -307,23 +294,23 @@ class CircuitBreaker:
             return self.config.recovery_trade_size_pct
         else:
             return 0.0
-    
+
     def manual_stop(self) -> None:
         """Manually trigger circuit breaker."""
         self._trip(TripReason.MANUAL_STOP)
         logger.warning("Circuit breaker manually triggered")
-    
+
     def manual_reset(self) -> None:
         """Manually reset circuit breaker."""
         with self._lock:
             self._reset()
             logger.info("Circuit breaker manually reset")
-    
+
     def attempt_recovery(self, trade_successful: bool) -> None:
         """Attempt recovery from half-open state."""
         if self.state != CircuitState.HALF_OPEN:
             return
-        
+
         with self._lock:
             if trade_successful:
                 self.recovery_trades += 1
@@ -335,11 +322,11 @@ class CircuitBreaker:
                 self.state = CircuitState.OPEN
                 self.recovery_trades = 0
                 logger.warning("Recovery failed - circuit breaker re-opened")
-    
+
     def register_callback(self, callback: callable) -> None:
         """Register callback for state changes."""
         self._callbacks.append(callback)
-    
+
     def get_status(self) -> Dict:
         """Get current circuit breaker status."""
         return {
@@ -352,46 +339,43 @@ class CircuitBreaker:
             "recent_api_errors": len(self.session.api_errors),
             "recovery_trades": self.recovery_trades,
             "can_trade": self.can_trade(),
-            "position_multiplier": self.get_position_multiplier()
+            "position_multiplier": self.get_position_multiplier(),
         }
-    
+
     def _check_conditions(self) -> None:
         """Check all circuit breaker conditions."""
         # Daily loss limit
         if self.session.daily_pnl_pct <= -self.config.daily_loss_limit_pct:
             self._trip(TripReason.DAILY_LOSS_LIMIT)
             return
-        
+
         # Consecutive losses
         if self.session.consecutive_losses >= self.config.consecutive_loss_limit:
             self._trip(TripReason.CONSECUTIVE_LOSSES)
             return
-        
+
         # Max drawdown
         if self.session.drawdown_pct >= self.config.max_drawdown_pct:
             self._trip(TripReason.MAX_DRAWDOWN)
             return
-    
-    def _trip(
-        self,
-        reason: TripReason
-    ) -> None:
+
+    def _trip(self, reason: TripReason) -> None:
         """Trip the circuit breaker."""
         if self.state == CircuitState.OPEN:
             return  # Already tripped
-        
+
         self.state = CircuitState.OPEN
         self.trip_reason = reason
         self.trip_time = datetime.utcnow()
         self.recovery_trades = 0
-        
+
         logger.error(
             f"🚨 CIRCUIT BREAKER TRIPPED: {reason.value}\n"
             f"   Daily PnL: {self.session.daily_pnl_pct:.2%}\n"
             f"   Drawdown: {self.session.drawdown_pct:.2%}\n"
             f"   Consecutive Losses: {self.session.consecutive_losses}"
         )
-        
+
         # Update metrics if available
         if METRICS_AVAILABLE:
             try:
@@ -399,14 +383,14 @@ class CircuitBreaker:
                 exporter.set_circuit_breaker_status(1)  # 1 = on (tripped)
             except Exception as e:
                 logger.warning(f"Failed to update circuit breaker metrics: {e}")
-        
+
         # Notify callbacks
         for callback in self._callbacks:
             try:
                 callback(self.get_status())
             except Exception as e:
                 logger.error(f"Callback error: {e}")
-    
+
     def _reset(self) -> None:
         """Reset circuit breaker to closed state."""
         self.state = CircuitState.CLOSED
@@ -414,9 +398,9 @@ class CircuitBreaker:
         self.trip_time = None
         self.recovery_trades = 0
         self.session.consecutive_losses = 0
-        
+
         logger.info("Circuit breaker reset to CLOSED state")
-        
+
         # Update metrics if available
         if METRICS_AVAILABLE:
             try:
@@ -424,24 +408,24 @@ class CircuitBreaker:
                 exporter.set_circuit_breaker_status(0)  # 0 = off (closed)
             except Exception as e:
                 logger.warning(f"Failed to update circuit breaker metrics: {e}")
-        
+
         # Notify callbacks
         for callback in self._callbacks:
             try:
                 callback(self.get_status())
             except Exception as e:
                 logger.error(f"Callback error: {e}")
-    
+
     def _should_auto_reset(self) -> bool:
         """Check if auto-reset conditions are met."""
         if not self.trip_time:
             return False
-        
+
         # Check cooldown first
         cooldown_elapsed = datetime.utcnow() - self.trip_time
         if cooldown_elapsed < timedelta(minutes=self.config.cooldown_minutes):
             return False
-        
+
         # Check if we should transition to half-open
         if self.state == CircuitState.OPEN:
             self.state = CircuitState.HALF_OPEN
@@ -450,14 +434,16 @@ class CircuitBreaker:
             if METRICS_AVAILABLE:
                 try:
                     exporter = get_exporter()
-                    exporter.set_circuit_breaker_status(0)  # Still 0 for closed/half-open? Let's use 0.5
+                    exporter.set_circuit_breaker_status(
+                        0
+                    )  # Still 0 for closed/half-open? Let's use 0.5
                     # Note: Our current metric only supports 0/1, but we can extend later
                 except Exception as e:
                     logger.warning(f"Failed to update circuit breaker metrics: {e}")
             return False
-        
+
         # Check auto-reset time
         if cooldown_elapsed >= timedelta(hours=self.config.auto_reset_after_hours):
             return True
-        
+
         return False

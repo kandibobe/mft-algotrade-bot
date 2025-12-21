@@ -40,7 +40,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.ml.training.feature_engineering import FeatureEngineer
-from src.ml.training.labeling import TripleBarrierLabeler, LabelingConfig
+from src.ml.training.labeling import TripleBarrierLabeler, TripleBarrierConfig
 from src.ml.training.model_trainer import ModelTrainer, TrainingConfig
 from src.ml.training.model_registry import ModelRegistry
 
@@ -63,12 +63,12 @@ class MLTrainingPipeline:
 
         # Initialize components
         self.feature_engineer = FeatureEngineer()
-        self.labeler = TripleBarrierLabeler(config=LabelingConfig())
+        self.labeler = TripleBarrierLabeler(config=TripleBarrierConfig())
         self.registry = ModelRegistry()
 
     def load_data(self, pairs: List[str], timeframe: str = "5m") -> Dict[str, pd.DataFrame]:
         """
-        Загрузить данные из JSON файлов.
+        Загрузить данные из feather или JSON файлов.
 
         Args:
             pairs: Список торговых пар
@@ -85,30 +85,55 @@ class MLTrainingPipeline:
 
         for pair in pairs:
             pair_filename = pair.replace('/', '_')
-            filename = f"{pair_filename}-{timeframe}.json"
-            filepath = self.data_dir / filename
+            # Try feather first
+            feather_filename = f"{pair_filename}-{timeframe}.feather"
+            json_filename = f"{pair_filename}-{timeframe}.json"
+            
+            feather_path = self.data_dir / feather_filename
+            json_path = self.data_dir / json_filename
 
-            if not filepath.exists():
-                print(f"⚠️  {pair}: File not found - {filepath}")
+            if feather_path.exists():
+                filepath = feather_path
+                filetype = 'feather'
+            elif json_path.exists():
+                filepath = json_path
+                filetype = 'json'
+            else:
+                print(f"⚠️  {pair}: File not found - {feather_filename} or {json_filename}")
                 continue
 
-            print(f"\n📊 Loading {pair}...")
+            print(f"\n📊 Loading {pair} from {filetype}...")
 
-            # Load JSON
-            with open(filepath, 'r') as f:
-                json_data = json.load(f)
+            if filetype == 'feather':
+                # Load feather
+                df = pd.read_feather(filepath)
+                # Ensure timestamp column is datetime
+                if 'timestamp' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                    df.set_index('timestamp', inplace=True)
+                elif 'date' in df.columns:
+                    df['date'] = pd.to_datetime(df['date'])
+                    df.set_index('date', inplace=True)
+                else:
+                    # Assume first column is timestamp
+                    df.set_index(df.columns[0], inplace=True)
+                    df.index = pd.to_datetime(df.index, unit='ms')
+            else:
+                # Load JSON
+                with open(filepath, 'r') as f:
+                    json_data = json.load(f)
 
-            # Convert to DataFrame
-            df = pd.DataFrame(
-                json_data,
-                columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
-            )
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df.set_index('timestamp', inplace=True)
+                # Convert to DataFrame
+                df = pd.DataFrame(
+                    json_data,
+                    columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+                )
+                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                df.set_index('timestamp', inplace=True)
 
-            # Convert to float
-            for col in ['open', 'high', 'low', 'close', 'volume']:
-                df[col] = df[col].astype(float)
+                # Convert to float
+                for col in ['open', 'high', 'low', 'close', 'volume']:
+                    df[col] = df[col].astype(float)
 
             print(f"  ✅ Loaded {len(df):,} candles")
             print(f"  📅 Range: {df.index[0]} to {df.index[-1]}")
@@ -143,12 +168,8 @@ class MLTrainingPipeline:
         """
         print(f"\n🔧 Feature Engineering for {pair}...")
 
-        # Generate features
-        features = self.feature_engineer.generate_features(
-            df,
-            mode='train',  # Auto-fix issues
-            symbol=pair
-        )
+        # Generate features using fit_transform (since we're training)
+        features = self.feature_engineer.fit_transform(df)
 
         print(f"  ✅ Generated {len(features.columns)} features")
 
@@ -167,7 +188,7 @@ class MLTrainingPipeline:
         # Generate labels
         print(f"\n🏷️  Labeling for {pair}...")
 
-        labels = self.labeler.label_data(df)
+        labels = self.labeler.label(df)
 
         print(f"  ✅ Generated {len(labels)} labels")
         print(f"  📊 Label distribution:")
@@ -182,6 +203,13 @@ class MLTrainingPipeline:
         common_index = features.index.intersection(labels.index)
         X = features.loc[common_index]
         y = labels.loc[common_index]
+
+        # Remove rows where y is NaN (insufficient forward data for labeling)
+        nan_mask = y.isna()
+        if nan_mask.any():
+            print(f"  ⚠️  Removing {nan_mask.sum()} rows with NaN labels")
+            X = X[~nan_mask]
+            y = y[~nan_mask]
 
         print(f"\n  ✅ Final dataset: {len(X):,} samples, {len(X.columns)} features")
 
@@ -240,18 +268,26 @@ class MLTrainingPipeline:
         # Save model
         model_name = f"{pair.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         model_path = self.models_dir / f"{model_name}.pkl"
-
-        self.registry.save_model(
-            model=model,
-            name=model_name,
-            metadata={
+        
+        # Save model to disk using pickle
+        import pickle
+        with open(model_path, 'wb') as f:
+            pickle.dump(model, f)
+        
+        # Register model in registry
+        self.registry.register_model(
+            model_name=pair.replace('/', '_'),
+            model_path=str(model_path),
+            metrics=metrics,
+            training_config={
                 'pair': pair,
                 'features': X.columns.tolist(),
-                'metrics': metrics,
                 'training_date': datetime.now().isoformat(),
                 'training_samples': len(X_train),
                 'test_samples': len(X_test),
-            }
+            },
+            feature_names=X.columns.tolist(),
+            tags=['quick_training' if self.quick_mode else 'full_training']
         )
 
         print(f"  💾 Model saved: {model_path}")

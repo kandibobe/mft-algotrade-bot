@@ -21,23 +21,25 @@ Usage:
         return  # Skip trade
 """
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Dict, Any, Tuple
+from typing import Any, Dict, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-import logging
 
 logger = logging.getLogger(__name__)
 
 
 class MarketRegime(Enum):
     """Market regime classification."""
-    BULL = "bull"              # Strong uptrend
-    BEAR = "bear"              # Strong downtrend
-    SIDEWAYS = "sideways"      # No clear trend (choppy)
+
+    BULL = "bull"  # Strong uptrend
+    BEAR = "bear"  # Strong downtrend
+    SIDEWAYS = "sideways"  # No clear trend (choppy)
     HIGH_VOLATILITY = "high_volatility"  # Dangerous conditions
-    UNKNOWN = "unknown"        # Insufficient data
+    UNKNOWN = "unknown"  # Insufficient data
 
 
 @dataclass
@@ -49,17 +51,17 @@ class RegimeFilterConfig:
 
     # ADX for trend strength
     adx_period: int = 14
-    adx_trend_threshold: float = 25.0    # ADX > 25 = trending
+    adx_trend_threshold: float = 25.0  # ADX > 25 = trending
     adx_sideways_threshold: float = 20.0  # ADX < 20 = sideways
 
     # Volatility thresholds
-    volatility_lookback: int = 24        # Hours for volatility calc
+    volatility_lookback: int = 24  # Hours for volatility calc
     volatility_spike_multiplier: float = 2.0  # 2x normal vol = spike
 
     # Trading rules per regime
     allow_long_in_bull: bool = True
-    allow_short_in_bull: bool = False     # Risky to short in bull
-    allow_long_in_bear: bool = False      # Risky to long in bear
+    allow_short_in_bull: bool = False  # Risky to short in bull
+    allow_long_in_bear: bool = False  # Risky to long in bear
     allow_short_in_bear: bool = True
     allow_trade_in_sideways: bool = False  # Don't trade in choppy market
     allow_trade_in_high_vol: bool = False  # Don't trade during vol spikes
@@ -110,31 +112,31 @@ class MarketRegimeFilter:
         details = {}
 
         # Calculate indicators
-        close = dataframe['close'].iloc[-1]
-        ema_200 = dataframe['close'].ewm(span=self.config.ema_period, adjust=False).mean().iloc[-1]
+        close = dataframe["close"].iloc[-1]
+        ema_200 = dataframe["close"].ewm(span=self.config.ema_period, adjust=False).mean().iloc[-1]
         adx = self._calculate_adx(dataframe)
 
-        details['close'] = close
-        details['ema_200'] = ema_200
-        details['adx'] = adx
-        details['price_vs_ema'] = (close - ema_200) / ema_200
+        details["close"] = close
+        details["ema_200"] = ema_200
+        details["adx"] = adx
+        details["price_vs_ema"] = (close - ema_200) / ema_200
 
         # Calculate volatility
         current_vol, avg_vol = self._calculate_volatility(dataframe)
-        details['current_volatility'] = current_vol
-        details['avg_volatility'] = avg_vol
-        details['volatility_ratio'] = current_vol / avg_vol if avg_vol > 0 else 1.0
+        details["current_volatility"] = current_vol
+        details["avg_volatility"] = avg_vol
+        details["volatility_ratio"] = current_vol / avg_vol if avg_vol > 0 else 1.0
 
         # Check for volatility spike
-        if details['volatility_ratio'] > self.config.volatility_spike_multiplier:
+        if details["volatility_ratio"] > self.config.volatility_spike_multiplier:
             regime = MarketRegime.HIGH_VOLATILITY
-            details['reason'] = f"Volatility spike: {details['volatility_ratio']:.1f}x normal"
+            details["reason"] = f"Volatility spike: {details['volatility_ratio']:.1f}x normal"
             return regime, details
 
         # Check ADX for trend strength
         if adx < self.config.adx_sideways_threshold:
             regime = MarketRegime.SIDEWAYS
-            details['reason'] = f"ADX {adx:.1f} < {self.config.adx_sideways_threshold} (no trend)"
+            details["reason"] = f"ADX {adx:.1f} < {self.config.adx_sideways_threshold} (no trend)"
             return regime, details
 
         # Determine trend direction
@@ -142,21 +144,18 @@ class MarketRegimeFilter:
 
         if close > (ema_200 + ema_buffer) and adx > self.config.adx_trend_threshold:
             regime = MarketRegime.BULL
-            details['reason'] = f"Price above EMA-200 + buffer, ADX {adx:.1f} (strong uptrend)"
+            details["reason"] = f"Price above EMA-200 + buffer, ADX {adx:.1f} (strong uptrend)"
         elif close < (ema_200 - ema_buffer) and adx > self.config.adx_trend_threshold:
             regime = MarketRegime.BEAR
-            details['reason'] = f"Price below EMA-200 - buffer, ADX {adx:.1f} (strong downtrend)"
+            details["reason"] = f"Price below EMA-200 - buffer, ADX {adx:.1f} (strong downtrend)"
         else:
             regime = MarketRegime.SIDEWAYS
-            details['reason'] = f"Price near EMA-200 or weak ADX {adx:.1f}"
+            details["reason"] = f"Price near EMA-200 or weak ADX {adx:.1f}"
 
         return regime, details
 
     def should_trade(
-        self,
-        dataframe: pd.DataFrame,
-        side: str,
-        entry_tag: Optional[str] = None
+        self, dataframe: pd.DataFrame, side: str, entry_tag: Optional[str] = None
     ) -> Tuple[bool, str]:
         """
         Check if trade should be allowed based on regime.
@@ -172,11 +171,7 @@ class MarketRegimeFilter:
         regime, details = self.detect_regime(dataframe)
 
         # Store for analysis
-        self.regime_history.append({
-            'regime': regime.value,
-            'side': side,
-            **details
-        })
+        self.regime_history.append({"regime": regime.value, "side": side, **details})
 
         # Check volume if required
         if self.config.require_volume_confirmation:
@@ -190,20 +185,20 @@ class MarketRegimeFilter:
         reason = ""
 
         if regime == MarketRegime.BULL:
-            if side == 'buy' and self.config.allow_long_in_bull:
+            if side == "buy" and self.config.allow_long_in_bull:
                 should_trade = True
                 reason = "BULL regime: LONG allowed"
-            elif side == 'sell' and self.config.allow_short_in_bull:
+            elif side == "sell" and self.config.allow_short_in_bull:
                 should_trade = True
                 reason = "BULL regime: SHORT allowed"
             else:
                 reason = f"BULL regime: {side.upper()} blocked"
 
         elif regime == MarketRegime.BEAR:
-            if side == 'buy' and self.config.allow_long_in_bear:
+            if side == "buy" and self.config.allow_long_in_bear:
                 should_trade = True
                 reason = "BEAR regime: LONG allowed"
-            elif side == 'sell' and self.config.allow_short_in_bear:
+            elif side == "sell" and self.config.allow_short_in_bear:
                 should_trade = True
                 reason = "BEAR regime: SHORT allowed"
             else:
@@ -221,7 +216,7 @@ class MarketRegimeFilter:
                 should_trade = True
                 reason = "HIGH_VOL regime: Trading allowed (dangerous)"
             else:
-                vol_ratio = details.get('volatility_ratio', 0)
+                vol_ratio = details.get("volatility_ratio", 0)
                 reason = f"HIGH_VOL regime: All trades blocked (vol={vol_ratio:.1f}x)"
 
         else:  # UNKNOWN
@@ -240,9 +235,9 @@ class MarketRegimeFilter:
         """Calculate ADX (Average Directional Index)."""
         period = self.config.adx_period
 
-        high = dataframe['high']
-        low = dataframe['low']
-        close = dataframe['close']
+        high = dataframe["high"]
+        low = dataframe["low"]
+        close = dataframe["close"]
 
         # Calculate +DM and -DM
         high_diff = high.diff()
@@ -270,7 +265,7 @@ class MarketRegimeFilter:
 
     def _calculate_volatility(self, dataframe: pd.DataFrame) -> Tuple[float, float]:
         """Calculate current and average volatility."""
-        returns = dataframe['close'].pct_change().dropna()
+        returns = dataframe["close"].pct_change().dropna()
 
         if len(returns) < self.config.volatility_lookback * 2:
             return 0.0, 0.0
@@ -285,11 +280,11 @@ class MarketRegimeFilter:
 
     def _check_volume(self, dataframe: pd.DataFrame) -> Tuple[bool, str]:
         """Check if volume confirms the move."""
-        if 'volume' not in dataframe.columns:
+        if "volume" not in dataframe.columns:
             return True, "No volume data"
 
-        volume = dataframe['volume'].iloc[-1]
-        volume_ma = dataframe['volume'].rolling(self.config.volume_ma_period).mean().iloc[-1]
+        volume = dataframe["volume"].iloc[-1]
+        volume_ma = dataframe["volume"].rolling(self.config.volume_ma_period).mean().iloc[-1]
 
         if pd.isna(volume_ma) or volume_ma <= 0:
             return True, "Insufficient volume history"
@@ -308,7 +303,7 @@ class MarketRegimeFilter:
         if self.regime_history:
             regime_counts = {}
             for entry in self.regime_history:
-                regime = entry['regime']
+                regime = entry["regime"]
                 regime_counts[regime] = regime_counts.get(regime, 0) + 1
         else:
             regime_counts = {}
@@ -365,7 +360,7 @@ def create_freqtrade_confirm_entry(config: Optional[RegimeFilterConfig] = None):
         current_time,
         entry_tag: Optional[str],
         side: str,
-        **kwargs
+        **kwargs,
     ) -> bool:
         """
         Freqtrade confirm_trade_entry callback.
@@ -382,9 +377,7 @@ def create_freqtrade_confirm_entry(config: Optional[RegimeFilterConfig] = None):
 
             # Check regime
             should_trade, reason = regime_filter.should_trade(
-                dataframe=dataframe,
-                side=side,
-                entry_tag=entry_tag
+                dataframe=dataframe, side=side, entry_tag=entry_tag
             )
 
             if not should_trade:

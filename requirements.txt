@@ -51,6 +51,18 @@ seaborn>=0.13.0
 # plotly>=5.14.0
 
 # Optional: Advanced ML
-# xgboost>=2.0.0
-# lightgbm>=4.0.0
+xgboost>=2.0.0
+lightgbm>=4.0.0
 # catboost>=1.2.0
+
+# === ОБЯЗАТЕЛЬНЫЕ (без них проект не работает) ===
+hypothesis>=6.90.0         # Property-based testing
+
+# === ML (закомментированные нужно раскомментировать) ===
+pandas-ta>=0.3.14          # Используется в feature_engineering_optimized.py
+
+# === Мониторинг ===
+prometheus-client>=0.19.0  # Используется в metrics_exporter.py
+
+# === Performance ===
+numba>=0.58.0              # JIT компиляция

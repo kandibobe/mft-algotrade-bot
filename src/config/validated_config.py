@@ -25,17 +25,19 @@ Usage:
     config = TradingConfig.from_yaml("config/trading.yaml")
 """
 
-from typing import List, Optional, Dict, Any, Literal
-from pathlib import Path
 import json
 import logging
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional
 
 try:
     from pydantic import BaseModel, Field, field_validator, model_validator
+
     PYDANTIC_V2 = True
 except ImportError:
     try:
-        from pydantic import BaseModel, Field, validator, root_validator
+        from pydantic import BaseModel, Field, root_validator, validator
+
         PYDANTIC_V2 = False
     except ImportError:
         raise ImportError("Pydantic not installed. Run: pip install pydantic")
@@ -46,34 +48,19 @@ logger = logging.getLogger(__name__)
 class ExchangeConfig(BaseModel):
     """Exchange connection configuration."""
 
-    name: str = Field(
-        default="binance",
-        description="Exchange name (binance, bybit, etc.)"
-    )
+    name: str = Field(default="binance", description="Exchange name (binance, bybit, etc.)")
     sandbox: bool = Field(
-        default=True,
-        description="Use testnet/sandbox mode (CRITICAL for testing!)"
+        default=True, description="Use testnet/sandbox mode (CRITICAL for testing!)"
     )
-    api_key: Optional[str] = Field(
-        default=None,
-        description="API key (keep secret!)"
-    )
-    api_secret: Optional[str] = Field(
-        default=None,
-        description="API secret (keep secret!)"
-    )
-    rate_limit: bool = Field(
-        default=True,
-        description="Enable rate limiting to avoid bans"
-    )
+    api_key: Optional[str] = Field(default=None, description="API key (keep secret!)")
+    api_secret: Optional[str] = Field(default=None, description="API secret (keep secret!)")
+    rate_limit: bool = Field(default=True, description="Enable rate limiting to avoid bans")
     timeout_ms: int = Field(
-        default=30000,
-        ge=1000,
-        le=120000,
-        description="Request timeout in milliseconds"
+        default=30000, ge=1000, le=120000, description="Request timeout in milliseconds"
     )
 
     if PYDANTIC_V2:
+
         @field_validator("name")
         @classmethod
         def validate_exchange(cls, v):
@@ -81,7 +68,9 @@ class ExchangeConfig(BaseModel):
             if v.lower() not in supported:
                 logger.warning(f"Exchange '{v}' may not be fully supported")
             return v.lower()
+
     else:
+
         @validator("name")
         def validate_exchange(cls, v):
             supported = ["binance", "bybit", "okx", "kucoin", "gate"]
@@ -97,50 +86,33 @@ class RiskConfig(BaseModel):
         default=0.10,
         ge=0.01,
         le=1.0,
-        description="Maximum position size as fraction of portfolio (0.10 = 10%)"
+        description="Maximum position size as fraction of portfolio (0.10 = 10%)",
     )
     max_portfolio_risk: float = Field(
-        default=0.02,
-        ge=0.001,
-        le=0.10,
-        description="Maximum portfolio risk per trade (0.02 = 2%)"
+        default=0.02, ge=0.001, le=0.10, description="Maximum portfolio risk per trade (0.02 = 2%)"
     )
     max_drawdown_pct: float = Field(
         default=0.20,
         ge=0.05,
         le=0.50,
-        description="Maximum drawdown before circuit breaker (0.20 = 20%)"
+        description="Maximum drawdown before circuit breaker (0.20 = 20%)",
     )
     max_daily_loss_pct: float = Field(
-        default=0.05,
-        ge=0.01,
-        le=0.20,
-        description="Maximum daily loss before stopping (0.05 = 5%)"
+        default=0.05, ge=0.01, le=0.20, description="Maximum daily loss before stopping (0.05 = 5%)"
     )
     stop_loss_pct: float = Field(
-        default=0.02,
-        ge=0.001,
-        le=0.20,
-        description="Default stop-loss percentage (0.02 = 2%)"
+        default=0.02, ge=0.001, le=0.20, description="Default stop-loss percentage (0.02 = 2%)"
     )
     take_profit_pct: float = Field(
-        default=0.04,
-        ge=0.001,
-        le=0.50,
-        description="Default take-profit percentage (0.04 = 4%)"
+        default=0.04, ge=0.001, le=0.50, description="Default take-profit percentage (0.04 = 4%)"
     )
-    use_atr_sizing: bool = Field(
-        default=True,
-        description="Use ATR-based position sizing"
-    )
+    use_atr_sizing: bool = Field(default=True, description="Use ATR-based position sizing")
     atr_multiplier: float = Field(
-        default=2.0,
-        ge=0.5,
-        le=5.0,
-        description="ATR multiplier for stop-loss distance"
+        default=2.0, ge=0.5, le=5.0, description="ATR multiplier for stop-loss distance"
     )
 
     if PYDANTIC_V2:
+
         @model_validator(mode="after")
         def validate_risk_reward(self):
             if self.take_profit_pct < self.stop_loss_pct:
@@ -149,7 +121,9 @@ class RiskConfig(BaseModel):
                     f"Consider adjusting for positive risk/reward ratio."
                 )
             return self
+
     else:
+
         @root_validator
         def validate_risk_reward(cls, values):
             tp = values.get("take_profit_pct", 0.04)
@@ -166,43 +140,24 @@ class MLConfig(BaseModel):
     """Machine Learning configuration."""
 
     model_type: Literal["lightgbm", "xgboost", "random_forest", "catboost"] = Field(
-        default="lightgbm",
-        description="ML model type"
+        default="lightgbm", description="ML model type"
     )
     feature_selection: bool = Field(
-        default=True,
-        description="Enable feature selection to prevent overfitting"
+        default=True, description="Enable feature selection to prevent overfitting"
     )
-    optimize_hyperparams: bool = Field(
-        default=True,
-        description="Run hyperparameter optimization"
-    )
+    optimize_hyperparams: bool = Field(default=True, description="Run hyperparameter optimization")
     n_optuna_trials: int = Field(
-        default=100,
-        ge=10,
-        le=1000,
-        description="Number of Optuna optimization trials"
+        default=100, ge=10, le=1000, description="Number of Optuna optimization trials"
     )
-    cv_folds: int = Field(
-        default=5,
-        ge=2,
-        le=10,
-        description="Cross-validation folds"
-    )
+    cv_folds: int = Field(default=5, ge=2, le=10, description="Cross-validation folds")
     min_samples_split: int = Field(
-        default=1000,
-        ge=100,
-        description="Minimum samples for train/test split"
+        default=1000, ge=100, description="Minimum samples for train/test split"
     )
     label_method: Literal["triple_barrier", "simple", "meta_label"] = Field(
-        default="triple_barrier",
-        description="Label generation method (triple_barrier recommended)"
+        default="triple_barrier", description="Label generation method (triple_barrier recommended)"
     )
     max_holding_period: int = Field(
-        default=24,
-        ge=1,
-        le=168,
-        description="Maximum holding period in candles for triple barrier"
+        default=24, ge=1, le=168, description="Maximum holding period in candles for triple barrier"
     )
 
 
@@ -211,38 +166,17 @@ class TradingConfig(BaseModel):
 
     # Basic settings
     dry_run: bool = Field(
-        default=True,
-        description="CRITICAL: Set to False only for live trading with real money!"
+        default=True, description="CRITICAL: Set to False only for live trading with real money!"
     )
-    pairs: List[str] = Field(
-        default=["BTC/USDT"],
-        min_length=1,
-        description="Trading pairs"
-    )
-    timeframe: str = Field(
-        default="1h",
-        description="Main trading timeframe"
-    )
-    stake_currency: str = Field(
-        default="USDT",
-        description="Quote currency for stake"
-    )
-    stake_amount: float = Field(
-        default=100.0,
-        ge=1.0,
-        description="Stake amount per trade"
-    )
+    pairs: List[str] = Field(default=["BTC/USDT"], min_length=1, description="Trading pairs")
+    timeframe: str = Field(default="1h", description="Main trading timeframe")
+    stake_currency: str = Field(default="USDT", description="Quote currency for stake")
+    stake_amount: float = Field(default=100.0, ge=1.0, description="Stake amount per trade")
     max_open_trades: int = Field(
-        default=3,
-        ge=1,
-        le=20,
-        description="Maximum concurrent open trades"
+        default=3, ge=1, le=20, description="Maximum concurrent open trades"
     )
     leverage: float = Field(
-        default=1.0,
-        ge=1.0,
-        le=20.0,
-        description="Leverage (1.0 = no leverage, be careful!)"
+        default=1.0, ge=1.0, le=20.0, description="Leverage (1.0 = no leverage, be careful!)"
     )
 
     # Sub-configs
@@ -251,20 +185,16 @@ class TradingConfig(BaseModel):
     ml: MLConfig = Field(default_factory=MLConfig)
 
     # Strategy settings
-    strategy: str = Field(
-        default="StoicCitadel",
-        description="Strategy class name"
-    )
+    strategy: str = Field(default="StoicCitadel", description="Strategy class name")
     use_regime_filter: bool = Field(
-        default=True,
-        description="Filter trades based on market regime"
+        default=True, description="Filter trades based on market regime"
     )
     use_smart_orders: bool = Field(
-        default=True,
-        description="Use smart limit orders for fee optimization"
+        default=True, description="Use smart limit orders for fee optimization"
     )
 
     if PYDANTIC_V2:
+
         @field_validator("pairs")
         @classmethod
         def validate_pairs(cls, v):
@@ -285,17 +215,14 @@ class TradingConfig(BaseModel):
         @classmethod
         def validate_leverage(cls, v):
             if v > 5.0:
-                logger.warning(
-                    f"Leverage {v}x is high! Consider lower leverage for safety."
-                )
+                logger.warning(f"Leverage {v}x is high! Consider lower leverage for safety.")
             return v
 
         @model_validator(mode="after")
         def validate_live_trading(self):
             if not self.dry_run and self.exchange.sandbox:
                 logger.warning(
-                    "dry_run=False but sandbox=True. "
-                    "This will trade on testnet, not mainnet."
+                    "dry_run=False but sandbox=True. " "This will trade on testnet, not mainnet."
                 )
             if not self.dry_run and self.leverage > 1.0:
                 logger.warning(
@@ -303,7 +230,9 @@ class TradingConfig(BaseModel):
                     f"Make sure you understand the risks."
                 )
             return self
+
     else:
+
         @validator("pairs", each_item=True)
         def validate_pairs(cls, v):
             if "/" not in v:
@@ -320,9 +249,7 @@ class TradingConfig(BaseModel):
         @validator("leverage")
         def validate_leverage(cls, v):
             if v > 5.0:
-                logger.warning(
-                    f"Leverage {v}x is high! Consider lower leverage for safety."
-                )
+                logger.warning(f"Leverage {v}x is high! Consider lower leverage for safety.")
             return v
 
         @root_validator
@@ -333,8 +260,7 @@ class TradingConfig(BaseModel):
 
             if not dry_run and exchange.sandbox:
                 logger.warning(
-                    "dry_run=False but sandbox=True. "
-                    "This will trade on testnet, not mainnet."
+                    "dry_run=False but sandbox=True. " "This will trade on testnet, not mainnet."
                 )
             if not dry_run and leverage > 1.0:
                 logger.warning(
@@ -420,41 +346,24 @@ class TradingConfig(BaseModel):
 class BacktestConfig(BaseModel):
     """Backtesting configuration."""
 
-    start_date: str = Field(
-        description="Start date YYYYMMDD format"
-    )
-    end_date: str = Field(
-        description="End date YYYYMMDD format"
-    )
+    start_date: str = Field(description="Start date YYYYMMDD format")
+    end_date: str = Field(description="End date YYYYMMDD format")
     starting_balance: float = Field(
-        default=10000.0,
-        ge=100.0,
-        description="Starting balance for backtest"
+        default=10000.0, ge=100.0, description="Starting balance for backtest"
     )
     fee_pct: float = Field(
-        default=0.001,
-        ge=0.0,
-        le=0.01,
-        description="Trading fee percentage (0.001 = 0.1%)"
+        default=0.001, ge=0.0, le=0.01, description="Trading fee percentage (0.001 = 0.1%)"
     )
     slippage_pct: float = Field(
-        default=0.0005,
-        ge=0.0,
-        le=0.01,
-        description="Slippage percentage (0.0005 = 0.05%)"
+        default=0.0005, ge=0.0, le=0.01, description="Slippage percentage (0.0005 = 0.05%)"
     )
-    use_walk_forward: bool = Field(
-        default=True,
-        description="Use walk-forward validation"
-    )
+    use_walk_forward: bool = Field(default=True, description="Use walk-forward validation")
     walk_forward_windows: int = Field(
-        default=5,
-        ge=2,
-        le=20,
-        description="Number of walk-forward windows"
+        default=5, ge=2, le=20, description="Number of walk-forward windows"
     )
 
     if PYDANTIC_V2:
+
         @field_validator("start_date", "end_date")
         @classmethod
         def validate_date_format(cls, v):
@@ -467,7 +376,9 @@ class BacktestConfig(BaseModel):
             if self.start_date >= self.end_date:
                 raise ValueError("start_date must be before end_date")
             return self
+
     else:
+
         @validator("start_date", "end_date")
         def validate_date_format(cls, v):
             if len(v) != 8 or not v.isdigit():

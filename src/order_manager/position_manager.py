@@ -5,11 +5,11 @@ Position Manager
 Tracks and manages open positions with PnL calculation.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
 from enum import Enum
-import logging
+from typing import Dict, List, Optional
 
 from src.order_manager.order_types import Order, OrderSide, OrderStatus
 
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class PositionSide(Enum):
     """Position side."""
+
     LONG = "long"
     SHORT = "short"
 
@@ -412,8 +413,9 @@ class PositionManager:
             "winning_trades": sum(1 for p in self.closed_positions if p.is_profitable),
             "losing_trades": sum(1 for p in self.closed_positions if not p.is_profitable),
             "win_rate": (
-                sum(1 for p in self.closed_positions if p.is_profitable) /
-                max(1, len(self.closed_positions)) * 100
+                sum(1 for p in self.closed_positions if p.is_profitable)
+                / max(1, len(self.closed_positions))
+                * 100
             ),
             "max_positions": self.max_positions,
             "positions_by_symbol": {

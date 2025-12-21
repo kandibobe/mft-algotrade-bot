@@ -15,24 +15,26 @@ Author: Stoic Citadel Team
 License: MIT
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict
 from enum import Enum
-import logging
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class CircuitBreakerState(Enum):
     """Circuit breaker state."""
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Trading halted
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Trading halted
     HALF_OPEN = "half_open"  # Testing if can resume
 
 
 class TripReason(Enum):
     """Reason for circuit breaker trip."""
+
     DAILY_LOSS = "daily_loss_limit"
     MAX_DRAWDOWN = "max_drawdown"
     CONSECUTIVE_LOSSES = "consecutive_losses"
@@ -47,7 +49,7 @@ class CircuitBreakerConfig:
 
     # Loss limits
     max_daily_loss_pct: float = 5.0  # 5% max daily loss
-    max_drawdown_pct: float = 15.0   # 15% max drawdown from peak
+    max_drawdown_pct: float = 15.0  # 15% max drawdown from peak
 
     # Consecutive losses
     max_consecutive_losses: int = 5
@@ -159,10 +161,7 @@ class CircuitBreaker:
         return self.state == CircuitBreakerState.CLOSED
 
     def check_and_trip(
-        self,
-        current_pnl: float,
-        current_drawdown: float,
-        force: bool = False
+        self, current_pnl: float, current_drawdown: float, force: bool = False
     ) -> bool:
         """
         Check conditions and trip if necessary.
@@ -183,7 +182,7 @@ class CircuitBreaker:
             return self._trip(
                 TripReason.DAILY_LOSS,
                 f"Daily loss {current_pnl:.2f}% exceeds limit {self.config.max_daily_loss_pct}%",
-                {"daily_pnl": current_pnl}
+                {"daily_pnl": current_pnl},
             )
 
         # Check maximum drawdown
@@ -191,7 +190,7 @@ class CircuitBreaker:
             return self._trip(
                 TripReason.MAX_DRAWDOWN,
                 f"Drawdown {current_drawdown:.2f}% exceeds limit {self.config.max_drawdown_pct}%",
-                {"drawdown": current_drawdown}
+                {"drawdown": current_drawdown},
             )
 
         # Check consecutive losses
@@ -199,7 +198,7 @@ class CircuitBreaker:
             return self._trip(
                 TripReason.CONSECUTIVE_LOSSES,
                 f"{self.consecutive_losses} consecutive losses detected",
-                {"consecutive_losses": self.consecutive_losses}
+                {"consecutive_losses": self.consecutive_losses},
             )
 
         # Check order rate
@@ -207,7 +206,7 @@ class CircuitBreaker:
             return self._trip(
                 TripReason.ORDER_RATE,
                 "Order rate limit exceeded",
-                {"orders_last_minute": self._count_recent_orders(1)}
+                {"orders_last_minute": self._count_recent_orders(1)},
             )
 
         return False
@@ -239,9 +238,7 @@ class CircuitBreaker:
 
         # Clean old timestamps (keep last hour)
         cutoff = now - timedelta(hours=1)
-        self.order_timestamps = [
-            ts for ts in self.order_timestamps if ts > cutoff
-        ]
+        self.order_timestamps = [ts for ts in self.order_timestamps if ts > cutoff]
 
     def record_error(self, error_msg: str):
         """
@@ -259,7 +256,7 @@ class CircuitBreaker:
             self._trip(
                 TripReason.SYSTEM_ERROR,
                 f"{self.consecutive_errors} consecutive errors",
-                {"error": error_msg}
+                {"error": error_msg},
             )
 
     def clear_errors(self):
@@ -331,10 +328,7 @@ class CircuitBreaker:
         self.state = CircuitBreakerState.OPEN
 
         trip_event = TripEvent(
-            timestamp=datetime.now(),
-            reason=reason,
-            details=details,
-            metrics=metrics
+            timestamp=datetime.now(), reason=reason, details=details, metrics=metrics
         )
 
         self.trip_history.append(trip_event)
@@ -394,9 +388,7 @@ class CircuitBreaker:
         elapsed = (datetime.now() - self.last_trip.timestamp).total_seconds() / 60
 
         if elapsed > self.config.auto_reset_after_minutes:
-            logger.info(
-                f"Auto-resetting circuit breaker after {elapsed:.0f} minutes"
-            )
+            logger.info(f"Auto-resetting circuit breaker after {elapsed:.0f} minutes")
             self.reset(manual=False)
 
     def _check_daily_reset(self):
@@ -418,9 +410,7 @@ class CircuitBreaker:
         TODO: Implement actual notification system (Slack, email, etc.)
         """
         # Placeholder for notification system
-        logger.critical(
-            f"ALERT: Circuit breaker tripped - {trip_event.reason.value}"
-        )
+        logger.critical(f"ALERT: Circuit breaker tripped - {trip_event.reason.value}")
 
     def get_status(self) -> Dict:
         """Get current circuit breaker status."""

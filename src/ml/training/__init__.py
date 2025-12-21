@@ -18,9 +18,10 @@ def __getattr__(name):
     """Lazy import to avoid loading sklearn when not needed."""
     if name in ("FeatureEngineer", "FeatureConfig"):
         from src.ml.training.feature_engineering import (
-            FeatureEngineer,
             FeatureConfig,
+            FeatureEngineer,
         )
+
         return locals()[name]
 
     if name in ("ModelTrainer", "TrainingConfig"):
@@ -28,21 +29,24 @@ def __getattr__(name):
             ModelTrainer,
             TrainingConfig,
         )
+
         return locals()[name]
 
     if name in ("ExperimentTracker", "Experiment"):
         from src.ml.training.experiment_tracker import (
-            ExperimentTracker,
             Experiment,
+            ExperimentTracker,
         )
+
         return locals()[name]
 
     if name in ("ModelRegistry", "ModelMetadata", "ModelStatus"):
         from src.ml.training.model_registry import (
-            ModelRegistry,
             ModelMetadata,
+            ModelRegistry,
             ModelStatus,
         )
+
         return locals()[name]
 
     if name in (
@@ -52,11 +56,12 @@ def __getattr__(name):
         "create_labels_for_training",
     ):
         from src.ml.training.labeling import (
-            TripleBarrierLabeler,
-            TripleBarrierConfig,
             DynamicBarrierLabeler,
+            TripleBarrierConfig,
+            TripleBarrierLabeler,
             create_labels_for_training,
         )
+
         return locals()[name]
 
     if name in (
@@ -65,10 +70,11 @@ def __getattr__(name):
         "RecursiveFeatureEliminator",
     ):
         from src.ml.training.feature_selection import (
-            FeatureSelector,
             FeatureSelectionConfig,
+            FeatureSelector,
             RecursiveFeatureEliminator,
         )
+
         return locals()[name]
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

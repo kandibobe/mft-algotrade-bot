@@ -34,17 +34,17 @@ Usage:
     active_orders = ledger.get_active_orders()
 """
 
-import sqlite3
-import logging
 import json
-from datetime import datetime
-from typing import List, Optional, Dict, Any
-from pathlib import Path
-from dataclasses import asdict
+import logging
+import sqlite3
 from contextlib import contextmanager
+from dataclasses import asdict
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 try:
-    from src.order_manager.models import Order, OrderStatus, OrderType, OrderSide
+    from src.order_manager.models import Order, OrderSide, OrderStatus, OrderType
 except ImportError:
     # Fallback for testing
     Order = Any
@@ -110,7 +110,8 @@ class OrderLedger:
     def _create_tables(self):
         """Create database tables if they don't exist."""
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS orders (
                     order_id TEXT PRIMARY KEY,
                     idempotency_key TEXT UNIQUE,
@@ -129,9 +130,11 @@ class OrderLedger:
                     INDEX idx_symbol (symbol),
                     INDEX idx_created_at (created_at)
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS order_updates (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     order_id TEXT NOT NULL,
@@ -141,7 +144,8 @@ class OrderLedger:
                     update_data TEXT,
                     FOREIGN KEY (order_id) REFERENCES orders(order_id)
                 )
-            """)
+            """
+            )
 
         logger.info("Database tables created/verified")
 
@@ -157,8 +161,7 @@ class OrderLedger:
         """
         with self._get_connection() as conn:
             cursor = conn.execute(
-                "SELECT 1 FROM orders WHERE idempotency_key = ? LIMIT 1",
-                (idempotency_key,)
+                "SELECT 1 FROM orders WHERE idempotency_key = ? LIMIT 1", (idempotency_key,)
             )
             return cursor.fetchone() is not None
 
@@ -180,7 +183,7 @@ class OrderLedger:
         idempotency_key = idempotency_key or order.order_id
 
         # Convert order to dict for JSON storage
-        if hasattr(order, '__dict__'):
+        if hasattr(order, "__dict__"):
             order_dict = {
                 k: str(v) if isinstance(v, (datetime, type(None))) else v
                 for k, v in order.__dict__.items()
@@ -192,28 +195,31 @@ class OrderLedger:
 
         try:
             with self._get_connection() as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO orders (
                         order_id, idempotency_key, client_order_id,
                         exchange_order_id, symbol, order_type, side,
                         quantity, price, status, created_at, updated_at,
                         order_data
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    order.order_id,
-                    idempotency_key,
-                    getattr(order, 'client_order_id', None),
-                    getattr(order, 'exchange_order_id', None),
-                    order.symbol,
-                    str(order.order_type),
-                    str(order.side),
-                    order.quantity,
-                    getattr(order, 'price', None),
-                    str(order.status),
-                    getattr(order, 'created_at', datetime.now()).isoformat(),
-                    datetime.now().isoformat(),
-                    order_json
-                ))
+                """,
+                    (
+                        order.order_id,
+                        idempotency_key,
+                        getattr(order, "client_order_id", None),
+                        getattr(order, "exchange_order_id", None),
+                        order.symbol,
+                        str(order.order_type),
+                        str(order.side),
+                        order.quantity,
+                        getattr(order, "price", None),
+                        str(order.status),
+                        getattr(order, "created_at", datetime.now()).isoformat(),
+                        datetime.now().isoformat(),
+                        order_json,
+                    ),
+                )
 
             logger.info(f"Stored order {order.order_id} with idempotency key {idempotency_key}")
             return True
@@ -240,39 +246,38 @@ class OrderLedger:
         """
         with self._get_connection() as conn:
             # Get current status
-            cursor = conn.execute(
-                "SELECT status FROM orders WHERE order_id = ?",
-                (order_id,)
-            )
+            cursor = conn.execute("SELECT status FROM orders WHERE order_id = ?", (order_id,))
             row = cursor.fetchone()
             if not row:
                 raise ValueError(f"Order {order_id} not found")
 
-            old_status = row['status']
+            old_status = row["status"]
 
             # Update order
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE orders
                 SET status = ?, updated_at = ?
                 WHERE order_id = ?
-            """, (
-                new_status,
-                datetime.now().isoformat(),
-                order_id
-            ))
+            """,
+                (new_status, datetime.now().isoformat(), order_id),
+            )
 
             # Record update history
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO order_updates (
                     order_id, old_status, new_status, updated_at, update_data
                 ) VALUES (?, ?, ?, ?, ?)
-            """, (
-                order_id,
-                old_status,
-                new_status,
-                datetime.now().isoformat(),
-                json.dumps(update_data or {})
-            ))
+            """,
+                (
+                    order_id,
+                    old_status,
+                    new_status,
+                    datetime.now().isoformat(),
+                    json.dumps(update_data or {}),
+                ),
+            )
 
         logger.info(f"Updated order {order_id}: {old_status} → {new_status}")
 
@@ -287,15 +292,12 @@ class OrderLedger:
             Order dict or None if not found
         """
         with self._get_connection() as conn:
-            cursor = conn.execute(
-                "SELECT * FROM orders WHERE order_id = ?",
-                (order_id,)
-            )
+            cursor = conn.execute("SELECT * FROM orders WHERE order_id = ?", (order_id,))
             row = cursor.fetchone()
 
             if row:
                 order_dict = dict(row)
-                order_dict['order_data'] = json.loads(order_dict['order_data'])
+                order_dict["order_data"] = json.loads(order_dict["order_data"])
                 return order_dict
             return None
 
@@ -306,18 +308,18 @@ class OrderLedger:
         Returns:
             List of active order dicts
         """
-        active_statuses = ['pending', 'open', 'partially_filled']
+        active_statuses = ["pending", "open", "partially_filled"]
 
         with self._get_connection() as conn:
             cursor = conn.execute(
                 f"SELECT * FROM orders WHERE status IN ({','.join('?' * len(active_statuses))})",
-                active_statuses
+                active_statuses,
             )
 
             orders = []
             for row in cursor.fetchall():
                 order_dict = dict(row)
-                order_dict['order_data'] = json.loads(order_dict['order_data'])
+                order_dict["order_data"] = json.loads(order_dict["order_data"])
                 orders.append(order_dict)
 
             return orders
@@ -334,17 +336,20 @@ class OrderLedger:
             List of order dicts
         """
         with self._get_connection() as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT * FROM orders
                 WHERE symbol = ?
                 ORDER BY created_at DESC
                 LIMIT ?
-            """, (symbol, limit))
+            """,
+                (symbol, limit),
+            )
 
             orders = []
             for row in cursor.fetchall():
                 order_dict = dict(row)
-                order_dict['order_data'] = json.loads(order_dict['order_data'])
+                order_dict["order_data"] = json.loads(order_dict["order_data"])
                 orders.append(order_dict)
 
             return orders
@@ -360,16 +365,19 @@ class OrderLedger:
             List of update records
         """
         with self._get_connection() as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT * FROM order_updates
                 WHERE order_id = ?
                 ORDER BY updated_at ASC
-            """, (order_id,))
+            """,
+                (order_id,),
+            )
 
             history = []
             for row in cursor.fetchall():
                 update_dict = dict(row)
-                update_dict['update_data'] = json.loads(update_dict['update_data'])
+                update_dict["update_data"] = json.loads(update_dict["update_data"])
                 history.append(update_dict)
 
             return history
@@ -393,34 +401,37 @@ class OrderLedger:
 
         with self._get_connection() as conn:
             # Total orders
-            cursor = conn.execute(
-                f"SELECT COUNT(*) as count FROM orders {where_clause}",
-                params
-            )
-            total_orders = cursor.fetchone()['count']
+            cursor = conn.execute(f"SELECT COUNT(*) as count FROM orders {where_clause}", params)
+            total_orders = cursor.fetchone()["count"]
 
             # Orders by status
-            cursor = conn.execute(f"""
+            cursor = conn.execute(
+                f"""
                 SELECT status, COUNT(*) as count
                 FROM orders {where_clause}
                 GROUP BY status
-            """, params)
-            by_status = {row['status']: row['count'] for row in cursor.fetchall()}
+            """,
+                params,
+            )
+            by_status = {row["status"]: row["count"] for row in cursor.fetchall()}
 
             # Orders by symbol
-            cursor = conn.execute(f"""
+            cursor = conn.execute(
+                f"""
                 SELECT symbol, COUNT(*) as count
                 FROM orders {where_clause}
                 GROUP BY symbol
                 ORDER BY count DESC
                 LIMIT 10
-            """, params)
-            by_symbol = {row['symbol']: row['count'] for row in cursor.fetchall()}
+            """,
+                params,
+            )
+            by_symbol = {row["symbol"]: row["count"] for row in cursor.fetchall()}
 
             return {
-                'total_orders': total_orders,
-                'by_status': by_status,
-                'by_symbol': by_symbol,
+                "total_orders": total_orders,
+                "by_status": by_status,
+                "by_symbol": by_symbol,
             }
 
     def cleanup_old_orders(self, days: int = 90):
@@ -433,11 +444,14 @@ class OrderLedger:
         cutoff_date = datetime.now() - timedelta(days=days)
 
         with self._get_connection() as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 DELETE FROM orders
                 WHERE status IN ('filled', 'canceled', 'rejected', 'expired')
                 AND updated_at < ?
-            """, (cutoff_date.isoformat(),))
+            """,
+                (cutoff_date.isoformat(),),
+            )
 
             deleted_count = cursor.rowcount
 
@@ -446,7 +460,9 @@ class OrderLedger:
 
 
 # Convenience function
-def create_idempotency_key(symbol: str, side: str, quantity: float, timestamp: Optional[datetime] = None) -> str:
+def create_idempotency_key(
+    symbol: str, side: str, quantity: float, timestamp: Optional[datetime] = None
+) -> str:
     """
     Generate idempotency key for an order.
 

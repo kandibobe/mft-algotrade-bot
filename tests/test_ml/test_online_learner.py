@@ -13,7 +13,8 @@ from src.ml.online_learner import (
     OnlineLearner,
     OnlineLearningConfig,
     load_model,
-    save_model
+    save_model,
+    RIVER_AVAILABLE
 )
 
 
@@ -95,7 +96,8 @@ def test_online_learner_config():
     assert config.learning_rate == 0.1
     assert config.improvement_threshold == 0.1
     assert config.ab_test_traffic_pct == 0.2
-    assert config.use_river is False  # River not available in test env
+    # use_river should match RIVER_AVAILABLE
+    assert config.use_river == RIVER_AVAILABLE
 
 
 def test_update_online(sample_data):

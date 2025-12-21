@@ -5,18 +5,18 @@ Model Trainer
 Orchestrates model training with hyperparameter optimization.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List, Callable
-from pathlib import Path
+import json
 import logging
 import pickle
-import json
+from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split, TimeSeriesSplit
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.model_selection import TimeSeriesSplit, train_test_split
 
 logger = logging.getLogger(__name__)
 
@@ -113,10 +113,11 @@ class ModelTrainer:
         # Split data if validation not provided
         if X_val is None or y_val is None:
             X, X_val, y, y_val = train_test_split(
-                X, y,
+                X,
+                y,
                 test_size=self.config.test_size,
                 random_state=self.config.random_state,
-                stratify=y if len(y.unique()) > 1 else None
+                stratify=y if len(y.unique()) > 1 else None,
             )
             logger.info(f"Split into train: {len(X)}, val: {len(X_val)}")
 
@@ -150,35 +151,30 @@ class ModelTrainer:
         """Create model with given hyperparameters."""
         if self.config.model_type == "random_forest":
             from sklearn.ensemble import RandomForestClassifier
+
             return RandomForestClassifier(
-                random_state=self.config.random_state,
-                n_jobs=-1,
-                **hyperparams
+                random_state=self.config.random_state, n_jobs=-1, **hyperparams
             )
         elif self.config.model_type == "xgboost":
             import xgboost as xgb
+
             return xgb.XGBClassifier(
                 random_state=self.config.random_state,
                 n_jobs=-1,
                 early_stopping_rounds=self.config.early_stopping_rounds,
-                **hyperparams
+                **hyperparams,
             )
         elif self.config.model_type == "lightgbm":
             import lightgbm as lgb
+
             return lgb.LGBMClassifier(
-                random_state=self.config.random_state,
-                n_jobs=-1,
-                **hyperparams
+                random_state=self.config.random_state, n_jobs=-1, **hyperparams
             )
         else:
             raise ValueError(f"Unknown model type: {self.config.model_type}")
 
     def _optimize_hyperparams(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        X_val: pd.DataFrame,
-        y_val: pd.Series
+        self, X: pd.DataFrame, y: pd.Series, X_val: pd.DataFrame, y_val: pd.Series
     ) -> tuple[Any, Dict]:
         """Optimize hyperparameters using Optuna."""
         import optuna
@@ -221,11 +217,11 @@ class ModelTrainer:
             if self.config.optimization_metric == "accuracy":
                 return accuracy_score(y_val, y_pred)
             elif self.config.optimization_metric == "precision":
-                return precision_score(y_val, y_pred, average='weighted', zero_division=0)
+                return precision_score(y_val, y_pred, average="weighted", zero_division=0)
             elif self.config.optimization_metric == "recall":
-                return recall_score(y_val, y_pred, average='weighted', zero_division=0)
+                return recall_score(y_val, y_pred, average="weighted", zero_division=0)
             else:  # f1
-                return f1_score(y_val, y_pred, average='weighted', zero_division=0)
+                return f1_score(y_val, y_pred, average="weighted", zero_division=0)
 
         # Run optimization
         study = optuna.create_study(direction="maximize")
@@ -240,10 +236,7 @@ class ModelTrainer:
         return best_model, study.best_params
 
     def _select_features(
-        self,
-        X_train: pd.DataFrame,
-        y_train: pd.Series,
-        X_val: pd.DataFrame
+        self, X_train: pd.DataFrame, y_train: pd.Series, X_val: pd.DataFrame
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Select most important features."""
         from sklearn.ensemble import RandomForestClassifier
@@ -251,34 +244,27 @@ class ModelTrainer:
 
         # Train simple RF for feature importance
         rf = RandomForestClassifier(
-            n_estimators=100,
-            random_state=self.config.random_state,
-            n_jobs=-1
+            n_estimators=100, random_state=self.config.random_state, n_jobs=-1
         )
         rf.fit(X_train, y_train)
 
         # Select features
-        selector = SelectFromModel(
-            rf,
-            prefit=True,
-            max_features=self.config.max_features
-        )
+        selector = SelectFromModel(rf, prefit=True, max_features=self.config.max_features)
 
         X_train_selected = pd.DataFrame(
             selector.transform(X_train),
             columns=X_train.columns[selector.get_support()],
-            index=X_train.index
+            index=X_train.index,
         )
 
         X_val_selected = pd.DataFrame(
             selector.transform(X_val),
             columns=X_val.columns[selector.get_support()],
-            index=X_val.index
+            index=X_val.index,
         )
 
         logger.info(
-            f"Selected {X_train_selected.shape[1]} features "
-            f"from {X_train.shape[1]} total"
+            f"Selected {X_train_selected.shape[1]} features " f"from {X_train.shape[1]} total"
         )
 
         return X_train_selected, X_val_selected
@@ -286,10 +272,9 @@ class ModelTrainer:
     def _calculate_feature_importance(self, X: pd.DataFrame):
         """Calculate and store feature importance."""
         if hasattr(self.model, "feature_importances_"):
-            importance = pd.DataFrame({
-                'feature': X.columns,
-                'importance': self.model.feature_importances_
-            }).sort_values('importance', ascending=False)
+            importance = pd.DataFrame(
+                {"feature": X.columns, "importance": self.model.feature_importances_}
+            ).sort_values("importance", ascending=False)
 
             self.feature_importance = importance
 
@@ -300,18 +285,21 @@ class ModelTrainer:
     def _evaluate(self, X_val: pd.DataFrame, y_val: pd.Series) -> Dict[str, float]:
         """Evaluate model on validation set."""
         y_pred = self.model.predict(X_val)
-        y_pred_proba = self.model.predict_proba(X_val)[:, 1] if hasattr(self.model, "predict_proba") else None
+        y_pred_proba = (
+            self.model.predict_proba(X_val)[:, 1] if hasattr(self.model, "predict_proba") else None
+        )
 
         metrics = {
             "accuracy": accuracy_score(y_val, y_pred),
-            "precision": precision_score(y_val, y_pred, average='weighted', zero_division=0),
-            "recall": recall_score(y_val, y_pred, average='weighted', zero_division=0),
-            "f1": f1_score(y_val, y_pred, average='weighted', zero_division=0),
+            "precision": precision_score(y_val, y_pred, average="weighted", zero_division=0),
+            "recall": recall_score(y_val, y_pred, average="weighted", zero_division=0),
+            "f1": f1_score(y_val, y_pred, average="weighted", zero_division=0),
         }
 
         # Add ROC AUC if binary classification
         if len(y_val.unique()) == 2 and y_pred_proba is not None:
             from sklearn.metrics import roc_auc_score
+
             metrics["roc_auc"] = roc_auc_score(y_val, y_pred_proba)
 
         logger.info(f"Validation metrics:")
@@ -335,11 +323,13 @@ class ModelTrainer:
             "model_type": self.config.model_type,
             "trained_at": timestamp,
             "metrics": metrics,
-            "feature_count": len(self.feature_importance) if self.feature_importance is not None else 0,
+            "feature_count": (
+                len(self.feature_importance) if self.feature_importance is not None else 0
+            ),
             "config": {
                 "test_size": self.config.test_size,
                 "random_state": self.config.random_state,
-            }
+            },
         }
 
         metadata_path = model_path.with_suffix(".json")
@@ -354,11 +344,7 @@ class ModelTrainer:
         logger.info(f"Model saved to: {model_path}")
         logger.info(f"Metadata saved to: {metadata_path}")
 
-    def cross_validate(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series
-    ) -> Dict[str, List[float]]:
+    def cross_validate(self, X: pd.DataFrame, y: pd.Series) -> Dict[str, List[float]]:
         """
         Perform time-series cross-validation.
 
@@ -373,12 +359,7 @@ class ModelTrainer:
 
         tscv = TimeSeriesSplit(n_splits=self.config.n_splits)
 
-        cv_metrics = {
-            "accuracy": [],
-            "precision": [],
-            "recall": [],
-            "f1": []
-        }
+        cv_metrics = {"accuracy": [], "precision": [], "recall": [], "f1": []}
 
         for fold, (train_idx, val_idx) in enumerate(tscv.split(X), 1):
             logger.info(f"Fold {fold}/{self.config.n_splits}")
@@ -395,14 +376,12 @@ class ModelTrainer:
 
             cv_metrics["accuracy"].append(accuracy_score(y_val, y_pred))
             cv_metrics["precision"].append(
-                precision_score(y_val, y_pred, average='weighted', zero_division=0)
+                precision_score(y_val, y_pred, average="weighted", zero_division=0)
             )
             cv_metrics["recall"].append(
-                recall_score(y_val, y_pred, average='weighted', zero_division=0)
+                recall_score(y_val, y_pred, average="weighted", zero_division=0)
             )
-            cv_metrics["f1"].append(
-                f1_score(y_val, y_pred, average='weighted', zero_division=0)
-            )
+            cv_metrics["f1"].append(f1_score(y_val, y_pred, average="weighted", zero_division=0))
 
         # Log results
         logger.info("Cross-validation results:")

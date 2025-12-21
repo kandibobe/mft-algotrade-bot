@@ -41,8 +41,14 @@ See [LICENSE](LICENSE) for full terms. Unauthorized use is strictly prohibited.
 ### 🛡️ Production Ready
 - **Risk Management** - Position sizing, drawdown protection, daily loss limits
 - **Slippage Simulation** - Realistic execution modeling for backtests
-- **Comprehensive Testing** - 25+ unit tests
+- **Comprehensive Testing** - 190+ unit tests with property-based testing
 - **Full Documentation** - API docs, guides, examples
+
+### 📈 Validation & Testing
+- **Walk-Forward Analysis** - Robust validation of ML strategies with sliding windows
+- **Structured Logging** - JSON logs for ELK stack integration
+- **Health Check System** - Kubernetes-ready health checks with FastAPI
+- **Advanced Testing** - Property-based testing with Hypothesis
 
 ---
 
@@ -131,7 +137,11 @@ stoic-citadel/
 │   └── models/                       # Trained ML models
 ├── tests/                            # Test suite (190+ tests)
 ├── scripts/                          # Utility scripts
-│   └── optimize_strategy.py          # Hyperopt with Optuna
+│   ├── optimize_strategy.py          # Hyperopt with Optuna
+│   ├── walk_forward_analysis.py      # Walk-forward validation
+│   ├── walk_forward_backtest.py      # Walk-forward backtesting
+│   ├── simple_walk_forward_test.py   # Simplified walk-forward test
+│   └── batch_backtest.py             # Batch backtesting
 ├── docs/                             # Documentation
 ├── Makefile                          # Build commands
 ├── docker-compose.yml                # Production setup
@@ -143,7 +153,7 @@ stoic-citadel/
 ## 📚 Documentation
 
 ### Getting Started
-- **[QUICKSTART.md](QUICKSTART.md)** - Get running in 5 minutes
+- **[QUICKSTART_REAL.md](QUICKSTART_REAL.md)** - Get running in 5 minutes
 - **[CREDENTIALS.md](CREDENTIALS.md)** - All access credentials and passwords
 - **[TESTING.md](TESTING.md)** - How to run tests and validate
 
@@ -438,6 +448,8 @@ docker-compose logs -f freqtrade
 ### 📋 Phase 5: Live Trading Enhancements (IN PROGRESS)
 - [x] **Structured Logging** - JSON logs for ELK integration
 - [x] **Property-based Testing** - Hypothesis for robust testing
+- [x] **Walk-Forward Analysis** - Robust validation with sliding windows
+- [x] **Health Check System** - Kubernetes-ready health checks
 - [ ] Real-time ML inference integration
 - [ ] Advanced position sizing algorithms
 - [ ] Multi-exchange support
@@ -482,6 +494,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **🏛️ Stoic Citadel** - Trade with wisdom, not emotion.
 
 **Status**: Production Ready
-**Version**: 2.0.0
-**Last Updated**: 2025-12-20
+**Version**: 2.1.0
+**Last Updated**: 2025-12-21
 **Tests**: 190+ passing

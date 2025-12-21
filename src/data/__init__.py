@@ -20,9 +20,10 @@ Usage:
         df = await fetcher.fetch_ohlcv('BTC/USDT', '1h')
 """
 
-from .loader import get_ohlcv, load_csv, load_feather
 from .downloader import download_data
-from .validator import validate_ohlcv, check_data_integrity
+from .loader import get_ohlcv, load_csv, load_feather
+from .validator import check_data_integrity, validate_ohlcv
+
 
 # Lazy import for async fetcher (requires ccxt)
 def __getattr__(name):
@@ -33,20 +34,22 @@ def __getattr__(name):
             FetcherConfig,
             fetch_ohlcv_async,
         )
+
         return locals()[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
+
 __all__ = [
-    'get_ohlcv',
-    'load_csv',
-    'load_feather',
-    'download_data',
-    'validate_ohlcv',
-    'check_data_integrity',
-    'AsyncDataFetcher',
-    'AsyncOrderExecutor',
-    'FetcherConfig',
-    'fetch_ohlcv_async',
+    "get_ohlcv",
+    "load_csv",
+    "load_feather",
+    "download_data",
+    "validate_ohlcv",
+    "check_data_integrity",
+    "AsyncDataFetcher",
+    "AsyncOrderExecutor",
+    "FetcherConfig",
+    "fetch_ohlcv_async",
 ]
 
-__version__ = '2.0.0'
+__version__ = "2.0.0"

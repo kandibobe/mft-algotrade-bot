@@ -5,18 +5,19 @@ Order Types and State Machine
 Defines all order types and their lifecycle management.
 """
 
+import logging
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, Any
-import uuid
-import logging
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class OrderType(Enum):
     """Order type enumeration."""
+
     MARKET = "market"
     LIMIT = "limit"
     STOP_LOSS = "stop_loss"
@@ -26,21 +27,23 @@ class OrderType(Enum):
 
 class OrderSide(Enum):
     """Order side enumeration."""
+
     BUY = "buy"
     SELL = "sell"
 
 
 class OrderStatus(Enum):
     """Order status in its lifecycle."""
-    PENDING = "pending"           # Created but not submitted
-    SUBMITTED = "submitted"       # Submitted to exchange
-    OPEN = "open"                 # Accepted by exchange
+
+    PENDING = "pending"  # Created but not submitted
+    SUBMITTED = "submitted"  # Submitted to exchange
+    OPEN = "open"  # Accepted by exchange
     PARTIALLY_FILLED = "partially_filled"
-    FILLED = "filled"             # Fully executed
-    CANCELLED = "cancelled"       # Cancelled by user/system
-    REJECTED = "rejected"         # Rejected by exchange
-    EXPIRED = "expired"           # Expired (time in force)
-    FAILED = "failed"             # Technical failure
+    FILLED = "filled"  # Fully executed
+    CANCELLED = "cancelled"  # Cancelled by user/system
+    REJECTED = "rejected"  # Rejected by exchange
+    EXPIRED = "expired"  # Expired (time in force)
+    FAILED = "failed"  # Technical failure
 
 
 @dataclass
@@ -65,13 +68,13 @@ class Order:
     side: OrderSide = OrderSide.BUY
 
     # Quantities
-    quantity: float = 0.0              # Requested quantity
-    filled_quantity: float = 0.0       # Filled so far
-    remaining_quantity: float = 0.0    # Remaining to fill
+    quantity: float = 0.0  # Requested quantity
+    filled_quantity: float = 0.0  # Filled so far
+    remaining_quantity: float = 0.0  # Remaining to fill
 
     # Prices
-    price: Optional[float] = None      # Limit price (for limit orders)
-    stop_price: Optional[float] = None # Stop trigger price
+    price: Optional[float] = None  # Limit price (for limit orders)
+    stop_price: Optional[float] = None  # Stop trigger price
     average_fill_price: Optional[float] = None
 
     # Status
@@ -129,7 +132,7 @@ class Order:
             OrderStatus.PENDING,
             OrderStatus.SUBMITTED,
             OrderStatus.OPEN,
-            OrderStatus.PARTIALLY_FILLED
+            OrderStatus.PARTIALLY_FILLED,
         ]
 
     @property
@@ -140,7 +143,7 @@ class Order:
             OrderStatus.CANCELLED,
             OrderStatus.REJECTED,
             OrderStatus.EXPIRED,
-            OrderStatus.FAILED
+            OrderStatus.FAILED,
         ]
 
     @property
@@ -195,8 +198,7 @@ class Order:
 
             # Update status to EXPIRED
             self.update_status(
-                OrderStatus.EXPIRED,
-                error=f"Order timed out after {self.timeout_seconds} seconds"
+                OrderStatus.EXPIRED, error=f"Order timed out after {self.timeout_seconds} seconds"
             )
 
             return True
@@ -255,15 +257,18 @@ class Order:
         elif new_status == OrderStatus.FILLED and self.filled_at is None:
             self.filled_at = datetime.now()
 
-        logger.info(
-            f"Order {self.order_id} status: {old_status.value} → {new_status.value}"
-        )
+        logger.info(f"Order {self.order_id} status: {old_status.value} → {new_status.value}")
 
     def _is_valid_transition(self, from_status: OrderStatus, to_status: OrderStatus) -> bool:
         """Validate if status transition is allowed."""
         # Terminal states cannot transition
-        if from_status in [OrderStatus.FILLED, OrderStatus.CANCELLED,
-                          OrderStatus.REJECTED, OrderStatus.EXPIRED, OrderStatus.FAILED]:
+        if from_status in [
+            OrderStatus.FILLED,
+            OrderStatus.CANCELLED,
+            OrderStatus.REJECTED,
+            OrderStatus.EXPIRED,
+            OrderStatus.FAILED,
+        ]:
             return False
 
         # Allow any transition from PENDING
@@ -273,8 +278,12 @@ class Order:
         # Common valid transitions
         valid_transitions = {
             OrderStatus.SUBMITTED: [OrderStatus.OPEN, OrderStatus.REJECTED, OrderStatus.FAILED],
-            OrderStatus.OPEN: [OrderStatus.PARTIALLY_FILLED, OrderStatus.FILLED,
-                              OrderStatus.CANCELLED, OrderStatus.EXPIRED],
+            OrderStatus.OPEN: [
+                OrderStatus.PARTIALLY_FILLED,
+                OrderStatus.FILLED,
+                OrderStatus.CANCELLED,
+                OrderStatus.EXPIRED,
+            ],
             OrderStatus.PARTIALLY_FILLED: [OrderStatus.FILLED, OrderStatus.CANCELLED],
         }
 
@@ -300,9 +309,8 @@ class Order:
             # Weighted average
             total_filled = self.filled_quantity
             self.average_fill_price = (
-                (self.average_fill_price * (total_filled - filled_qty) +
-                 fill_price * filled_qty) / total_filled
-            )
+                self.average_fill_price * (total_filled - filled_qty) + fill_price * filled_qty
+            ) / total_filled
 
         # Update status
         if self.remaining_quantity <= 0.000001:  # Account for floating point
@@ -405,7 +413,7 @@ class TrailingStopOrder(Order):
     trailing_distance: float = 0.0  # Distance to trail (in price or percentage)
     trailing_percent: bool = False  # Use percentage instead of absolute
     highest_price: Optional[float] = None  # Highest price seen (for buy trailing)
-    lowest_price: Optional[float] = None   # Lowest price seen (for sell trailing)
+    lowest_price: Optional[float] = None  # Lowest price seen (for sell trailing)
 
     def __post_init__(self):
         super().__post_init__()

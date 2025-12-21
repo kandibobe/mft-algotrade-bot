@@ -1,0 +1,28 @@
+{
+  "pair": "BTC/USDT",
+  "timeframe": "5m",
+  "train_samples": 6379,
+  "test_samples": 2735,
+  "model_accuracy": 0.9572212065813528,
+  "model_f1": 0.0,
+  "feature_importance": {
+    "returns": 0.04349663420189061,
+    "returns_log": 0.046771008812291605,
+    "high_low_ratio": 0.08722021787495828,
+    "close_open_ratio": 0.048880884305696,
+    "volume_change": 0.05653447246434578,
+    "volume_sma": 0.14458665843677196,
+    "volume_ratio": 0.06694069187686807,
+    "sma_20": 0.15733522625743993,
+    "sma_50": 0.16477348878965262,
+    "price_vs_sma20": 0.08601156672036685,
+    "price_vs_sma50": 0.09744915025971837
+  },
+  "total_pnl": 0.0,
+  "sharpe": 0.0,
+  "win_rate": 0.0,
+  "profit_factor": 0.0,
+  "max_drawdown": 0.0,
+  "n_trades": "0",
+  "avg_trade_return": 0.0
+}

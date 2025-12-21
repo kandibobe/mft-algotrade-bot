@@ -12,21 +12,21 @@ Features:
 - Circuit breaker integration
 """
 
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Callable, Dict, Any
 from enum import Enum
-import time
+from typing import Any, Callable, Dict, Optional, Protocol, runtime_checkable
 
-from src.order_manager.order_types import Order, OrderStatus, OrderType, OrderSide
-from src.order_manager.slippage_simulator import SlippageSimulator, SlippageModel
 from src.order_manager.circuit_breaker import CircuitBreaker
-from typing import Protocol, runtime_checkable
+from src.order_manager.order_types import Order, OrderSide, OrderStatus, OrderType
+from src.order_manager.slippage_simulator import SlippageModel, SlippageSimulator
 from src.utils.logger import get_logger
 
 # Try to import metrics exporter
 try:
     from src.monitoring.metrics_exporter import get_exporter
+
     METRICS_AVAILABLE = True
 except ImportError:
     METRICS_AVAILABLE = False
@@ -38,9 +38,11 @@ logger = get_logger(__name__)
 # Dependency Injection Interfaces
 # =============================================================================
 
+
 @runtime_checkable
 class ISlippageSimulator(Protocol):
     """Interface for slippage simulator dependency."""
+
     def simulate_execution(
         self,
         order: Order,
@@ -55,15 +57,16 @@ class ISlippageSimulator(Protocol):
 @runtime_checkable
 class ICircuitBreaker(Protocol):
     """Interface for circuit breaker dependency."""
+
     @property
     def is_operational(self) -> bool:
         """Check if circuit breaker allows trading."""
         ...
-    
+
     def record_order(self) -> None:
         """Record successful order execution."""
         ...
-    
+
     def record_error(self, error: str) -> None:
         """Record error for circuit breaker analysis."""
         ...
@@ -71,9 +74,10 @@ class ICircuitBreaker(Protocol):
 
 class ExecutionMode(Enum):
     """Order execution mode."""
-    LIVE = "live"              # Live trading
-    PAPER = "paper"            # Paper trading
-    BACKTEST = "backtest"      # Backtesting with simulation
+
+    LIVE = "live"  # Live trading
+    PAPER = "paper"  # Paper trading
+    BACKTEST = "backtest"  # Backtesting with simulation
 
 
 @dataclass
@@ -141,22 +145,23 @@ class OrderExecutor:
             slippage_simulator: Slippage simulator for backtesting (implements ISlippageSimulator)
             max_retries: Maximum retry attempts
             retry_delay_ms: Delay between retries (milliseconds)
-        
+
         Raises:
             ValueError: If required dependencies are not provided for the mode
         """
         self.mode = mode
-        
+
         # Validate and set dependencies
         if slippage_simulator is None and mode in [ExecutionMode.BACKTEST, ExecutionMode.PAPER]:
             # Create default slippage simulator only if needed
             slippage_simulator = SlippageSimulator(model=SlippageModel.REALISTIC)
-            logger.info("slippage_simulator_created",
+            logger.info(
+                "slippage_simulator_created",
                 mode=mode.value,
                 model=SlippageModel.REALISTIC.value,
-                reason="default_for_backtest_paper"
+                reason="default_for_backtest_paper",
             )
-        
+
         self.circuit_breaker = circuit_breaker
         self.slippage_simulator = slippage_simulator
         self.max_retries = max_retries
@@ -169,23 +174,26 @@ class OrderExecutor:
 
         # Validate dependencies implement required interfaces
         if self.slippage_simulator and not isinstance(self.slippage_simulator, ISlippageSimulator):
-            logger.warning("interface_validation_failed",
+            logger.warning(
+                "interface_validation_failed",
                 component="slippage_simulator",
-                interface="ISlippageSimulator"
-            )
-        
-        if self.circuit_breaker and not isinstance(self.circuit_breaker, ICircuitBreaker):
-            logger.warning("interface_validation_failed",
-                component="circuit_breaker",
-                interface="ICircuitBreaker"
+                interface="ISlippageSimulator",
             )
 
-        logger.info("order_executor_initialized",
+        if self.circuit_breaker and not isinstance(self.circuit_breaker, ICircuitBreaker):
+            logger.warning(
+                "interface_validation_failed",
+                component="circuit_breaker",
+                interface="ICircuitBreaker",
+            )
+
+        logger.info(
+            "order_executor_initialized",
             mode=mode.value,
             max_retries=max_retries,
             retry_delay_ms=retry_delay_ms,
             has_circuit_breaker=self.circuit_breaker is not None,
-            has_slippage_simulator=self.slippage_simulator is not None
+            has_slippage_simulator=self.slippage_simulator is not None,
         )
 
     def execute(
@@ -254,35 +262,25 @@ class OrderExecutor:
                     exporter.record_trade(
                         side=result.order.side.value,
                         status="filled",
-                        execution_time=result.latency_ms / 1000.0
+                        execution_time=result.latency_ms / 1000.0,
                     )
-                    exporter.record_order(
-                        order_type=result.order.order_type.value,
-                        filled=True
-                    )
+                    exporter.record_order(order_type=result.order.order_type.value, filled=True)
                 else:
                     exporter.record_trade(
                         side=result.order.side.value,
                         status="failed",
-                        execution_time=result.latency_ms / 1000.0
+                        execution_time=result.latency_ms / 1000.0,
                     )
-                    exporter.record_order(
-                        order_type=result.order.order_type.value,
-                        filled=False
-                    )
+                    exporter.record_order(order_type=result.order.order_type.value, filled=False)
             except Exception as e:
-                logger.warning("metrics_recording_failed",
-                    error=str(e),
-                    component="metrics_exporter"
+                logger.warning(
+                    "metrics_recording_failed", error=str(e), component="metrics_exporter"
                 )
 
         return result
 
     def _execute_backtest(
-        self,
-        order: Order,
-        market_data: Optional[Dict],
-        start_time: float
+        self, order: Order, market_data: Optional[Dict], start_time: float
     ) -> ExecutionResult:
         """Execute order in backtest mode with slippage simulation."""
         if not market_data:
@@ -292,9 +290,7 @@ class OrderExecutor:
 
         market_price = market_data.get("close", market_data.get("price"))
         if not market_price:
-            return self._create_failure_result(
-                order, "No market price in market data", start_time
-            )
+            return self._create_failure_result(order, "No market price in market data", start_time)
 
         # Simulate execution with slippage
         try:
@@ -331,7 +327,7 @@ class OrderExecutor:
         order: Order,
         exchange_api: Optional[Any],
         market_data: Optional[Dict],
-        start_time: float
+        start_time: float,
     ) -> ExecutionResult:
         """
         Execute order in paper trading mode.
@@ -361,14 +357,15 @@ class OrderExecutor:
 
             latency_ms = (time.time() - start_time) * 1000
 
-            logger.info("paper_order_executed",
+            logger.info(
+                "paper_order_executed",
                 symbol=order.symbol,
                 side=order.side.value,
                 quantity=order.quantity,
                 execution_price=execution_price,
                 commission=commission,
                 latency_ms=latency_ms,
-                mode="paper"
+                mode="paper",
             )
 
             return ExecutionResult(
@@ -385,12 +382,7 @@ class OrderExecutor:
                 order, f"Paper execution error: {str(e)}", start_time
             )
 
-    def _execute_live(
-        self,
-        order: Order,
-        exchange_api: Any,
-        start_time: float
-    ) -> ExecutionResult:
+    def _execute_live(self, order: Order, exchange_api: Any, start_time: float) -> ExecutionResult:
         """
         Execute order on live exchange.
 
@@ -458,12 +450,13 @@ class OrderExecutor:
                         delay_seconds = min(delay_seconds, 30.0)  # Cap at 30 seconds
 
                         time.sleep(delay_seconds)
-                        logger.warning("order_retry",
+                        logger.warning(
+                            "order_retry",
                             order_id=order.order_id,
                             attempt=retry_count,
                             max_attempts=self.max_retries,
                             delay_seconds=delay_seconds,
-                            reason="transient_error"
+                            reason="transient_error",
                         )
                         continue
                     else:
@@ -471,12 +464,13 @@ class OrderExecutor:
 
             except Exception as e:
                 error = f"Execution exception: {str(e)}"
-                logger.error("execution_exception",
+                logger.error(
+                    "execution_exception",
                     error_type="execution",
                     message=str(e),
                     order_id=order.order_id,
                     symbol=order.symbol,
-                    retry_count=retry_count
+                    retry_count=retry_count,
                 )
 
                 if order.can_retry():
@@ -487,12 +481,13 @@ class OrderExecutor:
                     delay_seconds = (self.retry_delay_ms / 1000) * (2 ** (retry_count - 1))
                     delay_seconds = min(delay_seconds, 30.0)  # Cap at 30 seconds
 
-                    logger.warning("exception_retry",
+                    logger.warning(
+                        "exception_retry",
                         order_id=order.order_id,
                         attempt=retry_count,
                         max_attempts=self.max_retries,
                         delay_seconds=delay_seconds,
-                        reason="exception"
+                        reason="exception",
                     )
                     time.sleep(delay_seconds)
                     continue
@@ -562,15 +557,18 @@ class OrderExecutor:
             }
 
         except Exception as e:
-            logger.error("order_status_fetch_error",
+            logger.error(
+                "order_status_fetch_error",
                 error_type="connection",
                 message=str(e),
                 order_id=order.exchange_order_id,
-                symbol=order.symbol
+                symbol=order.symbol,
             )
             return {"filled": False}
 
-    def _validate_order(self, order: Order, market_data: Optional[Dict]) -> tuple[bool, Optional[str]]:
+    def _validate_order(
+        self, order: Order, market_data: Optional[Dict]
+    ) -> tuple[bool, Optional[str]]:
         """
         Validate order before execution.
 
@@ -587,7 +585,10 @@ class OrderExecutor:
         if order.order_type == OrderType.LIMIT and order.price is None:
             return False, "Limit order requires price"
 
-        if order.order_type in [OrderType.STOP_LOSS, OrderType.TAKE_PROFIT] and order.stop_price is None:
+        if (
+            order.order_type in [OrderType.STOP_LOSS, OrderType.TAKE_PROFIT]
+            and order.stop_price is None
+        ):
             return False, f"{order.order_type.value} requires stop_price"
 
         # Market data validation (for backtest/paper)
@@ -611,7 +612,9 @@ class OrderExecutor:
         error_lower = error.lower()
         return any(retryable in error_lower for retryable in retryable_errors)
 
-    def _create_failure_result(self, order: Order, error: str, start_time: float) -> ExecutionResult:
+    def _create_failure_result(
+        self, order: Order, error: str, start_time: float
+    ) -> ExecutionResult:
         """Create execution result for failed order."""
         latency_ms = (time.time() - start_time) * 1000
 
@@ -625,7 +628,8 @@ class OrderExecutor:
     def _log_execution(self, result: ExecutionResult):
         """Log execution result."""
         if result.success:
-            logger.info("order_execution_success",
+            logger.info(
+                "order_execution_success",
                 order_id=result.order.order_id,
                 symbol=result.order.symbol,
                 side=result.order.side.value,
@@ -634,24 +638,23 @@ class OrderExecutor:
                 commission=result.commission,
                 latency_ms=result.latency_ms,
                 order_type=result.order.order_type.value,
-                mode=self.mode.value
+                mode=self.mode.value,
             )
         else:
-            logger.error("order_execution_failed",
+            logger.error(
+                "order_execution_failed",
                 order_id=result.order.order_id,
                 symbol=result.order.symbol,
                 side=result.order.side.value,
                 error_message=result.error_message,
                 retry_count=result.retry_count,
                 order_type=result.order.order_type.value,
-                mode=self.mode.value
+                mode=self.mode.value,
             )
 
     def get_statistics(self) -> Dict:
         """Get execution statistics."""
-        success_rate = (
-            (self.successful_executions / max(1, self.total_executions)) * 100
-        )
+        success_rate = (self.successful_executions / max(1, self.total_executions)) * 100
 
         return {
             "total_executions": self.total_executions,

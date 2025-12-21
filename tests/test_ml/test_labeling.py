@@ -87,9 +87,10 @@ class TestTripleBarrierConfig:
         """Test default configuration values."""
         config = TripleBarrierConfig()
 
-        assert config.take_profit == 0.005
-        assert config.stop_loss == 0.002
+        assert config.take_profit == 0.015
+        assert config.stop_loss == 0.0075
         assert config.max_holding_period == 24
+        assert config.min_movement == 0.001
         assert config.include_hold_class is True
         assert config.fee_adjustment == 0.001
 

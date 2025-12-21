@@ -250,7 +250,7 @@ class StoicEnsembleStrategy(IStrategy):
         dataframe['atr_pct'] = dataframe['atr'] / dataframe['close'] * 100
         
         # Bollinger Bands
-        bollinger = ta.BBANDS(dataframe, timeperiod=20, nbdevup=2, nbdevdn=2)
+        bollinger = ta.BBANDS(dataframe, timeperiod=20, nbdevup=2.0, nbdevdn=2.0)
         dataframe['bb_upper'] = bollinger['upperband']
         dataframe['bb_middle'] = bollinger['middleband']
         dataframe['bb_lower'] = bollinger['lowerband']
@@ -290,8 +290,8 @@ class StoicEnsembleStrategy(IStrategy):
             (dataframe['close'] > dataframe['ema_200']) &
             (dataframe['ema_9'] > dataframe['ema_21']) &
             (dataframe['adx'] > self.buy_adx.value) &
-            (dataframe['macd_hist'] > 0) &
-            (dataframe['macd_hist'] > dataframe['macd_hist'].shift(1)) &
+            (dataframe['macdhist'] > 0) &
+            (dataframe['macdhist'] > dataframe['macdhist'].shift(1)) &
             (dataframe['plus_di'] > dataframe['minus_di'])
         ).astype(int)
         
@@ -413,8 +413,8 @@ class StoicEnsembleStrategy(IStrategy):
         # Trend reversal
         trend_reversal = (
             (dataframe['close'] < dataframe['ema_50']) &
-            (dataframe['macd_hist'] < 0) &
-            (dataframe['macd_hist'] < dataframe['macd_hist'].shift(1))
+            (dataframe['macdhist'] < 0) &
+            (dataframe['macdhist'] < dataframe['macdhist'].shift(1))
         )
         conditions.append(trend_reversal)
         

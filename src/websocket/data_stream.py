@@ -167,17 +167,22 @@ class WebSocketDataStream:
     Real-time market data streaming via WebSocket.
 
     Usage:
+        # Using context manager (recommended):
+        async with WebSocketDataStream(config) as stream:
+            @stream.on_ticker
+            async def handle_ticker(ticker: TickerData):
+                print(f"{ticker.symbol}: {ticker.last}")
+
+            await stream.start()
+            await asyncio.sleep(60)  # Run for 60 seconds
+
+        # Or manually:
         stream = WebSocketDataStream(config)
-
-        @stream.on_ticker
-        async def handle_ticker(ticker: TickerData):
-            print(f"{ticker.symbol}: {ticker.last}")
-
-        @stream.on_trade
-        async def handle_trade(trade: TradeData):
-            print(f"Trade: {trade.price} x {trade.quantity}")
-
-        await stream.start()
+        try:
+            await stream.start()
+            # ... do work ...
+        finally:
+            await stream.stop()
     """
 
     def __init__(self, config: StreamConfig, websocket_client: Optional[IWebSocketClient] = None):
@@ -262,12 +267,43 @@ class WebSocketDataStream:
                 self._stats["errors"] += 1
                 await self._handle_reconnect()
 
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit - ensures cleanup."""
+        await self.stop()
+        return False  # Don't suppress exceptions
+
     async def stop(self):
-        """Stop the WebSocket stream."""
+        """Stop the WebSocket stream and clean up resources."""
         self._running = False
+        
+        # Close WebSocket connection if it exists
         if self._ws:
-            await self._ws.close()
-        logger.info("WebSocket stream stopped")
+            try:
+                await self._ws.close()
+                logger.debug("WebSocket connection closed")
+            except Exception as e:
+                logger.warning(f"Error closing WebSocket: {e}")
+            finally:
+                self._ws = None
+        
+        # Clear message queue to prevent memory leaks
+        while not self._message_queue.empty():
+            try:
+                self._message_queue.get_nowait()
+                self._message_queue.task_done()
+            except asyncio.QueueEmpty:
+                break
+        
+        # Clear handlers to prevent reference cycles
+        self._ticker_handlers.clear()
+        self._trade_handlers.clear()
+        self._error_handlers.clear()
+        
+        logger.info("WebSocket stream stopped and cleaned up")
 
     async def _connect(self):
         """Establish WebSocket connection."""

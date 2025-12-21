@@ -141,12 +141,14 @@ def validate_config_for_live_trading(config: TradingConfig) -> list[str]:
 
 # Example usage when module is run directly
 if __name__ == "__main__":
-    # Print current configuration
-    print("Current Configuration:")
+    # Print current configuration (never print sensitive data like API keys!)
+    print("Current Configuration (sensitive data masked):")
     print(f"Exchange: {config.exchange_name}")
     print(f"Max Position: {config.max_position_pct:.0%}")
     print(f"Prediction Threshold: {config.prediction_threshold}")
     print(f"Log Level: {config.log_level}")
+    print(f"API Key configured: {'Yes' if config.api_key else 'No'}")
+    print(f"API Secret configured: {'Yes' if config.api_secret else 'No'}")
 
     # Validate for live trading
     issues = validate_config_for_live_trading(config)

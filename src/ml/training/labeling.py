@@ -70,13 +70,13 @@ class TripleBarrierLabeler:
 
     def label(self, df: pd.DataFrame) -> pd.Series:
         """
-        Apply Triple Barrier Method to create BINARY labels.
+        Apply Triple Barrier Method to create labels.
 
         Args:
             df: DataFrame with OHLCV data (MUST be time-sorted)
 
         Returns:
-            Series with labels: 1 (BUY if TP hit before SL), 0 (IGNORE otherwise)
+            Series with labels: 1 (TP hit), -1 (SL hit), 0 (time barrier/no clear signal)
 
         Raises:
             ValueError: If data validation fails (e.g., not time-sorted)
@@ -109,7 +109,7 @@ class TripleBarrierLabeler:
             lower_barrier = entry_price * (1 - sl_adjusted)
 
             # Scan forward to find which barrier is hit first
-            label = self._get_barrier_label_binary(
+            label = self._get_barrier_label(
                 high[i + 1 : i + 1 + self.config.max_holding_period],
                 low[i + 1 : i + 1 + self.config.max_holding_period],
                 close[i + 1 : i + 1 + self.config.max_holding_period],
@@ -154,13 +154,23 @@ class TripleBarrierLabeler:
                 f"Missing required columns: {missing_cols}. " f"DataFrame must have OHLCV data."
             )
 
-        # Check if index is datetime
-        if not isinstance(df.index, pd.DatetimeIndex):
-            logger.warning(
-                "Index is not DatetimeIndex. Cannot validate time ordering. "
-                "Ensure data is sorted chronologically to prevent future data leakage!"
+        # CRITICAL: Check for time-based index or timestamp column
+        has_datetime_index = isinstance(df.index, pd.DatetimeIndex)
+        has_timestamp_col = "timestamp" in df.columns
+        
+        if not has_datetime_index and not has_timestamp_col:
+            raise ValueError(
+                "Data must have either a DatetimeIndex or a 'timestamp' column "
+                "to ensure chronological ordering and prevent future data leakage. "
+                "The labeling algorithm looks forward in time, so data MUST be "
+                "sorted chronologically.\n"
+                "Solutions:\n"
+                "1. Set datetime as index: df.set_index('timestamp', inplace=True)\n"
+                "2. Or ensure you have a 'timestamp' column with datetime values"
             )
-        else:
+        
+        # Check chronological ordering
+        if has_datetime_index:
             # CRITICAL: Check data is sorted by time (no future data leakage)
             if not df.index.is_monotonic_increasing:
                 raise ValueError(
@@ -173,6 +183,34 @@ class TripleBarrierLabeler:
             # Check for duplicate timestamps
             if df.index.duplicated().any():
                 dup_count = df.index.duplicated().sum()
+                logger.warning(
+                    f"Found {dup_count} duplicate timestamps. "
+                    f"This may cause unexpected behavior in labeling."
+                )
+        elif has_timestamp_col:
+            # Check if timestamp column is datetime type
+            if not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
+                logger.warning(
+                    "Timestamp column is not datetime type. Converting to datetime."
+                )
+                try:
+                    df["timestamp"] = pd.to_datetime(df["timestamp"])
+                except Exception as e:
+                    raise ValueError(
+                        f"Failed to convert 'timestamp' column to datetime: {e}"
+                    )
+            
+            # Check chronological ordering using timestamp column
+            if not df["timestamp"].is_monotonic_increasing:
+                raise ValueError(
+                    "Data is NOT sorted chronologically by 'timestamp' column! "
+                    "This would cause future data leakage. Sort your data:\n"
+                    "df = df.sort_values('timestamp')"
+                )
+            
+            # Check for duplicate timestamps
+            if df["timestamp"].duplicated().any():
+                dup_count = df["timestamp"].duplicated().sum()
                 logger.warning(
                     f"Found {dup_count} duplicate timestamps. "
                     f"This may cause unexpected behavior in labeling."

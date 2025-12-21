@@ -274,7 +274,12 @@ class CircuitBreaker:
             if self.state == CircuitState.HALF_OPEN:
                 return True  # Allow reduced trading
 
-            # Check auto-reset
+            # Try to transition from OPEN to HALF_OPEN if cooldown has passed
+            if self.state == CircuitState.OPEN:
+                if self._attempt_half_open_transition():
+                    return True  # Now in HALF_OPEN state, trading allowed with reduced size
+
+            # Check for full auto-reset
             if self._should_auto_reset():
                 self._reset()
                 return True
@@ -417,7 +422,12 @@ class CircuitBreaker:
                 logger.error(f"Callback error: {e}")
 
     def _should_auto_reset(self) -> bool:
-        """Check if auto-reset conditions are met."""
+        """
+        Check if auto-reset conditions are met.
+        
+        This is a pure check with no side effects. State transitions
+        should be handled by the caller with proper locking.
+        """
         if not self.trip_time:
             return False
 
@@ -426,24 +436,40 @@ class CircuitBreaker:
         if cooldown_elapsed < timedelta(minutes=self.config.cooldown_minutes):
             return False
 
-        # Check if we should transition to half-open
-        if self.state == CircuitState.OPEN:
-            self.state = CircuitState.HALF_OPEN
-            logger.info("Circuit breaker transitioning to HALF_OPEN")
-            # Update metrics for half-open state (0.5 for half-open)
-            if METRICS_AVAILABLE:
-                try:
-                    exporter = get_exporter()
-                    exporter.set_circuit_breaker_status(
-                        0
-                    )  # Still 0 for closed/half-open? Let's use 0.5
-                    # Note: Our current metric only supports 0/1, but we can extend later
-                except Exception as e:
-                    logger.warning(f"Failed to update circuit breaker metrics: {e}")
-            return False
-
         # Check auto-reset time
         if cooldown_elapsed >= timedelta(hours=self.config.auto_reset_after_hours):
             return True
 
         return False
+
+    def _attempt_half_open_transition(self) -> bool:
+        """
+        Attempt to transition from OPEN to HALF_OPEN state.
+        
+        Returns True if transition was performed, False otherwise.
+        Must be called with lock held.
+        """
+        if self.state != CircuitState.OPEN:
+            return False
+            
+        if not self.trip_time:
+            return False
+            
+        # Check cooldown
+        cooldown_elapsed = datetime.utcnow() - self.trip_time
+        if cooldown_elapsed < timedelta(minutes=self.config.cooldown_minutes):
+            return False
+            
+        # Transition to half-open
+        self.state = CircuitState.HALF_OPEN
+        logger.info("Circuit breaker transitioning to HALF_OPEN")
+        
+        # Update metrics for half-open state
+        if METRICS_AVAILABLE:
+            try:
+                exporter = get_exporter()
+                exporter.set_circuit_breaker_status(0)  # 0 for closed/half-open
+            except Exception as e:
+                logger.warning(f"Failed to update circuit breaker metrics: {e}")
+                
+        return True

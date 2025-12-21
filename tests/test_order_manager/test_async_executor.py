@@ -145,24 +145,37 @@ class TestOrderChasing:
     @pytest.mark.asyncio
     async def test_order_chase_on_timeout(self, mock_exchange, sample_order, fast_config):
         """Test that order price is updated (chased) when not filled."""
-        # Make order stay open for a while
+        # Make order stay open for multiple checks
         fetch_call_count = 0
+        orderbook_call_count = 0
 
         async def fetch_order_side_effect(order_id, symbol):
             nonlocal fetch_call_count
             fetch_call_count += 1
 
-            if fetch_call_count < 2:
-                # First check: still open
+            # Stay open for first 3 checks, fill on 4th
+            if fetch_call_count < 4:
                 return {"status": "open", "filled": 0, "average": 0}
             else:
                 # Eventually fill
                 return {"status": "closed", "filled": 1.0, "average": 50000.0}
 
+        def fetch_order_book_side_effect(symbol):
+            nonlocal orderbook_call_count
+            orderbook_call_count += 1
+            # Simulate market moving up each time we check
+            if orderbook_call_count == 1:
+                return {"bids": [[49900, 10]], "asks": [[50100, 10]]}
+            else:
+                # Market moves up - bid increases
+                return {"bids": [[50000, 10]], "asks": [[50200, 10]]}
+
         mock_exchange.fetch_order.side_effect = fetch_order_side_effect
+        mock_exchange.fetch_order_book.side_effect = fetch_order_book_side_effect
 
         executor = AsyncSmartLimitExecutor(fast_config)
 
+        # Initial orderbook
         orderbook = {
             "bids": [[49900, 10]],
             "asks": [[50100, 10]],

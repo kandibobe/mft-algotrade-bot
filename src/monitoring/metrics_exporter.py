@@ -114,6 +114,46 @@ class TradingMetricsExporter:
             f"{self.namespace}_circuit_breaker_status", "Circuit breaker status (0=off, 1=on)"
         )
 
+        # Smart limit order metrics
+        self.fee_savings_total = Gauge(
+            f"{self.namespace}_fee_savings_total_usd", 
+            "Total fee savings from smart limit orders in USD"
+        )
+        
+        self.fee_savings_per_trade = Histogram(
+            f"{self.namespace}_fee_savings_per_trade_usd",
+            "Fee savings per trade from smart limit orders in USD",
+            buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0]
+        )
+        
+        self.smart_limit_maker_fills = Counter(
+            f"{self.namespace}_smart_limit_maker_fills_total",
+            "Total maker fills from smart limit orders"
+        )
+        
+        self.smart_limit_taker_fills = Counter(
+            f"{self.namespace}_smart_limit_taker_fills_total",
+            "Total taker fills from smart limit orders"
+        )
+
+        # ML metrics
+        self.ml_prediction_confidence = Gauge(
+            f"{self.namespace}_ml_prediction_confidence",
+            "ML model prediction confidence (0.0 to 1.0)"
+        )
+        
+        self.ml_prediction_confidence_histogram = Histogram(
+            f"{self.namespace}_ml_prediction_confidence_distribution",
+            "Distribution of ML prediction confidence values",
+            buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        )
+        
+        self.ml_predictions_total = Counter(
+            f"{self.namespace}_ml_predictions_total",
+            "Total ML predictions made",
+            ["model", "prediction_type"]
+        )
+
         # System metrics
         self.metrics_up = Gauge(f"{self.namespace}_up", "Metrics exporter status (1=up, 0=down)")
         self.metrics_up.set(1)
@@ -192,6 +232,58 @@ class TradingMetricsExporter:
         if self.trading_metrics:
             state = "open" if status == 1 else "closed"
             self.trading_metrics.set_circuit_breaker_state(state)
+
+    def record_fee_savings(self, savings_usd: float, trade_type: str = "smart_limit") -> None:
+        """
+        Record fee savings from smart limit orders.
+        
+        Args:
+            savings_usd: Fee savings in USD
+            trade_type: Type of trade (smart_limit, regular, etc.)
+        """
+        if not self._enabled:
+            return
+            
+        self.fee_savings_total.inc(savings_usd)
+        self.fee_savings_per_trade.observe(savings_usd)
+        
+        if self.trading_metrics:
+            # Update existing metrics if available
+            pass
+
+    def record_smart_limit_fill(self, fill_type: str) -> None:
+        """
+        Record smart limit order fill type.
+        
+        Args:
+            fill_type: 'maker' or 'taker'
+        """
+        if not self._enabled:
+            return
+            
+        if fill_type == "maker":
+            self.smart_limit_maker_fills.inc()
+        elif fill_type == "taker":
+            self.smart_limit_taker_fills.inc()
+
+    def record_ml_prediction(self, confidence: float, model: str = "ensemble", prediction_type: str = "binary") -> None:
+        """
+        Record ML prediction with confidence.
+        
+        Args:
+            confidence: Prediction confidence (0.0 to 1.0)
+            model: Model name (ensemble, xgboost, etc.)
+            prediction_type: Type of prediction (binary, regression, etc.)
+        """
+        if not self._enabled:
+            return
+            
+        self.ml_prediction_confidence.set(confidence)
+        self.ml_prediction_confidence_histogram.observe(confidence)
+        self.ml_predictions_total.labels(model=model, prediction_type=prediction_type).inc()
+        
+        if self.trading_metrics:
+            self.trading_metrics.record_prediction(confidence)
 
     def record_ml_inference(self, latency_ms: float) -> None:
         """

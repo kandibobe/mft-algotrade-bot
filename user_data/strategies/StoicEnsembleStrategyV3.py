@@ -403,7 +403,7 @@ class StoicEnsembleStrategyV3(IStrategy):
         dataframe['atr_pct'] = dataframe['atr'] / dataframe['close'] * 100
         
         # Bollinger Bands
-        bollinger = ta.BBANDS(dataframe, timeperiod=20, nbdevup=2, nbdevdn=2)
+        bollinger = ta.BBANDS(dataframe, timeperiod=20, nbdevup=2.0, nbdevdn=2.0)
         dataframe['bb_upper'] = bollinger['upperband']
         dataframe['bb_middle'] = bollinger['middleband']
         dataframe['bb_lower'] = bollinger['lowerband']

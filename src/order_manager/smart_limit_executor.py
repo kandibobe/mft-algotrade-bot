@@ -33,6 +33,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, Optional
 
 from src.order_manager.order_types import LimitOrder, Order, OrderSide, OrderStatus, OrderType
+from src.order_manager.retry_utils import retry_api_call, retry_critical, retry_exchange_call
 
 logger = logging.getLogger(__name__)
 
@@ -394,8 +395,9 @@ class SmartLimitExecutor:
 
         return current_price
 
+    @retry_critical
     def _place_limit_order(self, order: Order, price: float, exchange_api: Any) -> Dict:
-        """Place limit order on exchange."""
+        """Place limit order on exchange with retry."""
         try:
             result = exchange_api.create_limit_order(
                 symbol=order.symbol, side=order.side.value, amount=order.quantity, price=price
@@ -407,8 +409,9 @@ class SmartLimitExecutor:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    @retry_critical
     def _cancel_order(self, order_id: str, symbol: str, exchange_api: Any) -> bool:
-        """Cancel order on exchange."""
+        """Cancel order on exchange with retry."""
         try:
             exchange_api.cancel_order(order_id, symbol)
             return True
@@ -416,8 +419,9 @@ class SmartLimitExecutor:
             logger.warning(f"Failed to cancel order {order_id}: {e}")
             return False
 
+    @retry_api_call
     def _check_order_status(self, order_id: str, symbol: str, exchange_api: Any) -> Dict:
-        """Check order status on exchange."""
+        """Check order status on exchange with retry."""
         result = exchange_api.fetch_order(order_id, symbol)
         return {
             "status": result.get("status"),
@@ -639,7 +643,13 @@ class AsyncSmartLimitExecutor:
             # State: PENDING -> Place order
             if self._current_state == ExecutionState.PENDING:
                 self._transition_to(ExecutionState.PLACED)
-                result = await self._place_order_async(order, current_price, exchange_api)
+                try:
+                    result = await self._place_order_async(order, current_price, exchange_api)
+                except Exception as e:
+                    self._transition_to(ExecutionState.FAILED)
+                    return self._create_failure_result(
+                        order, str(e), start_time
+                    )
 
                 if not result["success"]:
                     self._transition_to(ExecutionState.FAILED)
@@ -708,7 +718,7 @@ class AsyncSmartLimitExecutor:
                         self.config.max_wait_seconds * self.config.market_conversion_threshold
                     )
 
-                    if elapsed >= convert_threshold:
+                    if self.config.convert_to_market and elapsed >= convert_threshold:
                         # Convert to market - use lock to prevent race
                         async with self._order_lock:
                             # Re-check status before canceling
@@ -837,26 +847,24 @@ class AsyncSmartLimitExecutor:
 
         return current_price
 
+    @retry_api_call
     async def _place_order_async(self, order: Order, price: float, exchange_api: Any) -> Dict:
         """Place limit order (async wrapper)."""
-        try:
-            # Support both sync and async APIs
-            if asyncio.iscoroutinefunction(exchange_api.create_limit_order):
-                result = await exchange_api.create_limit_order(
-                    symbol=order.symbol, side=order.side.value, amount=order.quantity, price=price
-                )
-            else:
-                result = exchange_api.create_limit_order(
-                    symbol=order.symbol, side=order.side.value, amount=order.quantity, price=price
-                )
+        # Support both sync and async APIs
+        if asyncio.iscoroutinefunction(exchange_api.create_limit_order):
+            result = await exchange_api.create_limit_order(
+                symbol=order.symbol, side=order.side.value, amount=order.quantity, price=price
+            )
+        else:
+            result = exchange_api.create_limit_order(
+                symbol=order.symbol, side=order.side.value, amount=order.quantity, price=price
+            )
 
-            return {"success": True, "order_id": result.get("id")}
+        return {"success": True, "order_id": result.get("id")}
 
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
+    @retry_critical
     async def _cancel_order_async(self, order_id: str, symbol: str, exchange_api: Any) -> bool:
-        """Cancel order (async wrapper)."""
+        """Cancel order (async wrapper) with retry."""
         try:
             if asyncio.iscoroutinefunction(exchange_api.cancel_order):
                 await exchange_api.cancel_order(order_id, symbol)
@@ -867,8 +875,9 @@ class AsyncSmartLimitExecutor:
             logger.warning(f"Cancel failed: {e}")
             return False
 
+    @retry_api_call
     async def _check_status_async(self, order_id: str, symbol: str, exchange_api: Any) -> Dict:
-        """Check order status (async wrapper)."""
+        """Check order status (async wrapper) with retry."""
         try:
             if asyncio.iscoroutinefunction(exchange_api.fetch_order):
                 result = await exchange_api.fetch_order(order_id, symbol)
@@ -884,6 +893,7 @@ class AsyncSmartLimitExecutor:
             logger.warning(f"Status check failed: {e}")
             return {"status": "unknown"}
 
+    @retry_critical
     async def _execute_market_async(
         self,
         order: Order,
@@ -892,7 +902,7 @@ class AsyncSmartLimitExecutor:
         start_time: float,
         already_filled: float = 0.0,
     ) -> SmartExecutionResult:
-        """Execute as market order (async)."""
+        """Execute as market order (async) with retry."""
         remaining = order.quantity - already_filled
 
         if remaining <= 0:

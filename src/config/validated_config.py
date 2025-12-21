@@ -328,17 +328,38 @@ class TradingConfig(BaseModel):
         if not self.exchange.api_secret:
             issues.append("No API secret configured")
 
+        # Stricter validation for live trading
         if self.leverage > 5.0:
             issues.append(f"High leverage ({self.leverage}x) - consider reducing")
+        elif self.leverage > 3.0 and not self.dry_run:
+            issues.append(f"Moderate leverage ({self.leverage}x) - ensure risk management")
 
+        # Position size limits for live trading
+        if self.risk.max_position_pct > 0.25 and not self.dry_run:
+            issues.append(f"Large position size ({self.risk.max_position_pct:.0%}) - max 25% recommended for live trading")
+        elif self.risk.max_position_pct > 0.50:
+            issues.append(f"Very large position size ({self.risk.max_position_pct:.0%}) - max 50% allowed")
+
+        # Risk limits
         if self.risk.max_drawdown_pct > 0.30:
-            issues.append(f"High max drawdown ({self.risk.max_drawdown_pct:.0%})")
+            issues.append(f"High max drawdown ({self.risk.max_drawdown_pct:.0%}) - max 30% recommended")
+        if self.risk.max_daily_loss_pct > 0.10:
+            issues.append(f"High daily loss limit ({self.risk.max_daily_loss_pct:.0%}) - max 10% recommended")
 
+        # Strategy safety
         if not self.use_regime_filter:
             issues.append("Regime filter disabled - may trade in unfavorable conditions")
 
         if not self.use_smart_orders:
             issues.append("Smart orders disabled - paying higher fees")
+
+        # Portfolio concentration
+        if len(self.pairs) < 3 and not self.dry_run:
+            issues.append(f"Low diversification ({len(self.pairs)} pairs) - consider more pairs")
+
+        # Concurrent trades
+        if self.max_open_trades > 5 and not self.dry_run:
+            issues.append(f"High concurrent trades ({self.max_open_trades}) - increases risk")
 
         return issues
 

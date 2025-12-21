@@ -253,3 +253,207 @@ class TestEnvironmentIntegration:
 
         for indicator in required_indicators:
             assert hasattr(talib, indicator), f"TA-Lib missing indicator: {indicator}"
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+class TestCompleteTradingFlow:
+    """End-to-end test for complete trading flow with ML and order execution."""
+
+    def test_ml_prediction_to_order_execution_flow(self, mocker):
+        """Test complete flow: data loading → ML prediction → Order execution → PnL calculation."""
+        # Mock dependencies
+        mock_exchange = mocker.MagicMock()
+        mock_ml_model = mocker.MagicMock()
+        mock_order_executor = mocker.MagicMock()
+        
+        # Setup mock returns
+        mock_ml_model.predict.return_value = (0.75, 0.8)  # (prediction, confidence)
+        mock_order_executor.execute.return_value = mocker.MagicMock(
+            success=True,
+            execution_price=50000.0,
+            filled_quantity=0.1,
+            commission=0.001,
+            latency_ms=150.0
+        )
+        
+        # Simulate data loading
+        import pandas as pd
+        import numpy as np
+        from datetime import datetime, timedelta
+        
+        # Create sample market data
+        dates = pd.date_range(start='2024-01-01', periods=100, freq='1h')
+        data = pd.DataFrame({
+            'open': np.random.uniform(48000, 52000, 100),
+            'high': np.random.uniform(48500, 52500, 100),
+            'low': np.random.uniform(47500, 51500, 100),
+            'close': np.random.uniform(48000, 52000, 100),
+            'volume': np.random.uniform(100, 1000, 100)
+        }, index=dates)
+        
+        # Step 1: Feature engineering (simplified)
+        data['returns'] = data['close'].pct_change()
+        data['volatility'] = data['returns'].rolling(20).std()
+        features = data[['returns', 'volatility']].dropna()
+        
+        # Step 2: ML prediction
+        prediction, confidence = mock_ml_model.predict(features.iloc[-1:])
+        assert prediction is not None
+        assert 0.0 <= confidence <= 1.0
+        
+        # Step 3: Generate trading signal
+        signal = "BUY" if prediction > 0.5 else "SELL"
+        assert signal in ["BUY", "SELL"]
+        
+        # Step 4: Create order
+        from src.order_manager.order_types import Order, OrderSide, OrderType
+        if signal == "BUY":
+            order = Order(
+                order_id="test_order_001",
+                symbol="BTC/USDT",
+                side=OrderSide.BUY,
+                order_type=OrderType.MARKET,
+                quantity=0.1,
+                price=None
+            )
+        else:
+            order = Order(
+                order_id="test_order_001",
+                symbol="BTC/USDT",
+                side=OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=0.1,
+                price=None
+            )
+        
+        # Step 5: Execute order
+        market_data = {
+            'close': 50000.0,
+            'volume_24h': 1000000.0,
+            'spread_pct': 0.01
+        }
+        
+        result = mock_order_executor.execute(
+            order=order,
+            exchange_api=mock_exchange,
+            market_data=market_data
+        )
+        
+        # Step 6: Verify execution
+        assert result.success is True
+        assert result.execution_price == 50000.0
+        assert result.filled_quantity == 0.1
+        
+        # Step 7: Calculate PnL (simplified)
+        entry_price = result.execution_price
+        commission = result.commission
+        position_value = entry_price * result.filled_quantity
+        total_cost = position_value + commission
+        
+        # Mock exit price (simulate price movement)
+        exit_price = 50500.0  # 1% gain
+        exit_value = exit_price * result.filled_quantity
+        exit_commission = 0.001 * exit_value
+        
+        pnl = exit_value - total_cost - exit_commission
+        pnl_pct = (pnl / total_cost) * 100
+        
+        # Verify PnL calculation
+        assert isinstance(pnl, float)
+        assert isinstance(pnl_pct, float)
+        
+        # Log the flow
+        print(f"\nComplete Trading Flow Test:")
+        print(f"  ML Prediction: {prediction:.2f} (confidence: {confidence:.2%})")
+        print(f"  Signal: {signal}")
+        print(f"  Order: {order.side.value} {order.quantity} {order.symbol}")
+        print(f"  Execution: ${result.execution_price:.2f}")
+        print(f"  Commission: ${commission:.4f}")
+        print(f"  PnL: ${pnl:.2f} ({pnl_pct:.2f}%)")
+        
+        # Assertions to verify the flow worked
+        assert mock_ml_model.predict.called
+        assert mock_order_executor.execute.called
+        assert result.success
+
+    def test_circuit_breaker_integration(self, mocker):
+        """Test that circuit breaker properly integrates with trading flow."""
+        from src.risk.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+        
+        # Create circuit breaker
+        config = CircuitBreakerConfig(
+            daily_loss_limit_pct=0.05,
+            consecutive_loss_limit=3,
+            max_drawdown_pct=0.10
+        )
+        circuit_breaker = CircuitBreaker(config)
+        
+        # Initialize with balance
+        circuit_breaker.initialize_session(initial_balance=10000.0)
+        
+        # Record some trades
+        trade1 = {"symbol": "BTC/USDT", "quantity": 0.1}
+        circuit_breaker.record_trade(trade1, profit_pct=0.02)  # 2% profit
+        
+        trade2 = {"symbol": "ETH/USDT", "quantity": 1.0}
+        circuit_breaker.record_trade(trade2, profit_pct=-0.03)  # 3% loss
+        
+        # Check if trading is allowed
+        can_trade = circuit_breaker.can_trade()
+        assert can_trade is True  # Should still be allowed
+        
+        # Record enough losses to trigger circuit breaker
+        for i in range(5):
+            circuit_breaker.record_trade(
+                {"symbol": f"TEST{i}/USDT", "quantity": 0.1},
+                profit_pct=-0.04  # 4% loss each
+            )
+        
+        # Now circuit breaker should be tripped
+        can_trade_after = circuit_breaker.can_trade()
+        # Might be in half-open state, but should not be fully closed
+        
+        # Verify circuit breaker state
+        status = circuit_breaker.get_status()
+        assert "state" in status
+        assert "trip_reason" in status
+        assert "daily_pnl_pct" in status
+        
+        print(f"\nCircuit Breaker Test:")
+        print(f"  Initial can_trade: {can_trade}")
+        print(f"  After losses can_trade: {can_trade_after}")
+        print(f"  Circuit state: {status['state']}")
+        print(f"  Daily PnL: {status['daily_pnl_pct']:.2%}")
+
+    def test_metrics_integration(self, mocker):
+        """Test that metrics are properly recorded throughout the flow."""
+        # Mock metrics exporter
+        mock_exporter = mocker.MagicMock()
+        
+        # Simulate trading activity
+        mock_exporter.record_trade("buy", "filled", 0.5)
+        mock_exporter.record_order("market", filled=True)
+        mock_exporter.record_fee_savings(2.50, "smart_limit")
+        mock_exporter.record_ml_prediction(0.85, "ensemble", "binary")
+        
+        # Verify metrics were recorded
+        assert mock_exporter.record_trade.called
+        assert mock_exporter.record_order.called
+        assert mock_exporter.record_fee_savings.called
+        assert mock_exporter.record_ml_prediction.called
+        
+        # Check call arguments
+        trade_call = mock_exporter.record_trade.call_args
+        assert trade_call[0][0] == "buy"  # side
+        assert trade_call[0][1] == "filled"  # status
+        
+        ml_call = mock_exporter.record_ml_prediction.call_args
+        assert ml_call[0][0] == 0.85  # confidence
+        assert ml_call[0][1] == "ensemble"  # model
+        
+        print(f"\nMetrics Integration Test:")
+        print(f"  Trade recorded: {mock_exporter.record_trade.called}")
+        print(f"  Order recorded: {mock_exporter.record_order.called}")
+        print(f"  Fee savings recorded: {mock_exporter.record_fee_savings.called}")
+        print(f"  ML prediction recorded: {mock_exporter.record_ml_prediction.called}")

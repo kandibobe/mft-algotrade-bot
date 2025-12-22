@@ -26,14 +26,14 @@ logger = logging.getLogger(__name__)
 class TripleBarrierConfig:
     """Configuration for Triple Barrier labeling."""
 
-    # Take profit threshold (e.g., 0.015 = 1.5%)
-    take_profit: float = 0.015
+    # Take profit threshold (e.g., 0.008 = 0.8%)
+    take_profit: float = 0.008
 
-    # Stop loss threshold (e.g., 0.0075 = 0.75%)
-    stop_loss: float = 0.0075
+    # Stop loss threshold (e.g., 0.004 = 0.4%)
+    stop_loss: float = 0.004
 
     # Maximum bars to hold position
-    max_holding_period: int = 24  # 24 bars = 2 hours for 5m timeframe
+    max_holding_period: int = 48  # 48 bars = 4 hours for 5m timeframe
 
     # Minimum price movement to consider (filters noise)
     min_movement: float = 0.001

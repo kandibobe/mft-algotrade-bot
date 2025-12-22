@@ -256,6 +256,24 @@ class MLTrainingPipeline:
             models_dir=str(self.models_dir)
         )
 
+        # Apply SMOTE for class balancing if needed
+        try:
+            from imblearn.over_sampling import SMOTE
+            
+            # Check class imbalance
+            class_counts = y_train.value_counts()
+            if len(class_counts) > 1:
+                min_class_ratio = class_counts.min() / class_counts.max()
+                if min_class_ratio < 0.3:  # Severe imbalance
+                    print(f"  ⚖️  Applying SMOTE for class balancing (ratio: {min_class_ratio:.3f})")
+                    smote = SMOTE(random_state=42)
+                    X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+                    print(f"  📊 After SMOTE: {len(X_train_resampled)} samples (was {len(X_train)})")
+                    X_train = X_train_resampled
+                    y_train = y_train_resampled
+        except ImportError:
+            print("  ⚠️  imblearn not installed, skipping SMOTE")
+        
         # Train
         trainer = ModelTrainer(config)
         model, metrics = trainer.train(X_train, y_train, X_test, y_test)

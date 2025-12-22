@@ -152,12 +152,19 @@ class ModelTrainer:
         if self.config.model_type == "random_forest":
             from sklearn.ensemble import RandomForestClassifier
 
+            # Add class_weight='balanced' to handle class imbalance
+            # This gives higher weight to minority class
+            if 'class_weight' not in hyperparams:
+                hyperparams['class_weight'] = 'balanced'
+            
             return RandomForestClassifier(
                 random_state=self.config.random_state, n_jobs=-1, **hyperparams
             )
         elif self.config.model_type == "xgboost":
             import xgboost as xgb
 
+            # For XGBoost, use scale_pos_weight parameter for class imbalance
+            # This will be calculated dynamically based on class distribution
             return xgb.XGBClassifier(
                 random_state=self.config.random_state,
                 n_jobs=-1,
@@ -167,6 +174,7 @@ class ModelTrainer:
         elif self.config.model_type == "lightgbm":
             import lightgbm as lgb
 
+            # LightGBM automatically handles class imbalance with is_unbalance parameter
             return lgb.LGBMClassifier(
                 random_state=self.config.random_state, n_jobs=-1, **hyperparams
             )

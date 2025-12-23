@@ -1,23 +1,20 @@
 # ==============================================================================
-# Stoic Citadel - Freqtrade Production Container
+# Stoic Citadel - Production Container with Multi-Stage Build
 # ==============================================================================
 # Production container for running Freqtrade with Stoic Citadel enhancements
+# Multi-stage build for smaller image size and reduced attack surface
 # ==============================================================================
 
-FROM python:3.11-slim
+# Stage 1: Builder - install dependencies and build wheels
+FROM python:3.11-slim AS builder
 
-# Set working directory
-WORKDIR /freqtrade
-
-# Install system dependencies for TA-Lib and other required libraries
+# Install system dependencies for building Python packages
 RUN apt-get update && apt-get install -y \
     wget \
     build-essential \
-    git \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install TA-Lib
+# Install TA-Lib from source (required for technical analysis)
 RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
     tar -xzf ta-lib-0.4.0-src.tar.gz && \
     cd ta-lib/ && \
@@ -27,35 +24,45 @@ RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
     cd .. && \
     rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
 
-# Copy requirements files
-COPY requirements.txt /tmp/requirements.txt
-COPY requirements-dev.txt /tmp/requirements-dev.txt
+# Set working directory
+WORKDIR /app
 
-# Install freqtrade first (it includes many dependencies)
-RUN pip install --no-cache-dir freqtrade>=2024.11
+# Copy dependency specification
+COPY pyproject.toml .
 
-# Install additional dependencies from requirements.txt
-# Filter out pandas-ta if it causes issues, install it separately if needed
-RUN pip install --no-cache-dir \
-    pandas>=2.0.0 \
-    numpy>=1.24.0 \
-    TA-Lib>=0.4.28 \
-    scikit-learn>=1.3.0 \
-    sqlalchemy>=2.0.0 \
-    psycopg2-binary>=2.9.0 \
-    redis>=5.0.0 \
-    ccxt>=4.0.0 \
-    aiohttp>=3.9.0 \
-    structlog>=24.0.0 \
-    prometheus-client>=0.19.0 \
-    numba>=0.58.0 \
-    matplotlib>=3.7.0 \
-    seaborn>=0.13.0
+# Create virtual environment and install dependencies
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-# pandas-ta is optional, skip if not compatible
-# RUN pip install --no-cache-dir pandas-ta==0.3.14b0
+# Install build dependencies and the package
+RUN pip install --upgrade pip && \
+    pip install wheel && \
+    pip install freqtrade>=2024.11 && \
+    pip install TA-Lib>=0.4.28 && \
+    pip install -e .
 
-# Copy project source code
+# Stage 2: Runner - minimal production image
+FROM python:3.11-slim AS runner
+
+# Install runtime dependencies only (no build tools)
+RUN apt-get update && apt-get install -y \
+    wget \
+    # Required for TA-Lib runtime
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy TA-Lib libraries from builder
+COPY --from=builder /usr/lib/libta_lib.* /usr/lib/
+COPY --from=builder /usr/include/ta-lib/ /usr/include/ta-lib/
+
+# Copy Python virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Set working directory
+WORKDIR /freqtrade
+
+# Copy application source code
 COPY src/ /freqtrade/user_data/src/
 COPY scripts/ /freqtrade/scripts/
 COPY config/ /freqtrade/config/
@@ -68,8 +75,17 @@ ENV PYTHONPATH=/freqtrade/user_data/src
 ENV PYTHONUNBUFFERED=1
 ENV FREQTRADE__USER_DATA_PATH=/freqtrade/user_data
 
+# Create non-root user for security
+RUN groupadd -r freqtrade && useradd -r -g freqtrade freqtrade && \
+    chown -R freqtrade:freqtrade /freqtrade
+USER freqtrade
+
 # Expose Freqtrade web server port
 EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8080/api/v1/ping', timeout=2)" || exit 1
 
 # Default command (can be overridden by docker-compose)
 CMD ["freqtrade", "--version"]

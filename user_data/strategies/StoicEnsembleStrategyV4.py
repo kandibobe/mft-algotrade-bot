@@ -684,46 +684,58 @@ class StoicEnsembleStrategyV4(IStrategy):
         Calculate dynamic probability threshold based on:
         1. Market regime (volatility)
         2. Model confidence
-        3. Recent prediction distribution
+        3. Recent prediction distribution (percentile-based)
         
-        Based on roadmap: Dynamic probability thresholds instead of fixed 0.55
+        Based on PLAN_V4_FIXES.md: Use percentile of predictions (e.g., 75th percentile)
+        Minimum threshold 0.55, maximum 0.75
+        Adjust threshold based on market regime
         
         Returns:
             Series of dynamic thresholds for each row
         """
-        base_threshold = 0.55
+        # Initialize with base threshold
+        dynamic_threshold = pd.Series(0.6, index=dataframe.index)
         
-        # Adjust based on market regime
-        if self._regime_mode == 'high_volatility':
-            # Higher threshold in high volatility (more conservative)
-            regime_adjustment = 0.05
-        elif self._regime_mode == 'low_volatility':
-            # Lower threshold in low volatility (more aggressive)
-            regime_adjustment = -0.03
+        # Calculate percentile-based threshold for each row
+        if 'ml_prediction' in dataframe.columns and len(dataframe) >= 100:
+            # Use rolling window to calculate percentile
+            for i in range(len(dataframe)):
+                if i < 100:
+                    # Not enough data, use default
+                    dynamic_threshold.iloc[i] = 0.6
+                else:
+                    # Get recent predictions (last 100 bars)
+                    recent_predictions = dataframe['ml_prediction'].iloc[i-100:i]
+                    # Use 75th percentile as suggested in PLAN_V4_FIXES.md
+                    percentile_threshold = np.percentile(recent_predictions, 75)
+                    # Apply bounds: 0.55 to 0.75
+                    dynamic_threshold.iloc[i] = max(0.55, min(percentile_threshold, 0.75))
         else:
-            regime_adjustment = 0.0
+            # Not enough data, use default
+            dynamic_threshold = pd.Series(0.6, index=dataframe.index)
         
-        # Adjust based on recent prediction volatility
-        if 'ml_prediction' in dataframe.columns:
-            # Calculate rolling std of predictions
-            pred_std = dataframe['ml_prediction'].rolling(20).std().fillna(0)
-            # Higher std -> higher threshold (more conservative)
-            volatility_adjustment = pred_std * 0.5
-        else:
-            volatility_adjustment = 0
+        # Adjust based on market regime (from PLAN_V4_FIXES.md)
+        if self._regime_mode == 'defensive':
+            # Higher threshold in defensive regime
+            dynamic_threshold = dynamic_threshold.apply(lambda x: max(x, 0.65))
+        elif self._regime_mode == 'aggressive':
+            # Lower threshold in aggressive regime
+            dynamic_threshold = dynamic_threshold.apply(lambda x: max(0.5, x * 0.9))
         
-        # Adjust based on model confidence
-        if 'ml_confidence' in dataframe.columns:
-            # Higher confidence -> can use lower threshold
-            confidence_adjustment = -dataframe['ml_confidence'] * 0.1
-        else:
-            confidence_adjustment = 0
+        # Additional adjustment based on ATR volatility
+        if 'atr_pct' in dataframe.columns:
+            atr_pct = dataframe['atr_pct']
+            # Higher volatility -> higher threshold (more conservative)
+            volatility_adjustment = (atr_pct - atr_pct.rolling(50).mean().fillna(0.01)) * 10
+            dynamic_threshold = dynamic_threshold + volatility_adjustment
         
-        # Calculate dynamic threshold
-        dynamic_threshold = base_threshold + regime_adjustment + volatility_adjustment + confidence_adjustment
+        # Final bounds: 0.45 to 0.75
+        dynamic_threshold = dynamic_threshold.clip(lower=0.45, upper=0.75)
         
-        # Apply bounds: 0.45 to 0.65
-        dynamic_threshold = dynamic_threshold.clip(lower=0.45, upper=0.65)
+        # Log average threshold for debugging
+        if len(dataframe) > 0:
+            avg_threshold = dynamic_threshold.mean()
+            logger.debug(f"Dynamic threshold: avg={avg_threshold:.3f}, regime={self._regime_mode}")
         
         return dynamic_threshold
     

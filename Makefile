@@ -80,8 +80,8 @@ setup: ## Setup development environment (virtualenv + dependencies)
 install: ## Install all dependencies
 	@echo "$(CYAN)Installing dependencies...$(NC)"
 	@$(VENV)/Scripts/activate && $(PIP) install --upgrade pip
-	@$(VENV)/Scripts/activate && $(PIP) install -r requirements.txt
-	@$(VENV)/Scripts/activate && $(PIP) install -r requirements-dev.txt
+	@$(VENV)/Scripts/activate && $(PIP) install -e .
+	@$(VENV)/Scripts/activate && $(PIP) install -e ".[dev]"
 	@echo "$(GREEN)✅ Dependencies installed$(NC)"
 
 check-env: ## Check if .env file exists

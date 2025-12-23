@@ -195,9 +195,10 @@ class FeatureEngineer:
         This method:
         1. Applies stationarity transformation (fractional differentiation or log returns)
         2. Engineers features (indicators, time features, etc.)
-        3. Removes correlated features
-        4. FITS the scaler on this data (learns mean/std or min/max)
-        5. Transforms the data using the fitted scaler
+        3. Applies aggressive cleaning (replace inf with NaN, drop all NaN rows)
+        4. Removes correlated features
+        5. FITS the scaler on this data (learns mean/std or min/max)
+        6. Transforms the data using the fitted scaler
 
         IMPORTANT: Only call this on training data to avoid data leakage!
 
@@ -213,6 +214,9 @@ class FeatureEngineer:
         result = self._apply_stationarity_transformation(df.copy())
 
         result = self._engineer_features(result)
+
+        # AGGRESSIVE CLEANING: Replace inf with NaN and drop all NaN rows
+        result = self._apply_aggressive_cleaning(result)
 
         # Validate features before further processing
         is_valid, issues = self.validate_features(
@@ -246,7 +250,8 @@ class FeatureEngineer:
         This method:
         1. Applies the same stationarity transformation as training
         2. Engineers features (same indicators as training)
-        3. Applies the same scaler fitted on training data (NO refitting!)
+        3. Applies aggressive cleaning (replace inf with NaN, drop all NaN rows)
+        4. Applies the same scaler fitted on training data (NO refitting!)
 
         IMPORTANT: Must call fit_transform() first on training data!
 
@@ -271,6 +276,9 @@ class FeatureEngineer:
         result = self._apply_stationarity_transformation(df.copy(), is_training=False)
 
         result = self._engineer_features(result)
+
+        # AGGRESSIVE CLEANING: Replace inf with NaN and drop all NaN rows
+        result = self._apply_aggressive_cleaning(result)
 
         # Validate features (allow auto-fixing in test mode too)
         is_valid, issues = self.validate_features(
@@ -485,11 +493,12 @@ class FeatureEngineer:
             # or create a cumulative sum for a stationary price-like series
             result['close_log_cumsum'] = result['log_returns'].cumsum()
             
-            # Optionally replace close with log cumulative sum
-            # result['close_original'] = result['close']
-            # result['close'] = result['close_log_cumsum']
+            # Replace close with log cumulative sum for feature engineering
+            # This ensures all technical indicators are computed on stationary series
+            result['close_original'] = result['close']
+            result['close'] = result['close_log_cumsum']
             
-            logger.info("Applied log returns for stationarity")
+            logger.info("Applied log returns for stationarity - using close_log_cumsum for feature engineering")
         
         self._stationarity_applied = True
         return result
@@ -777,15 +786,20 @@ class FeatureEngineer:
         # How many consecutive signals
         df['signal_consecutive'] = df['primary_signal'].rolling(5).sum()
         
-        # Time since last signal
-        signal_idx = df[df['primary_signal'] == 1].index
-        if not signal_idx.empty:
-            # Convert to pandas Series for proper datetime operations
-            signal_series = pd.Series(signal_idx)
-            df['time_since_signal'] = df.index.to_series().apply(
-                lambda x: pd.Timedelta(x - signal_series[signal_series <= x].max()).total_seconds() / 3600 
-                if not pd.isna(signal_series[signal_series <= x].max()) else 24
-            )
+        # Time since last signal - optimized version
+        # Create a Series with the last signal time for each row
+        signal_mask = df['primary_signal'] == 1
+        if signal_mask.any():
+            # Forward fill the last signal time
+            last_signal_times = df.index.where(signal_mask)
+            # Use forward fill to propagate last signal time forward
+            last_signal_times_ffilled = pd.Series(last_signal_times, index=df.index).ffill()
+            # Calculate hours since last signal
+            # Convert to Timedelta and get total seconds for each element
+            time_diffs = df.index - last_signal_times_ffilled
+            df['time_since_signal'] = time_diffs.apply(lambda td: td.total_seconds() / 3600 if pd.notna(td) else 24)
+            # Fill any remaining NaN values with 24 hours
+            df['time_since_signal'] = df['time_since_signal'].fillna(24)
         else:
             df['time_since_signal'] = 24
         
@@ -811,6 +825,50 @@ class FeatureEngineer:
         df["day_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
 
         return df
+
+    def _apply_aggressive_cleaning(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Apply aggressive cleaning to remove NaN and Inf values.
+        
+        Steps:
+        1. Replace all np.inf and -np.inf with NaN
+        2. Drop ALL rows containing NaN
+        
+        This is necessary because rolling windows (SMA, RSI, etc.) generate NaN values
+        in the first N rows, and XGBoost cannot handle NaN or Inf values.
+        
+        Args:
+            df: DataFrame with engineered features
+            
+        Returns:
+            Cleaned DataFrame with no NaN or Inf values
+        """
+        logger.info(f"Applying aggressive cleaning: {len(df)} rows before cleaning")
+        
+        # Make a copy to avoid modifying the original
+        result = df.copy()
+        
+        # Step 1: Replace all inf values with NaN
+        numeric_cols = result.select_dtypes(include=[np.number]).columns
+        result[numeric_cols] = result[numeric_cols].replace([np.inf, -np.inf], np.nan)
+        
+        # Step 2: Drop all rows with any NaN values
+        rows_before = len(result)
+        result = result.dropna()
+        rows_after = len(result)
+        
+        rows_dropped = rows_before - rows_after
+        if rows_dropped > 0:
+            logger.warning(
+                f"Dropped {rows_dropped} rows ({rows_dropped/rows_before*100:.1f}%) "
+                f"containing NaN values. This is expected due to rolling windows "
+                f"(SMA, RSI, etc.) generating NaN in the first N rows."
+            )
+            logger.info(f"Rows after cleaning: {rows_after}")
+        else:
+            logger.info("No rows dropped - data already clean")
+        
+        return result
 
     def _remove_correlated_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Remove highly correlated features."""

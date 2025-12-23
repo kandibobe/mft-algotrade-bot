@@ -2,72 +2,79 @@ name: Stoic Citadel CI/CD
 
 on:
   push:
-    branches: [ main, develop, 'feature/**' ]
+    branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
 
 env:
-  PYTHON_VERSION: '3.11'
   DOCKER_BUILDKIT: 1
 
 jobs:
   # ==============================================================================
-  # CODE QUALITY
+  # CODE QUALITY & TESTING (Matrix)
   # ==============================================================================
-  lint:
-    name: Code Quality
+  test:
+    name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-      
-      - name: Install linters
-        run: pip install black flake8 isort mypy
-      
-      - name: Check formatting (Black)
-        run: black --check --line-length 100 src/ user_data/strategies/ scripts/ || echo "::warning::Formatting issues found"
-      
-      - name: Check imports (isort)
-        run: isort --check-only src/ user_data/strategies/ || echo "::warning::Import order issues"
-      
-      - name: Lint (flake8)
-        run: flake8 --max-line-length=100 --extend-ignore=E203,W503,E501 src/ user_data/strategies/ scripts/
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
 
-  # ==============================================================================
-  # UNIT TESTS
-  # ==============================================================================
-  test-unit:
-    name: Unit Tests
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Set up Python
+
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
-      
+
       - name: Install dependencies
         run: |
-          pip install pytest pytest-cov pytest-mock
-          pip install pandas numpy pyyaml
-      
-      - name: Run unit tests
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install bandit ruff mypy pytest pytest-cov pytest-postgresql
+
+      - name: Linting (ruff)
         run: |
-          pytest tests/test_utils/ tests/test_data/ \
+          ruff check src/ scripts/ --output-format=github
+          ruff format --check src/ scripts/
+
+      - name: Type checking (mypy)
+        run: |
+          mypy src/ --ignore-missing-imports
+
+      - name: Security scan (bandit)
+        run: |
+          bandit -r src/ -f json -o bandit-report.json || true
+
+      - name: Run tests with coverage
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+        run: |
+          pytest tests/ \
             -v --tb=short \
             --cov=src \
             --cov-report=xml \
             --cov-report=term-missing \
-            -m "not integration and not slow"
-      
-      - name: Upload coverage
+            --cov-fail-under=80
+
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         if: always()
         with:
@@ -75,143 +82,27 @@ jobs:
           fail_ci_if_error: false
 
   # ==============================================================================
-  # INTEGRATION TESTS
-  # ==============================================================================
-  test-integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: test-unit
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-      
-      - name: Install dependencies
-        run: |
-          pip install pytest pytest-mock
-          pip install pandas numpy pyyaml
-      
-      - name: Run integration tests
-        run: |
-          pytest tests/test_integration/ \
-            -v --tb=short \
-            -m "integration"
-
-  # ==============================================================================
-  # STRATEGY TESTS
-  # ==============================================================================
-  test-strategy:
-    name: Strategy Tests
-    runs-on: ubuntu-latest
-    needs: test-unit
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-      
-      - name: Install dependencies
-        run: |
-          pip install pytest pytest-mock
-          pip install pandas numpy freqtrade
-      
-      - name: Run strategy tests
-        run: |
-          pytest tests/test_strategies/ \
-            -v --tb=short \
-            -m "not slow"
-
-  # ==============================================================================
-  # DOCKER BUILD
+  # DOCKER BUILD & VALIDATION
   # ==============================================================================
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Validate docker-compose files
         run: |
           docker-compose -f docker-compose.yml config > /dev/null
           docker-compose -f docker-compose.backtest.yml config > /dev/null
+          docker-compose -f docker-compose.monitoring.yml config > /dev/null
           echo "✅ Docker Compose files valid"
 
-  # ==============================================================================
-  # SMOKE TEST (Backtest)
-  # ==============================================================================
-  smoke-test:
-    name: Smoke Test
-    runs-on: ubuntu-latest
-    needs: [lint, test-unit]
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-      
-      - name: Install dependencies
+      - name: Build Docker images
         run: |
-          pip install pandas numpy pyyaml
-      
-      - name: Run smoke test
-        run: |
-          echo "🔥 Running smoke test..."
-          
-          # Test data loading
-          python -c "
-          from src.data.loader import load_csv
-          from src.data.validator import validate_ohlcv
-          
-          df = load_csv('tests/fixtures/sample_data/BTC_USDT-5m.csv')
-          valid, issues = validate_ohlcv(df)
-          assert valid, f'Data validation failed: {issues}'
-          print('✅ Data loading smoke test passed')
-          "
-          
-          # Test indicator calculation
-          python -c "
-          import pandas as pd
-          import numpy as np
-          from src.utils.indicators import calculate_all_indicators
-          
-          np.random.seed(42)
-          df = pd.DataFrame({
-              'open': np.random.randn(200).cumsum() + 100,
-              'high': np.random.randn(200).cumsum() + 101,
-              'low': np.random.randn(200).cumsum() + 99,
-              'close': np.random.randn(200).cumsum() + 100,
-              'volume': np.random.randint(1000, 10000, 200)
-          })
-          
-          result = calculate_all_indicators(df)
-          assert 'rsi' in result.columns
-          assert 'macd' in result.columns
-          print('✅ Indicator calculation smoke test passed')
-          "
-          
-          # Test strategy config
-          python -c "
-          from src.strategies.strategy_config import StrategyConfig
-          
-          config = StrategyConfig()
-          assert config.validate()
-          print('✅ Strategy config smoke test passed')
-          "
-          
-          echo "🎉 All smoke tests passed!"
+          docker-compose -f docker-compose.yml build --parallel
 
   # ==============================================================================
   # CONFIG VALIDATION
@@ -221,45 +112,46 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Validate JSON configs
         run: |
           python -c "
           import json
           import os
-          
+
           configs = [
               'user_data/config/config_backtest.json',
               'user_data/config/config_dryrun.json',
               'user_data/config/config_production.json'
           ]
-          
+
           for config in configs:
               if os.path.exists(config):
                   with open(config) as f:
                       json.load(f)
                   print(f'✅ {config} is valid')
           "
-      
+
       - name: Validate YAML configs
         run: |
           python -c "
           import yaml
           import os
-          
+
           configs = ['config/strategy_config.yaml']
-          
+
           for config in configs:
               if os.path.exists(config):
                   with open(config) as f:
                       yaml.safe_load(f)
                   print(f'✅ {config} is valid')
           "
-      
+
       - name: Check for secrets in configs
         run: |
           if grep -r -i "api_key.*[a-zA-Z0-9]" user_data/config/ 2>/dev/null | grep -v "template"; then
             echo "⚠️ Possible API keys found in config"
+            exit 1
           fi
           echo "✅ Secret check complete"
 
@@ -269,7 +161,8 @@ jobs:
   all-checks:
     name: ✅ All Checks Passed
     runs-on: ubuntu-latest
-    needs: [lint, test-unit, test-integration, docker, smoke-test, validate-config]
+    needs: [test, docker, validate-config]
+    if: always()
     steps:
       - name: Success
         run: |

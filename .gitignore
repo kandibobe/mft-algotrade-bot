@@ -47,7 +47,11 @@ user_data/models/**/*.h5
 user_data/models/**/*.pt
 user_data/models/**/*.pth
 user_data/models/**/*.onnx
+user_data/models/**/*.joblib
+user_data/models/**/*.csv
+user_data/models/**/*.json
 !user_data/models/.gitkeep
+!user_data/models/registry/registry.json
 
 # Trading strategies (proprietary)
 user_data/strategies/*_private.py
@@ -144,7 +148,7 @@ user_data/notebooks/
 backups/
 !backups/.gitkeep
 reports/
-!reports/.gitkeep
+.claude/
 
 # ============================================================
 # DOCKER

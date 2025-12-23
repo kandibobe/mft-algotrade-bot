@@ -202,6 +202,42 @@ class SmartLimitExecutor:
             on_update=on_update,
         )
 
+    async def execute_async(
+        self,
+        order: Order,
+        exchange_api: Any,
+        orderbook: Dict[str, Any],
+        on_update: Optional[Callable[[str, float], None]] = None,
+    ) -> SmartExecutionResult:
+        """
+        Execute order asynchronously using smart limit strategy.
+        
+        This method runs the synchronous execute method in a thread pool
+        to avoid blocking the event loop.
+        
+        Args:
+            order: Order to execute
+            exchange_api: Exchange API instance
+            orderbook: Current order book {bids: [[price, size], ...], asks: [...]}
+            on_update: Optional callback for price updates (status, price)
+
+        Returns:
+            SmartExecutionResult with execution details
+        """
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+        
+        loop = asyncio.get_event_loop()
+        
+        # Run synchronous execute in thread pool
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            result = await loop.run_in_executor(
+                executor,
+                lambda: self.execute(order, exchange_api, orderbook, on_update)
+            )
+        
+        return result
+
     def _calculate_limit_price(self, order: Order, best_bid: float, best_ask: float) -> float:
         """
         Calculate initial limit price.

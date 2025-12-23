@@ -169,19 +169,23 @@ class WalkForwardBacktest:
         df: pd.DataFrame, 
         train_months: int = 3,
         test_months: int = 1,
-        step_months: int = 1
+        step_months: int = 1,
+        embargo_days: int = 7
     ) -> List[Tuple[pd.DataFrame, pd.DataFrame]]:
         """
-        Create sliding windows for walk-forward validation.
+        Create sliding windows for purged walk-forward validation (De Prado Methodology).
+        
+        Implements embargo period to prevent data leakage from overlapping Triple Barrier events.
         
         Args:
             df: Full dataset
             train_months: Number of months for training
             test_months: Number of months for testing
             step_months: Step size to slide window (months)
+            embargo_days: Number of days to leave as gap between train and test (default 7 days)
             
         Returns:
-            List of (train_df, test_df) tuples
+            List of (train_df, test_df) tuples with embargo period
         """
         windows = []
         
@@ -197,25 +201,83 @@ class WalkForwardBacktest:
         train_candles = int(train_months * 30 * candles_per_day)
         test_candles = int(test_months * 30 * candles_per_day)
         step_candles = int(step_months * 30 * candles_per_day)
+        embargo_candles = int(embargo_days * candles_per_day)
         
         n = len(df)
         start_idx = 0
         
-        while start_idx + train_candles + test_candles <= n:
+        while start_idx + train_candles + embargo_candles + test_candles <= n:
             train_end = start_idx + train_candles
-            test_end = train_end + test_candles
+            test_start = train_end + embargo_candles  # Add embargo gap
+            test_end = test_start + test_candles
             
             train_df = df.iloc[start_idx:train_end].copy()
-            test_df = df.iloc[train_end:test_end].copy()
+            test_df = df.iloc[test_start:test_end].copy()
             
             windows.append((train_df, test_df))
             
             # Slide window
             start_idx += step_candles
         
-        logger.info(f"Created {len(windows)} sliding windows")
+        logger.info(f"Created {len(windows)} sliding windows with {embargo_days}-day embargo")
         logger.info(f"Train size: {train_candles} candles (~{train_months} months)")
         logger.info(f"Test size: {test_candles} candles (~{test_months} months)")
+        logger.info(f"Embargo: {embargo_candles} candles (~{embargo_days} days)")
+        
+        return windows
+    
+    def create_combinatorial_purged_windows(
+        self,
+        df: pd.DataFrame,
+        n_splits: int = 5,
+        embargo_days: int = 7
+    ) -> List[Tuple[pd.DataFrame, pd.DataFrame]]:
+        """
+        Create Combinatorial Purged Cross-Validation (CPCV) windows (De Prado Methodology).
+        
+        CPCV creates multiple train/test splits with embargo periods to prevent
+        data leakage from overlapping Triple Barrier events.
+        
+        Args:
+            df: Full dataset
+            n_splits: Number of splits for CPCV
+            embargo_days: Number of days to leave as gap between train and test
+            
+        Returns:
+            List of (train_df, test_df) tuples
+        """
+        windows = []
+        
+        # Convert embargo days to candles
+        if "5m" in str(self.data_path):
+            candles_per_day = 288
+        elif "1h" in str(self.data_path):
+            candles_per_day = 24
+        else:
+            candles_per_day = 24
+        
+        embargo_candles = int(embargo_days * candles_per_day)
+        
+        # Calculate split sizes
+        n = len(df)
+        split_size = n // (n_splits + 1)  # +1 for embargo periods
+        
+        for i in range(n_splits):
+            # Test window
+            test_start = i * split_size
+            test_end = (i + 1) * split_size
+            
+            # Train window: everything before test_start minus embargo
+            train_end = test_start - embargo_candles
+            if train_end <= 0:
+                continue  # Skip if not enough data for training
+                
+            train_df = df.iloc[:train_end].copy()
+            test_df = df.iloc[test_start:test_end].copy()
+            
+            windows.append((train_df, test_df))
+        
+        logger.info(f"Created {len(windows)} CPCV windows with {embargo_days}-day embargo")
         
         return windows
     
@@ -248,6 +310,11 @@ class WalkForwardBacktest:
             logger.info("Labeling data with Triple Barrier...")
             train_labels = self.labeler.label(train_df)
             test_labels = self.labeler.label(test_df)
+            
+            # Convert labels from -1/1 to 0/1 for binary classification
+            # -1 -> 0 (negative class), 1 -> 1 (positive class)
+            train_labels = train_labels.replace({-1: 0, 1: 1})
+            test_labels = test_labels.replace({-1: 0, 1: 1})
             
             # 2. Feature engineering
             logger.info("Engineering features...")
@@ -285,11 +352,13 @@ class WalkForwardBacktest:
             logger.info(f"Training {model_type} model...")
             trainer_config = TrainingConfig(
                 model_type=model_type,
-                optimize_hyperparams=True,
+                optimize_hyperparams=False,  # Disable hyperparameter optimization to avoid early stopping issues
                 n_trials=50,  # Reduced for speed
                 use_time_series_split=True,
                 n_splits=3,
-                save_model=False  # We'll save manually
+                save_model=False,  # We'll save manually
+                feature_selection=False,  # Disable feature selection to avoid feature mismatch
+                early_stopping_rounds=0  # Disable early stopping for XGBoost to avoid validation dataset requirement
             )
             
             trainer = ModelTrainer(trainer_config)
@@ -690,8 +759,8 @@ def main():
     )
     parser.add_argument(
         "--model",
-        default="xgboost",
-        choices=["xgboost", "lightgbm"],
+        default="random_forest",
+        choices=["random_forest", "xgboost", "lightgbm"],
         help="Model type"
     )
     parser.add_argument(

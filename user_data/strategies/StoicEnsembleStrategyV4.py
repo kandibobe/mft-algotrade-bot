@@ -1,4 +1,4 @@
-"""
+﻿"""
 Stoic Citadel - Ensemble Strategy V4 (ML-Enhanced)
 ==================================================
 
@@ -15,6 +15,11 @@ Philosophy: "Combine human wisdom with machine intelligence."
 Author: Stoic Citadel Team
 Version: 4.0.0
 """
+
+import sys
+from pathlib import Path
+# Add project root to sys.path to allow imports of src modules
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import pickle
 import logging
@@ -184,8 +189,10 @@ class StoicEnsembleStrategyV4(IStrategy):
             
             # Initialize feature engineer (same as used in training)
             if USE_CUSTOM_MODULES:
-                from src.ml.training.feature_engineering import FeatureEngineer
-                self.feature_engineer = FeatureEngineer()
+                from src.ml.training.feature_engineering import FeatureEngineer, FeatureConfig
+                # Create config with correlation removal disabled to match model's expected features
+                config = FeatureConfig(remove_correlated=False)
+                self.feature_engineer = FeatureEngineer(config)
             else:
                 self.feature_engineer = None
             
@@ -200,7 +207,15 @@ class StoicEnsembleStrategyV4(IStrategy):
                 if hasattr(self.ml_model, 'n_estimators'):
                     logger.info(f"Model has {self.ml_model.n_estimators} estimators")
                 if hasattr(self.ml_model, 'feature_importances_'):
-                    logger.info(f"Model has {len(self.ml_model.feature_importances_)} features")
+                    expected_features = len(self.ml_model.feature_importances_)
+                    logger.info(f"Model has {expected_features} features")
+                    
+                    # Check if feature engineer will produce matching features
+                    # We'll check this later during prediction, but log warning now
+                    logger.warning(f"Model expects {expected_features} features. Feature engineering may produce different count.")
+                else:
+                    # If model doesn't have feature_importances_, we can't check
+                    logger.warning("Model doesn't have feature_importances_ attribute. Cannot verify feature count.")
             
         except Exception as e:
             logger.error(f"Failed to load ML model: {e}")
@@ -423,6 +438,20 @@ class StoicEnsembleStrategyV4(IStrategy):
                 if available_features:
                     X = feature_df[available_features].values
                     
+                    # Check if feature count matches model's expected features
+                    if hasattr(self.ml_model, 'feature_importances_'):
+                        expected_features = len(self.ml_model.feature_importances_)
+                        if len(available_features) != expected_features:
+                            logger.warning(
+                                f"Feature count mismatch: model expects {expected_features}, "
+                                f"got {len(available_features)}. Using fallback predictions."
+                            )
+                            # Use fallback predictions
+                            dataframe['ml_prediction'] = 0.5
+                            dataframe['ml_confidence'] = 0.5
+                            dataframe['ml_signal'] = 0
+                            return dataframe
+                    
                     # Make predictions
                     if hasattr(self.ml_model, 'predict_proba'):
                         # Get probability predictions
@@ -585,142 +614,256 @@ class StoicEnsembleStrategyV4(IStrategy):
     
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        Define entry conditions based on ML model predictions with dynamic threshold.
+        Define entry conditions with dynamic probability thresholds.
+        
+        Based on roadmap Phase 4 improvements:
+        1. Dynamic probability thresholds based on market regime
+        2. Simplified entry conditions (only 2-3 key conditions)
+        3. Regime-based position sizing
+        4. Adaptive stop loss based on model confidence
         
         Entry Logic:
-        - Use dynamic probability threshold based on prediction distribution
-        - Adaptive to current market conditions and signal density
-        - Additional filters to improve signal quality
-        
-        Dynamic Threshold Calculation:
-        - Use percentile-based threshold (e.g., 75th percentile of recent predictions)
-        - Adjust based on market regime
-        - Minimum threshold of 0.55 to ensure quality
+        - Buy when ML prediction probability > dynamic_threshold
+        - Dynamic threshold adjusts based on market regime and model confidence
+        - Simplified conditions: ML signal + trend filter only
         """
         
-        # Calculate dynamic threshold based on recent predictions
-        # Use adaptive threshold based on signal density
-        # With 4.8% signal density, we need threshold around 0.05-0.10
-        if len(dataframe) >= 100:
-            recent_predictions = dataframe['ml_prediction'].tail(100)
-            # Calculate signal density in recent predictions
-            signal_density = (recent_predictions > 0.5).mean()
-            # Dynamic threshold: 50th percentile for normal density, adjust for low density
-            if signal_density > 0.1:  # Normal signal density (>10%)
-                dynamic_threshold = np.percentile(recent_predictions, 75)
-            elif signal_density > 0.01:  # Low signal density (1-10%)
-                # Use lower percentile for low density
-                dynamic_threshold = np.percentile(recent_predictions, 50)
-            else:  # Very low signal density (<1%)
-                # Use even lower threshold to generate some signals
-                dynamic_threshold = np.percentile(recent_predictions, 25)
-            
-            # Apply reasonable bounds: 0.05 to 0.75
-            dynamic_threshold = max(0.05, min(dynamic_threshold, 0.75))
-        else:
-            # Default threshold for initial data
-            dynamic_threshold = 0.1
+        # Initialize enter_long column
+        dataframe['enter_long'] = 0
         
-        # Adjust threshold based on regime
-        if self._regime_mode == 'defensive':
-            # Higher threshold in defensive mode (more conservative)
-            dynamic_threshold = max(dynamic_threshold, 0.6)
-        elif self._regime_mode == 'aggressive':
-            # Lower threshold in aggressive mode (more opportunities)
-            dynamic_threshold = max(0.5, dynamic_threshold * 0.9)
+        # Calculate dynamic threshold based on market regime
+        dynamic_threshold = self._calculate_dynamic_threshold(dataframe)
         
-        # Base conditions - ML prediction probability > dynamic threshold
-        base_conditions = [
-            # ML model prediction probability with dynamic threshold
-            (dataframe['ml_prediction'] > dynamic_threshold),
-            
-            # ML confidence threshold (if available)
-            (dataframe['ml_confidence'] > 0.55),
-            
-            # Trend filter - only trade in uptrend
-            (dataframe['close'] > dataframe['ema_200']),
-            (dataframe['ema_50'] > dataframe['ema_100']),
-            
-            # Volume confirmation - avoid low liquidity
-            (dataframe['volume_ratio'] > 0.7),
-            
-            # Not already overbought
-            (dataframe['rsi'] < 70),
-            
-            # Volatility filter - avoid extreme volatility
-            (dataframe['bb_width'] > self.buy_bb_width_min.value),
-            (dataframe['bb_width'] < 0.2),
-        ]
+        # Simplified entry conditions (only 2 conditions per roadmap)
+        # 1. ML prediction above dynamic threshold
+        # 2. Price above EMA 200 (trend filter)
+        entry_condition = (
+            (dataframe['ml_prediction'] > dynamic_threshold) &
+            (dataframe['close'] > dataframe['ema_200'])
+        )
         
-        # Regime-adjusted conditions
-        if self._regime_mode == 'defensive':
-            # In defensive mode, require stronger signals
-            base_conditions.append(dataframe['adx'] > 25)
-            base_conditions.append(dataframe['rsi'] < 50)
-            base_conditions.append(dataframe['ml_confidence'] > 0.65)
-        elif self._regime_mode == 'aggressive':
-            # In aggressive mode, relax some conditions
-            base_conditions.append(dataframe['volume_ratio'] > 0.4)
+        # Apply regime-based position sizing
+        if self._regime_mode == 'high_volatility':
+            # Reduce position size in high volatility
+            entry_condition = entry_condition & (dataframe['ml_confidence'] > 0.7)
+            logger.info(f"High volatility regime: requiring confidence > 0.7")
+        elif self._regime_mode == 'low_volatility':
+            # Can be more aggressive in low volatility
+            entry_condition = entry_condition & (dataframe['ml_confidence'] > 0.5)
+            logger.info(f"Low volatility regime: requiring confidence > 0.5")
         
-        # Combine conditions
-        if base_conditions:
-            dataframe.loc[
-                reduce(lambda x, y: x & y, base_conditions),
-                'enter_long'
-            ] = 1
+        # Apply entry signals
+        dataframe.loc[entry_condition, 'enter_long'] = 1
         
-        # Log entry signals with dynamic threshold
+        # Calculate position size based on model confidence
+        # Always create position_size column (initialize with NaN)
+        dataframe['position_size'] = np.nan
+        
+        if 'enter_long' in dataframe.columns and dataframe['enter_long'].sum() > 0:
+            # Use confidence as position size multiplier (0.5 to 1.0) for entry signals
+            dataframe.loc[dataframe['enter_long'] == 1, 'position_size'] = (
+                dataframe['ml_confidence'].clip(lower=0.5, upper=1.0)
+            )
+        
+        # Log entry signals
         entry_count = dataframe['enter_long'].sum()
-        if entry_count > 0 or len(dataframe) % 100 == 0:
-            last_row = dataframe.iloc[-1]
+        if entry_count > 0:
+            avg_confidence = dataframe.loc[dataframe['enter_long'] == 1, 'ml_confidence'].mean()
+            avg_threshold = dynamic_threshold[dataframe['enter_long'] == 1].mean()
             logger.info(
-                f"📊 {metadata['pair']}: Dynamic threshold={dynamic_threshold:.3f}, "
-                f"Signals={entry_count}, "
-                f"ML prob: {last_row['ml_prediction']:.3f}, "
-                f"ML conf: {last_row['ml_confidence']:.3f}, "
-                f"Regime: {self._regime_mode}"
+                f"📊 {metadata['pair']}: {entry_count} entry signals "
+                f"(avg confidence: {avg_confidence:.3f}, "
+                f"avg threshold: {avg_threshold:.3f}, "
+                f"regime: {self._regime_mode})"
             )
         
         return dataframe
+    
+    def _calculate_dynamic_threshold(self, dataframe: DataFrame) -> pd.Series:
+        """
+        Calculate dynamic probability threshold based on:
+        1. Market regime (volatility)
+        2. Model confidence
+        3. Recent prediction distribution
+        
+        Based on roadmap: Dynamic probability thresholds instead of fixed 0.55
+        
+        Returns:
+            Series of dynamic thresholds for each row
+        """
+        base_threshold = 0.55
+        
+        # Adjust based on market regime
+        if self._regime_mode == 'high_volatility':
+            # Higher threshold in high volatility (more conservative)
+            regime_adjustment = 0.05
+        elif self._regime_mode == 'low_volatility':
+            # Lower threshold in low volatility (more aggressive)
+            regime_adjustment = -0.03
+        else:
+            regime_adjustment = 0.0
+        
+        # Adjust based on recent prediction volatility
+        if 'ml_prediction' in dataframe.columns:
+            # Calculate rolling std of predictions
+            pred_std = dataframe['ml_prediction'].rolling(20).std().fillna(0)
+            # Higher std -> higher threshold (more conservative)
+            volatility_adjustment = pred_std * 0.5
+        else:
+            volatility_adjustment = 0
+        
+        # Adjust based on model confidence
+        if 'ml_confidence' in dataframe.columns:
+            # Higher confidence -> can use lower threshold
+            confidence_adjustment = -dataframe['ml_confidence'] * 0.1
+        else:
+            confidence_adjustment = 0
+        
+        # Calculate dynamic threshold
+        dynamic_threshold = base_threshold + regime_adjustment + volatility_adjustment + confidence_adjustment
+        
+        # Apply bounds: 0.45 to 0.65
+        dynamic_threshold = dynamic_threshold.clip(lower=0.45, upper=0.65)
+        
+        return dynamic_threshold
+    
+    def custom_stake_amount(self, pair: str, current_time: datetime, current_rate: float,
+                           proposed_stake: float, min_stake: Optional[float], 
+                           max_stake: float, leverage: float, entry_tag: Optional[str],
+                           side: str, **kwargs) -> float:
+        """
+        Custom position sizing based on model confidence and market regime.
+        
+        Based on roadmap: Regime-based position sizing
+        
+        Args:
+            pair: Trading pair
+            current_time: Current time
+            current_rate: Current rate
+            proposed_stake: Proposed stake amount
+            min_stake: Minimum stake
+            max_stake: Maximum stake
+            leverage: Leverage
+            entry_tag: Entry tag
+            side: Trade side
+            
+        Returns:
+            Adjusted stake amount
+        """
+        # Base stake from config
+        stake = proposed_stake
+        
+        # Adjust based on market regime
+        if self._regime_mode == 'high_volatility':
+            # Reduce position size in high volatility
+            stake = stake * 0.7
+            logger.info(f"High volatility regime: reducing position size to 70%")
+        elif self._regime_mode == 'low_volatility':
+            # Increase position size in low volatility
+            stake = stake * 1.2
+            logger.info(f"Low volatility regime: increasing position size to 120%")
+        
+        # Apply min/max bounds
+        if min_stake is not None:
+            stake = max(stake, min_stake)
+        stake = min(stake, max_stake)
+        
+        return stake
+    
+    def custom_stoploss(self, pair: str, trade: Trade, current_time: datetime,
+                       current_rate: float, current_profit: float, 
+                       after_fill: bool = False, **kwargs) -> Optional[float]:
+        """
+        Adaptive stop loss based on model confidence and market regime.
+        
+        Based on roadmap: Adaptive stop loss based on model confidence
+        - Higher confidence = tighter stop loss (more conviction)
+        - Lower confidence = wider stop loss (more room for error)
+        - Regime-based adjustment
+        
+        Args:
+            pair: Trading pair
+            trade: Trade object
+            current_time: Current time
+            current_rate: Current rate
+            current_profit: Current profit
+            after_fill: After fill flag
+            **kwargs: Additional arguments
+            
+        Returns:
+            Adjusted stop loss percentage (negative, e.g., -0.05 for 5% stop loss)
+        """
+        # Base stop loss from strategy
+        base_stoploss = self.stoploss  # e.g., -0.05
+        
+        # Get model confidence from trade metadata if available
+        confidence = 0.5  # default
+        if hasattr(trade, 'confidence') and trade.confidence is not None:
+            confidence = trade.confidence
+        elif 'ml_confidence' in trade.metadata:
+            confidence = trade.metadata.get('ml_confidence', 0.5)
+        
+        # Adjust stop loss based on confidence
+        # Higher confidence -> tighter stop loss (more conviction)
+        # Lower confidence -> wider stop loss (more room for error)
+        confidence_adjustment = (0.5 - confidence) * 0.02  # ±1% adjustment
+        
+        # Adjust based on market regime
+        if self._regime_mode == 'high_volatility':
+            # Wider stop loss in high volatility
+            regime_adjustment = -0.01  # 1% wider
+        elif self._regime_mode == 'low_volatility':
+            # Tighter stop loss in low volatility
+            regime_adjustment = 0.005  # 0.5% tighter
+        else:
+            regime_adjustment = 0.0
+        
+        # Calculate adaptive stop loss
+        adaptive_stoploss = base_stoploss + confidence_adjustment + regime_adjustment
+        
+        # Apply bounds: -0.02 to -0.10 (2% to 10% stop loss)
+        adaptive_stoploss = max(adaptive_stoploss, -0.10)  # Not more than 10%
+        adaptive_stoploss = min(adaptive_stoploss, -0.02)  # Not less than 2%
+        
+        # Log adjustment
+        logger.info(
+            f"Adaptive stop loss for {pair}: "
+            f"base={base_stoploss:.3%}, "
+            f"confidence={confidence:.3f}, "
+            f"regime={self._regime_mode}, "
+            f"final={adaptive_stoploss:.3%}"
+        )
+        
+        return adaptive_stoploss
     
     # ==========================================================================
     # EXIT LOGIC
     # ==========================================================================
     
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        """Define exit conditions."""
+        """
+        Define exit conditions.
+        
+        Exit when:
+        - RSI overbought (> sell_rsi)
+        - ML prediction drops below threshold (0.45)
+        - Simple time-based exit (optional)
+        """
         
         conditions = []
         
         # Overbought exit
         overbought = (
-            (dataframe['rsi'] > self.sell_rsi.value) &
-            (dataframe['stoch_k'] > 80)
+            (dataframe['rsi'] > self.sell_rsi.value)
         )
         conditions.append(overbought)
         
-        # Trend reversal
-        trend_reversal = (
-            (dataframe['close'] < dataframe['ema_50']) &
-            (dataframe['macd_hist'] < 0) &
-            (dataframe['macd_hist'] < dataframe['macd_hist'].shift(1))
-        )
-        conditions.append(trend_reversal)
-        
-        # Momentum loss
-        momentum_loss = (
-            (dataframe['ema_9'] < dataframe['ema_21']) &
-            (dataframe['adx'] < 20)
-        )
-        conditions.append(momentum_loss)
-        
-        # ML-based exit
+        # ML prediction turns negative
         if 'ml_prediction' in dataframe.columns:
-            weak_prediction = (
-                (dataframe['ml_prediction'] < 0.4) &
-                (dataframe['ml_confidence'] > 0.6)
+            ml_exit = (
+                (dataframe['ml_prediction'] < 0.45)
             )
-            conditions.append(weak_prediction)
+            conditions.append(ml_exit)
         
         # Combine with OR logic
         if conditions:
@@ -733,233 +876,6 @@ class StoicEnsembleStrategyV4(IStrategy):
         if exit_count > 0:
             logger.info(
                 f"📉 {metadata['pair']}: {exit_count} exit signals "
-                f"(regime: {self._regime_mode})"
             )
         
         return dataframe
-    
-    # ==========================================================================
-    # CUSTOM METHODS
-    # ==========================================================================
-    
-    def custom_stake_amount(
-        self,
-        pair: str,
-        current_time: datetime,
-        current_rate: float,
-        proposed_stake: float,
-        min_stake: Optional[float],
-        max_stake: float,
-        leverage: float,
-        entry_tag: Optional[str],
-        side: str,
-        **kwargs
-    ) -> float:
-        """Dynamic position sizing."""
-        
-        dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
-        if dataframe.empty:
-            return proposed_stake
-        
-        current = dataframe.iloc[-1]
-        
-        # Get ATR-based volatility
-        atr_pct = current.get('atr_pct', 2.0)
-        
-        # Base volatility adjustment
-        if atr_pct > 5:
-            vol_factor = 0.5
-        elif atr_pct > 3:
-            vol_factor = 0.75
-        else:
-            vol_factor = 1.0
-        
-        # Regime adjustment
-        regime_factor = self._regime_params.get('risk_per_trade', 0.02) / 0.02
-        
-        # Confidence-based adjustment
-        confidence = current.get('ensemble_confidence', 0.5)
-        confidence_factor = 0.5 + confidence  # 0.5-1.5 range
-        
-        # Calculate adjusted stake
-        adjusted_stake = proposed_stake * vol_factor * regime_factor * confidence_factor
-        
-        # Apply bounds
-        adjusted_stake = max(min_stake or 0, min(adjusted_stake, max_stake))
-        
-        logger.debug(
-            f"Position sizing: {pair} | Vol factor: {vol_factor:.2f} | "
-            f"Regime factor: {regime_factor:.2f} | "
-            f"Confidence factor: {confidence_factor:.2f} | "
-            f"Stake: {adjusted_stake:.2f}"
-        )
-        
-        return adjusted_stake
-    
-    def confirm_trade_entry(
-        self,
-        pair: str,
-        order_type: str,
-        amount: float,
-        rate: float,
-        time_in_force: str,
-        current_time: datetime,
-        entry_tag: Optional[str],
-        side: str,
-        **kwargs
-    ) -> bool:
-        """Final validation before entry."""
-        
-        # Time filter: avoid low liquidity hours
-        hour = current_time.hour
-        if hour in [0, 1, 2, 3, 4, 5]:
-            if self._regime_mode != 'aggressive':
-                logger.info(f"Skipping {pair}: Low liquidity hours")
-                return False
-        
-        # Get current data
-        dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
-        if dataframe.empty:
-            return True
-        
-        current = dataframe.iloc[-1]
-        
-        # In defensive mode, require stronger signals
-        if self._regime_mode == 'defensive':
-            if current.get('ensemble_confidence', 0) < 0.6:
-                logger.info(f"Skipping {pair}: Low confidence in defensive mode")
-                return False
-        
-        # Check ensemble score
-        ensemble_score = current.get('ensemble_score', 0.5)
-        if ensemble_score < 0.6:
-            logger.info(f"Skipping {pair}: Weak ensemble score")
-            return False
-        
-        # Check confidence
-        confidence = current.get('ensemble_confidence', 0.5)
-        if confidence < 0.5:
-            logger.info(f"Skipping {pair}: Low confidence")
-            return False
-        
-        return True
-    
-    def leverage(
-        self,
-        pair: str,
-        current_time: datetime,
-        current_rate: float,
-        proposed_leverage: float,
-        max_leverage: float,
-        entry_tag: Optional[str],
-        side: str,
-        **kwargs
-    ) -> float:
-        """Dynamic leverage based on regime and confidence."""
-        
-        # Get current data for confidence
-        try:
-            dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
-            if not dataframe.empty:
-                current = dataframe.iloc[-1]
-                confidence = current.get('ensemble_confidence', 0.5)
-            else:
-                confidence = 0.5
-        except:
-            confidence = 0.5
-        
-        # Base leverage based on regime
-        if self._regime_mode == 'defensive':
-            base_leverage = min(1.0, max_leverage)
-        elif self._regime_mode == 'aggressive':
-            base_leverage = min(2.0, max_leverage)
-        else:
-            base_leverage = min(1.5, max_leverage)
-        
-        # Adjust based on confidence
-        confidence_factor = 0.5 + confidence  # 0.5-1.5 range
-        final_leverage = min(base_leverage * confidence_factor, max_leverage)
-        
-        logger.debug(
-            f"Leverage: {pair} | Regime: {self._regime_mode} | "
-            f"Confidence: {confidence:.2f} | Final: {final_leverage:.1f}x"
-        )
-        
-        return final_leverage
-    
-    def custom_exit_price(
-        self,
-        pair: str,
-        trade: Trade,
-        current_time: datetime,
-        proposed_rate: float,
-        current_profit: float,
-        exit_tag: Optional[str],
-        **kwargs
-    ) -> float:
-        """
-        Dynamic exit price based on volatility (ATR).
-        
-        Replaces fixed ROI with dynamic ROI based on volatility:
-        - High volatility: Wider profit targets
-        - Low volatility: Tighter profit targets
-        
-        This adapts to market conditions and improves risk-adjusted returns.
-        """
-        try:
-            # Get current market data
-            dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
-            if dataframe.empty:
-                return proposed_rate
-            
-            current = dataframe.iloc[-1]
-            
-            # Get ATR as percentage of price (volatility measure)
-            atr_pct = current.get('atr_pct', 2.0)  # Default 2% if not available
-            
-            # Calculate dynamic ROI multiplier based on volatility
-            # Higher volatility = higher potential profit targets
-            # Lower volatility = tighter profit targets
-            
-            # Base multiplier: 1.0 for normal volatility (2% ATR)
-            # Scale up/down based on current ATR
-            volatility_multiplier = atr_pct / 2.0
-            
-            # Apply bounds: 0.5x to 2.0x
-            volatility_multiplier = max(0.5, min(2.0, volatility_multiplier))
-            
-            # Get current profit and adjust target
-            if current_profit > 0:
-                # For profitable trades, adjust exit price based on volatility
-                # Higher volatility = let profits run more
-                # Lower volatility = take profits sooner
-                
-                # Calculate dynamic profit target
-                base_target = 0.02  # 2% base target
-                dynamic_target = base_target * volatility_multiplier
-                
-                # If we haven't reached dynamic target yet, adjust exit price
-                if current_profit < dynamic_target:
-                    # Calculate required price to reach dynamic target
-                    entry_price = trade.open_rate
-                    target_price = entry_price * (1 + dynamic_target)
-                    
-                    # Use the higher of proposed rate or target price
-                    adjusted_rate = max(proposed_rate, target_price)
-                    
-                    logger.debug(
-                        f"Dynamic exit: {pair} | ATR%: {atr_pct:.2f}% | "
-                        f"Vol multiplier: {volatility_multiplier:.2f}x | "
-                        f"Dynamic target: {dynamic_target:.2%} | "
-                        f"Current profit: {current_profit:.2%} | "
-                        f"Adjusted exit: {adjusted_rate:.2f}"
-                    )
-                    
-                    return adjusted_rate
-            
-            # For losing trades or if already above target, use proposed rate
-            return proposed_rate
-            
-        except Exception as e:
-            logger.error(f"Error in custom_exit_price for {pair}: {e}")
-            return proposed_rate

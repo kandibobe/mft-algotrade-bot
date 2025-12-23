@@ -17,7 +17,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Protocol, Union
 
-from .data_stream import Exchange, IWebSocketClient, TickerData, TradeData
+from .exchange_types import Exchange
+from .data_types import IWebSocketClient, TickerData, TradeData
 
 logger = logging.getLogger(__name__)
 
@@ -284,9 +285,20 @@ class OkxHandler(ExchangeHandler):
         self, websocket: IWebSocketClient, symbols: List[str], channels: List[str]
     ) -> None:
         """OKX-specific subscription."""
-        # TODO: Implement OKX subscription logic
-        logger.warning("OKX handler not fully implemented")
-        pass
+        args = []
+        for symbol in symbols:
+            symbol_upper = symbol.replace("/", "-").upper()
+            if "ticker" in channels:
+                args.append({"channel": "tickers", "instId": symbol_upper})
+            if "trade" in channels:
+                args.append({"channel": "trades", "instId": symbol_upper})
+        
+        subscribe_msg = {
+            "op": "subscribe",
+            "args": args
+        }
+        await websocket.send(json.dumps(subscribe_msg))
+        logger.info(f"Subscribed to {len(args)} OKX streams")
 
     async def handle_message(
         self,
@@ -295,25 +307,83 @@ class OkxHandler(ExchangeHandler):
         trade_handlers: List[Callable[[TradeData], Awaitable[None]]],
     ) -> None:
         """Handle OKX-specific message format."""
-        # TODO: Implement OKX message handling
-        logger.warning("OKX handler not fully implemented")
-        pass
+        event = data.get("event")
+        if event == "subscribe" or event == "error":
+            # Subscription confirmation or error
+            logger.debug(f"OKX subscription event: {data}")
+            return
+        
+        arg = data.get("arg", {})
+        channel = arg.get("channel", "")
+        data_list = data.get("data", [])
+        
+        if not data_list:
+            return
+        
+        if channel == "tickers":
+            for ticker_data in data_list:
+                ticker = TickerData(
+                    exchange="okx",
+                    symbol=ticker_data.get("instId", "").replace("-", "/"),
+                    bid=float(ticker_data.get("bidPx", 0)),
+                    ask=float(ticker_data.get("askPx", 0)),
+                    last=float(ticker_data.get("last", 0)),
+                    volume_24h=float(ticker_data.get("vol24h", 0)),
+                    change_24h=float(ticker_data.get("lastPx", 0)) / float(ticker_data.get("open24h", 1)) - 1 if ticker_data.get("open24h") else 0,
+                    timestamp=int(ticker_data.get("ts", time.time() * 1000)) / 1000,
+                )
+                for handler in ticker_handlers:
+                    await handler(ticker)
+        
+        elif channel == "trades":
+            for trade_data in data_list:
+                trade = TradeData(
+                    exchange="okx",
+                    symbol=arg.get("instId", "").replace("-", "/"),
+                    trade_id=str(trade_data.get("tradeId", "")),
+                    price=float(trade_data.get("px", 0)),
+                    quantity=float(trade_data.get("sz", 0)),
+                    side="buy" if trade_data.get("side") == "buy" else "sell",
+                    timestamp=int(trade_data.get("ts", time.time() * 1000)) / 1000,
+                )
+                for handler in trade_handlers:
+                    await handler(trade)
 
     async def subscribe_symbol(
         self, websocket: IWebSocketClient, symbol: str, channels: List[str]
     ) -> None:
         """Add symbol to OKX subscription."""
-        # TODO: Implement OKX dynamic subscription
-        logger.warning("OKX handler not fully implemented")
-        pass
+        symbol_upper = symbol.replace("/", "-").upper()
+        args = []
+        if "ticker" in channels:
+            args.append({"channel": "tickers", "instId": symbol_upper})
+        if "trade" in channels:
+            args.append({"channel": "trades", "instId": symbol_upper})
+        
+        msg = {
+            "op": "subscribe",
+            "args": args
+        }
+        await websocket.send(json.dumps(msg))
+        logger.info(f"Subscribed to OKX symbol {symbol}")
 
     async def unsubscribe_symbol(
         self, websocket: IWebSocketClient, symbol: str, channels: List[str]
     ) -> None:
         """Remove symbol from OKX subscription."""
-        # TODO: Implement OKX dynamic unsubscription
-        logger.warning("OKX handler not fully implemented")
-        pass
+        symbol_upper = symbol.replace("/", "-").upper()
+        args = []
+        if "ticker" in channels:
+            args.append({"channel": "tickers", "instId": symbol_upper})
+        if "trade" in channels:
+            args.append({"channel": "trades", "instId": symbol_upper})
+        
+        msg = {
+            "op": "unsubscribe",
+            "args": args
+        }
+        await websocket.send(json.dumps(msg))
+        logger.info(f"Unsubscribed from OKX symbol {symbol}")
 
 
 class KrakenHandler(ExchangeHandler):
@@ -326,9 +396,20 @@ class KrakenHandler(ExchangeHandler):
         self, websocket: IWebSocketClient, symbols: List[str], channels: List[str]
     ) -> None:
         """Kraken-specific subscription."""
-        # TODO: Implement Kraken subscription logic
-        logger.warning("Kraken handler not fully implemented")
-        pass
+        subscribe_msg = {
+            "event": "subscribe",
+            "pair": [self._format_symbol(symbol) for symbol in symbols],
+            "subscription": {}
+        }
+        
+        # Add subscriptions based on channels
+        if "ticker" in channels:
+            subscribe_msg["subscription"]["ticker"] = {}
+        if "trade" in channels:
+            subscribe_msg["subscription"]["trade"] = {}
+        
+        await websocket.send(json.dumps(subscribe_msg))
+        logger.info(f"Subscribed to {len(symbols)} Kraken symbols")
 
     async def handle_message(
         self,
@@ -337,25 +418,113 @@ class KrakenHandler(ExchangeHandler):
         trade_handlers: List[Callable[[TradeData], Awaitable[None]]],
     ) -> None:
         """Handle Kraken-specific message format."""
-        # TODO: Implement Kraken message handling
-        logger.warning("Kraken handler not fully implemented")
-        pass
+        event = data.get("event")
+        if event == "subscriptionStatus" or event == "heartbeat":
+            # Subscription confirmation or heartbeat
+            logger.debug(f"Kraken event: {event}")
+            return
+        
+        channel = data.get("channelID")
+        if not channel:
+            return
+        
+        # Check if it's ticker data
+        if isinstance(data.get(1), dict) and "a" in data[1] and "b" in data[1]:
+            # Ticker data
+            ticker_data = data[1]
+            pair_name = data.get("pair", "")
+            symbol = self._parse_symbol(pair_name)
+            
+            ticker = TickerData(
+                exchange="kraken",
+                symbol=symbol,
+                bid=float(ticker_data.get("b", [0])[0]),
+                ask=float(ticker_data.get("a", [0])[0]),
+                last=float(ticker_data.get("c", [0])[0]),
+                volume_24h=float(ticker_data.get("v", [0, 0])[1]),
+                change_24h=float(ticker_data.get("p", [0, 0])[1]),
+                timestamp=time.time(),
+            )
+            for handler in ticker_handlers:
+                await handler(ticker)
+        
+        # Check if it's trade data
+        elif isinstance(data.get(1), list) and len(data.get(1, [])) > 0 and isinstance(data[1][0], list):
+            # Trade data
+            trades = data[1]
+            pair_name = data.get("pair", "")
+            symbol = self._parse_symbol(pair_name)
+            
+            for trade in trades:
+                trade_obj = TradeData(
+                    exchange="kraken",
+                    symbol=symbol,
+                    trade_id=str(trade[2]) if len(trade) > 2 else "",
+                    price=float(trade[0]),
+                    quantity=float(trade[1]),
+                    side="buy" if trade[3] == "b" else "sell",
+                    timestamp=float(trade[2]) if len(trade) > 2 else time.time(),
+                )
+                for handler in trade_handlers:
+                    await handler(trade_obj)
 
     async def subscribe_symbol(
         self, websocket: IWebSocketClient, symbol: str, channels: List[str]
     ) -> None:
         """Add symbol to Kraken subscription."""
-        # TODO: Implement Kraken dynamic subscription
-        logger.warning("Kraken handler not fully implemented")
-        pass
+        subscribe_msg = {
+            "event": "subscribe",
+            "pair": [self._format_symbol(symbol)],
+            "subscription": {}
+        }
+        
+        if "ticker" in channels:
+            subscribe_msg["subscription"]["ticker"] = {}
+        if "trade" in channels:
+            subscribe_msg["subscription"]["trade"] = {}
+        
+        await websocket.send(json.dumps(subscribe_msg))
+        logger.info(f"Subscribed to Kraken symbol {symbol}")
 
     async def unsubscribe_symbol(
         self, websocket: IWebSocketClient, symbol: str, channels: List[str]
     ) -> None:
         """Remove symbol from Kraken subscription."""
-        # TODO: Implement Kraken dynamic unsubscription
-        logger.warning("Kraken handler not fully implemented")
-        pass
+        unsubscribe_msg = {
+            "event": "unsubscribe",
+            "pair": [self._format_symbol(symbol)],
+            "subscription": {}
+        }
+        
+        if "ticker" in channels:
+            unsubscribe_msg["subscription"]["ticker"] = {}
+        if "trade" in channels:
+            unsubscribe_msg["subscription"]["trade"] = {}
+        
+        await websocket.send(json.dumps(unsubscribe_msg))
+        logger.info(f"Unsubscribed from Kraken symbol {symbol}")
+
+    def _format_symbol(self, symbol: str) -> str:
+        """Format symbol for Kraken API (e.g., BTC/USD -> XBT/USD)."""
+        # Kraken uses XBT instead of BTC
+        formatted = symbol.replace("/", "")
+        if formatted.startswith("BTC"):
+            formatted = "XBT" + formatted[3:]
+        return formatted
+
+    def _parse_symbol(self, kraken_symbol: str) -> str:
+        """Parse Kraken symbol to standard format."""
+        # Convert XBT back to BTC
+        if kraken_symbol.startswith("XBT"):
+            kraken_symbol = "BTC" + kraken_symbol[3:]
+        
+        # Insert slash for pairs like BTCUSD -> BTC/USD
+        if len(kraken_symbol) >= 6:
+            # Assuming format like BTCUSD, ETHUSD, etc.
+            base = kraken_symbol[:3]
+            quote = kraken_symbol[3:]
+            return f"{base}/{quote}"
+        return kraken_symbol
 
 
 # Factory function to create appropriate handler

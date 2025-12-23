@@ -165,11 +165,21 @@ class ModelTrainer:
 
             # For XGBoost, use scale_pos_weight parameter for class imbalance
             # This will be calculated dynamically based on class distribution
+            # Default regularization parameters to prevent overfitting
+            default_params = {
+                'max_depth': 3,
+                'n_estimators': 500,
+                'learning_rate': 0.05,
+                'subsample': 0.7,
+                'colsample_bytree': 0.7,
+            }
+            # Merge hyperparams, with hyperparams taking precedence
+            merged_params = {**default_params, **hyperparams}
             return xgb.XGBClassifier(
                 random_state=self.config.random_state,
                 n_jobs=-1,
                 early_stopping_rounds=self.config.early_stopping_rounds,
-                **hyperparams,
+                **merged_params,
             )
         elif self.config.model_type == "lightgbm":
             import lightgbm as lgb

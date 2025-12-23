@@ -279,6 +279,40 @@ class OrderExecutor:
 
         return result
 
+    async def execute_async(
+        self,
+        order: Order,
+        exchange_api: Optional[Any] = None,
+        market_data: Optional[Dict] = None,
+    ) -> ExecutionResult:
+        """
+        Execute an order asynchronously.
+        
+        This method runs the synchronous execute method in a thread pool
+        to avoid blocking the event loop.
+        
+        Args:
+            order: Order to execute
+            exchange_api: Exchange API instance (for live/paper mode)
+            market_data: Current market data (price, volume, etc.)
+
+        Returns:
+            ExecutionResult with execution details
+        """
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+        
+        loop = asyncio.get_event_loop()
+        
+        # Run synchronous execute in thread pool
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            result = await loop.run_in_executor(
+                executor,
+                lambda: self.execute(order, exchange_api, market_data)
+            )
+        
+        return result
+
     def _execute_backtest(
         self, order: Order, market_data: Optional[Dict], start_time: float
     ) -> ExecutionResult:

@@ -118,7 +118,7 @@ class CircuitBreaker:
         self.trip_time: Optional[datetime] = None
         self.session = TradingSession()
         self.recovery_trades: int = 0
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._callbacks: List[callable] = []
 
     def initialize_session(self, initial_balance: float) -> None:

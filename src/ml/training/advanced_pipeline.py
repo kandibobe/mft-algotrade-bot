@@ -497,14 +497,23 @@ class FeatureSelectorConfig:
     """Configuration for feature selection."""
     
     # Correlation-based selection
-    correlation_threshold: float = 0.95  # Remove features with correlation > threshold
+    correlation_threshold: float = 0.85  # Remove features with correlation > threshold (reduced from 0.95 per roadmap)
     
     # SHAP-based selection
     use_shap: bool = True
     top_n_features: int = 25  # Keep top N features by SHAP importance
+    shap_sample_size: float = 0.2  # Use 20% sample for SHAP calculation (per roadmap)
+    
+    # Recursive Feature Elimination (RFE)
+    use_rfe: bool = True  # Use recursive feature elimination
+    rfe_step: int = 5  # Number of features to remove at each RFE step
     
     # Model for SHAP calculation
-    model_type: str = "random_forest"  # random_forest, xgboost, lightgbm
+    model_type: str = "xgboost"  # xgboost, random_forest, lightgbm (changed to xgboost per roadmap)
+    
+    # Stability check
+    check_stability: bool = True  # Check feature importance stability across folds
+    stability_threshold: float = 0.7  # Minimum correlation for feature importance stability
 
 
 class FeatureSelector:
@@ -512,18 +521,21 @@ class FeatureSelector:
     Stage 4: Feature Selection
     
     If you feed 100 indicators, the model will overfit on noise.
-    - Correlation matrix: If RSI and Stoch correlate at 0.95 - remove one.
-    - SHAP Values / Feature Importance: Train a trial model, look at top-20 important features.
+    - Correlation matrix: If RSI and Stoch correlate at 0.85 - remove one.
+    - SHAP Values / Feature Importance: Train XGBoost on 20% sample, look at top-25 important features.
+    - Recursive Feature Elimination: Iteratively remove least important features.
+    - Stability Check: Ensure selected features stable across time folds.
     """
     
     def __init__(self, config: Optional[FeatureSelectorConfig] = None):
         self.config = config or FeatureSelectorConfig()
         self.selected_features = []
         self.feature_importance = None
+        self.stability_scores = {}
     
     def select_features(self, X: pd.DataFrame, y: pd.Series) -> pd.DataFrame:
         """
-        Select best features using correlation and SHAP.
+        Select best features using correlation, SHAP, RFE, and stability checks.
         
         Args:
             X: Feature DataFrame
@@ -532,7 +544,7 @@ class FeatureSelector:
         Returns:
             DataFrame with selected features
         """
-        logger.info("Stage 4: Feature selection")
+        logger.info("Stage 4: Advanced feature selection")
         logger.info(f"Initial features: {X.shape[1]}")
         
         result = X.copy()
@@ -542,10 +554,19 @@ class FeatureSelector:
             result = self._remove_correlated_features(result)
             logger.info(f"After correlation removal: {result.shape[1]} features")
         
-        # 2. SHAP-based feature selection
+        # 2. SHAP-based feature selection (on sample for efficiency)
         if self.config.use_shap and len(result.columns) > self.config.top_n_features:
             result = self._select_by_shap(result, y)
             logger.info(f"After SHAP selection: {result.shape[1]} features")
+        
+        # 3. Recursive Feature Elimination (RFE)
+        if self.config.use_rfe and len(result.columns) > self.config.top_n_features:
+            result = self._select_by_rfe(result, y)
+            logger.info(f"After RFE: {result.shape[1]} features")
+        
+        # 4. Stability check (if we have time-based data)
+        if self.config.check_stability and len(result.columns) > 0:
+            self._check_feature_stability(result, y)
         
         self.selected_features = result.columns.tolist()
         logger.info(f"Selected {len(self.selected_features)} features")
@@ -570,18 +591,43 @@ class FeatureSelector:
         return X
     
     def _select_by_shap(self, X: pd.DataFrame, y: pd.Series) -> pd.DataFrame:
-        """Select features using SHAP importance."""
+        """Select features using SHAP importance with XGBoost on sample."""
         try:
             import shap
-            from sklearn.ensemble import RandomForestClassifier
+            import xgboost as xgb
             
-            # Train a model for SHAP calculation
-            model = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
-            model.fit(X, y)
+            # Sample data for efficiency (20% as per roadmap)
+            if self.config.shap_sample_size < 1.0:
+                sample_size = int(len(X) * self.config.shap_sample_size)
+                if sample_size > 100:  # Ensure minimum sample size
+                    sample_indices = np.random.choice(len(X), size=sample_size, replace=False)
+                    X_sample = X.iloc[sample_indices]
+                    y_sample = y.iloc[sample_indices]
+                else:
+                    X_sample = X
+                    y_sample = y
+            else:
+                X_sample = X
+                y_sample = y
+            
+            logger.info(f"Training XGBoost on {len(X_sample)} samples for SHAP calculation")
+            
+            # Train XGBoost model (optimized for precision)
+            model = xgb.XGBClassifier(
+                n_estimators=100,
+                max_depth=5,  # Shallower trees for simplicity
+                learning_rate=0.1,
+                subsample=0.8,
+                colsample_bytree=0.8,
+                random_state=42,
+                n_jobs=-1,
+                eval_metric='logloss'
+            )
+            model.fit(X_sample, y_sample)
             
             # Calculate SHAP values
             explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(X)
+            shap_values = explainer.shap_values(X_sample)
             
             # For binary classification, use SHAP values for class 1
             if isinstance(shap_values, list):
@@ -591,7 +637,7 @@ class FeatureSelector:
             
             # Create feature importance DataFrame
             importance_df = pd.DataFrame({
-                'feature': X.columns,
+                'feature': X_sample.columns,
                 'importance': shap_importance
             }).sort_values('importance', ascending=False)
             
@@ -606,21 +652,41 @@ class FeatureSelector:
             
             return X[top_features]
             
-        except ImportError:
-            logger.warning("SHAP not available, using feature importance instead")
+        except ImportError as e:
+            logger.warning(f"SHAP or XGBoost not available ({e}), falling back to feature importance")
             return self._select_by_feature_importance(X, y)
     
     def _select_by_feature_importance(self, X: pd.DataFrame, y: pd.Series) -> pd.DataFrame:
         """Fallback: select features using model feature importance."""
-        from sklearn.ensemble import RandomForestClassifier
-        
-        model = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
-        model.fit(X, y)
-        
-        importance = pd.DataFrame({
-            'feature': X.columns,
-            'importance': model.feature_importances_
-        }).sort_values('importance', ascending=False)
+        try:
+            import xgboost as xgb
+            
+            # Try XGBoost first
+            model = xgb.XGBClassifier(
+                n_estimators=100,
+                max_depth=5,
+                learning_rate=0.1,
+                random_state=42,
+                n_jobs=-1
+            )
+            model.fit(X, y)
+            
+            importance = pd.DataFrame({
+                'feature': X.columns,
+                'importance': model.feature_importances_
+            }).sort_values('importance', ascending=False)
+            
+        except ImportError:
+            # Fallback to RandomForest
+            from sklearn.ensemble import RandomForestClassifier
+            
+            model = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
+            model.fit(X, y)
+            
+            importance = pd.DataFrame({
+                'feature': X.columns,
+                'importance': model.feature_importances_
+            }).sort_values('importance', ascending=False)
         
         self.feature_importance = importance
         
@@ -632,6 +698,141 @@ class FeatureSelector:
             logger.info(f"  {row['feature']}: {row['importance']:.4f}")
         
         return X[top_features]
+    
+    def _select_by_rfe(self, X: pd.DataFrame, y: pd.Series) -> pd.DataFrame:
+        """Select features using Recursive Feature Elimination (RFE)."""
+        try:
+            from sklearn.feature_selection import RFE
+            import xgboost as xgb
+            
+            # Create XGBoost model for RFE
+            model = xgb.XGBClassifier(
+                n_estimators=50,  # Smaller for RFE efficiency
+                max_depth=3,
+                learning_rate=0.1,
+                random_state=42,
+                n_jobs=-1
+            )
+            
+            # Determine target number of features
+            n_features_to_select = min(self.config.top_n_features, len(X.columns))
+            
+            # Create RFE selector
+            selector = RFE(
+                estimator=model,
+                n_features_to_select=n_features_to_select,
+                step=self.config.rfe_step,
+                verbose=0
+            )
+            
+            # Fit RFE
+            selector.fit(X, y)
+            
+            # Get selected features
+            selected_mask = selector.support_
+            selected_features = X.columns[selected_mask].tolist()
+            
+            # Get feature ranking (1 = selected, higher = eliminated later)
+            ranking = pd.DataFrame({
+                'feature': X.columns,
+                'ranking': selector.ranking_
+            }).sort_values('ranking')
+            
+            logger.info(f"RFE selected {len(selected_features)} features")
+            logger.info(f"Top 10 features by RFE ranking:")
+            for idx, row in ranking.head(10).iterrows():
+                logger.info(f"  {row['feature']}: ranking {row['ranking']}")
+            
+            return X[selected_features]
+            
+        except ImportError as e:
+            logger.warning(f"RFE not available ({e}), skipping RFE selection")
+            return X
+    
+    def _check_feature_stability(self, X: pd.DataFrame, y: pd.Series) -> None:
+        """
+        Check feature importance stability across time folds.
+        
+        This helps ensure selected features are robust over time,
+        not just fitting noise in a specific period.
+        """
+        try:
+            import xgboost as xgb
+            from sklearn.model_selection import TimeSeriesSplit
+            
+            # Use TimeSeriesSplit for temporal validation
+            tscv = TimeSeriesSplit(n_splits=5)
+            
+            feature_importances = []
+            fold_features = []
+            
+            for fold, (train_idx, test_idx) in enumerate(tscv.split(X)):
+                X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+                y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+                
+                # Train model on fold
+                model = xgb.XGBClassifier(
+                    n_estimators=50,
+                    max_depth=3,
+                    learning_rate=0.1,
+                    random_state=42 + fold,
+                    n_jobs=-1
+                )
+                model.fit(X_train, y_train)
+                
+                # Get feature importance for this fold
+                importance = pd.DataFrame({
+                    'feature': X.columns,
+                    f'importance_fold_{fold}': model.feature_importances_
+                })
+                feature_importances.append(importance)
+                
+                # Track which features would be selected in this fold
+                fold_importance = model.feature_importances_
+                top_indices = np.argsort(fold_importance)[-self.config.top_n_features:]
+                fold_features.append(set(X.columns[top_indices]))
+            
+            # Combine importances across folds
+            importance_df = feature_importances[0]
+            for i in range(1, len(feature_importances)):
+                importance_df = importance_df.merge(
+                    feature_importances[i], 
+                    on='feature', 
+                    how='outer'
+                ).fillna(0)
+            
+            # Calculate stability metrics
+            # 1. Correlation of importances across folds
+            importance_cols = [col for col in importance_df.columns if 'importance_fold' in col]
+            if len(importance_cols) > 1:
+                corr_matrix = importance_df[importance_cols].corr()
+                avg_correlation = corr_matrix.values[np.triu_indices_from(corr_matrix, k=1)].mean()
+                
+                # 2. Feature selection consistency
+                all_features = set(X.columns)
+                common_features = set.intersection(*fold_features) if fold_features else set()
+                consistency_ratio = len(common_features) / len(all_features) if all_features else 0
+                
+                self.stability_scores = {
+                    'avg_importance_correlation': avg_correlation,
+                    'feature_selection_consistency': consistency_ratio,
+                    'common_features_count': len(common_features),
+                    'common_features': list(common_features)
+                }
+                
+                logger.info(f"Feature stability scores:")
+                logger.info(f"  Average importance correlation across folds: {avg_correlation:.3f}")
+                logger.info(f"  Feature selection consistency: {consistency_ratio:.3f}")
+                logger.info(f"  Common features across all folds: {len(common_features)}")
+                
+                if avg_correlation < self.config.stability_threshold:
+                    logger.warning(f"Feature importance unstable across folds (correlation={avg_correlation:.3f} < {self.config.stability_threshold})")
+                else:
+                    logger.info(f"Feature importance stable across folds (correlation={avg_correlation:.3f} >= {self.config.stability_threshold})")
+            
+        except Exception as e:
+            logger.warning(f"Feature stability check failed: {e}")
+    
     
     def get_feature_importance(self) -> pd.DataFrame:
         """Get feature importance DataFrame."""

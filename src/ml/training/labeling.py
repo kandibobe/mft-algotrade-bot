@@ -463,13 +463,50 @@ class TripleBarrierLabeler:
         return 0, "time_barrier", len(closes), return_pct
 
 
+def get_dynamic_barriers(df: pd.DataFrame, lookback: int = 100, 
+                         profit_multiplier: float = 1.5, 
+                         loss_multiplier: float = 0.75) -> Tuple[pd.Series, pd.Series]:
+    """
+    Calculate dynamic barriers based on volatility (De Prado Methodology).
+    
+    Args:
+        df: DataFrame with OHLCV data (must have 'close' column)
+        lookback: Lookback period for volatility calculation
+        profit_multiplier: Multiplier for take profit (e.g., 1.5x volatility)
+        loss_multiplier: Multiplier for stop loss (e.g., 0.75x volatility)
+        
+    Returns:
+        Tuple of (take_profit_series, stop_loss_series) as percentages
+    """
+    # Calculate daily returns
+    returns = df['close'].pct_change()
+    
+    # Calculate EWM standard deviation (daily volatility)
+    # Using alpha = 2/(lookback+1) for EWM matching lookback period
+    volatility = returns.ewm(span=lookback, adjust=False).std()
+    
+    # Dynamic barriers as multiples of volatility
+    take_profit = volatility * profit_multiplier
+    stop_loss = volatility * loss_multiplier
+    
+    # Apply reasonable bounds (min 0.2%, max 5%)
+    take_profit = take_profit.clip(lower=0.002, upper=0.05)
+    stop_loss = stop_loss.clip(lower=0.001, upper=0.03)
+    
+    # Ensure stop loss is always smaller than take profit
+    stop_loss = stop_loss.where(stop_loss < take_profit * 0.8, take_profit * 0.5)
+    
+    return take_profit, stop_loss
+
+
 class DynamicBarrierLabeler(TripleBarrierLabeler):
     """
-    Dynamic Triple Barrier that adjusts thresholds based on volatility.
+    Dynamic Triple Barrier that adjusts thresholds based on volatility (De Prado Methodology).
 
-    Uses ATR to scale barriers, so:
+    Uses EWM standard deviation to scale barriers, so:
     - High volatility periods have wider barriers
     - Low volatility periods have tighter barriers
+    - Adapts to Bull runs (high vol) and Sideways (low vol)
 
     This prevents:
     - Too many stop-outs in volatile markets
@@ -479,31 +516,32 @@ class DynamicBarrierLabeler(TripleBarrierLabeler):
     def __init__(
         self,
         config: Optional[TripleBarrierConfig] = None,
-        atr_period: int = 14,
-        atr_multiplier_tp: float = 2.0,
-        atr_multiplier_sl: float = 1.0,
+        lookback: int = 100,
+        profit_multiplier: float = 1.5,
+        loss_multiplier: float = 0.75,
     ):
         """
-        Initialize dynamic labeler.
+        Initialize dynamic labeler with De Prado methodology.
 
         Args:
             config: Base configuration
-            atr_period: Period for ATR calculation
-            atr_multiplier_tp: ATR multiplier for take profit
-            atr_multiplier_sl: ATR multiplier for stop loss
+            lookback: Lookback period for volatility calculation
+            profit_multiplier: Multiplier for take profit (e.g., 1.5x volatility)
+            loss_multiplier: Multiplier for stop loss (e.g., 0.75x volatility)
         """
         super().__init__(config)
-        self.atr_period = atr_period
-        self.atr_multiplier_tp = atr_multiplier_tp
-        self.atr_multiplier_sl = atr_multiplier_sl
+        self.lookback = lookback
+        self.profit_multiplier = profit_multiplier
+        self.loss_multiplier = loss_multiplier
 
     def label(self, df: pd.DataFrame) -> pd.Series:
         """Apply dynamic barrier labeling with BINARY classification."""
-        logger.info("Applying Dynamic Triple Barrier labeling (binary)")
+        logger.info("Applying Dynamic Triple Barrier labeling (De Prado Methodology)")
 
-        # Calculate ATR
-        atr = self._calculate_atr(df)
-        atr_pct = atr / df["close"]  # ATR as percentage of price
+        # Calculate dynamic barriers
+        take_profit_pct, stop_loss_pct = get_dynamic_barriers(
+            df, self.lookback, self.profit_multiplier, self.loss_multiplier
+        )
 
         labels = pd.Series(index=df.index, dtype=float)
 
@@ -511,13 +549,16 @@ class DynamicBarrierLabeler(TripleBarrierLabeler):
         high = df["high"].values
         low = df["low"].values
 
-        for i in range(self.atr_period, len(df) - self.config.max_holding_period):
+        for i in range(self.lookback, len(df) - self.config.max_holding_period):
             entry_price = close[i]
 
-            # Dynamic barriers based on ATR
-            current_atr_pct = atr_pct.iloc[i]
-            tp = max(current_atr_pct * self.atr_multiplier_tp, self.config.take_profit)
-            sl = max(current_atr_pct * self.atr_multiplier_sl, self.config.stop_loss)
+            # Get dynamic barriers for this point
+            tp_pct = take_profit_pct.iloc[i]
+            sl_pct = stop_loss_pct.iloc[i]
+            
+            # Apply minimum barriers from config
+            tp = max(tp_pct, self.config.take_profit)
+            sl = max(sl_pct, self.config.stop_loss)
 
             # Adjust for fees
             tp_adjusted = tp - self.config.fee_adjustment
@@ -538,7 +579,7 @@ class DynamicBarrierLabeler(TripleBarrierLabeler):
             labels.iloc[i] = label
 
         # Fill edges with NaN
-        labels.iloc[: self.atr_period] = np.nan
+        labels.iloc[: self.lookback] = np.nan
         labels.iloc[-self.config.max_holding_period :] = np.nan
 
         label_counts = labels.value_counts()
@@ -546,16 +587,277 @@ class DynamicBarrierLabeler(TripleBarrierLabeler):
 
         return labels
 
-    def _calculate_atr(self, df: pd.DataFrame) -> pd.Series:
-        """Calculate Average True Range."""
-        high_low = df["high"] - df["low"]
-        high_close = np.abs(df["high"] - df["close"].shift())
-        low_close = np.abs(df["low"] - df["close"].shift())
+    def label_with_meta(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Create labels with metadata for analysis, including dynamic barrier values.
+        
+        Returns DataFrame with:
+        - label: The barrier label
+        - barrier_type: Which barrier was hit
+        - holding_period: How many bars until barrier
+        - return_pct: Actual return achieved
+        - take_profit_pct: Dynamic TP percentage used
+        - stop_loss_pct: Dynamic SL percentage used
+        """
+        logger.info("Generating dynamic labels with metadata")
 
-        ranges = pd.concat([high_low, high_close, low_close], axis=1)
-        true_range = ranges.max(axis=1)
+        # Calculate dynamic barriers
+        take_profit_pct, stop_loss_pct = get_dynamic_barriers(
+            df, self.lookback, self.profit_multiplier, self.loss_multiplier
+        )
 
-        return true_range.rolling(self.atr_period).mean()
+        results = []
+
+        close = df["close"].values
+        high = df["high"].values
+        low = df["low"].values
+
+        for i in range(self.lookback, len(df) - self.config.max_holding_period):
+            entry_price = close[i]
+            
+            # Get dynamic barriers for this point
+            tp_pct = take_profit_pct.iloc[i]
+            sl_pct = stop_loss_pct.iloc[i]
+            
+            # Apply minimum barriers from config
+            tp = max(tp_pct, self.config.take_profit)
+            sl = max(sl_pct, self.config.stop_loss)
+            
+            # Adjust for fees
+            tp_adjusted = tp - self.config.fee_adjustment
+            sl_adjusted = sl + self.config.fee_adjustment
+
+            upper_barrier = entry_price * (1 + tp_adjusted)
+            lower_barrier = entry_price * (1 - sl_adjusted)
+
+            label, barrier_type, holding_period, return_pct = self._get_barrier_details(
+                high[i + 1 : i + 1 + self.config.max_holding_period],
+                low[i + 1 : i + 1 + self.config.max_holding_period],
+                close[i + 1 : i + 1 + self.config.max_holding_period],
+                entry_price,
+                upper_barrier,
+                lower_barrier,
+            )
+
+            results.append(
+                {
+                    "label": label,
+                    "barrier_type": barrier_type,
+                    "holding_period": holding_period,
+                    "return_pct": return_pct,
+                    "take_profit_pct": tp_pct,
+                    "stop_loss_pct": sl_pct,
+                }
+            )
+
+        # Add NaN rows for the end
+        for _ in range(max(self.lookback, self.config.max_holding_period)):
+            results.append(
+                {
+                    "label": np.nan,
+                    "barrier_type": "insufficient_data",
+                    "holding_period": np.nan,
+                    "return_pct": np.nan,
+                    "take_profit_pct": np.nan,
+                    "stop_loss_pct": np.nan,
+                }
+            )
+
+        result_df = pd.DataFrame(results, index=df.index)
+
+        # Log statistics
+        logger.info(
+            f"Dynamic barrier statistics - Avg TP: {take_profit_pct.mean():.3%}, "
+            f"Avg SL: {stop_loss_pct.mean():.3%}"
+        )
+        logger.info(
+            f"Barrier type distribution: " f"{result_df['barrier_type'].value_counts().to_dict()}"
+        )
+
+        return result_df
+
+
+def get_dynamic_barriers_atr(df: pd.DataFrame, atr_multiplier_tp: float = 1.5, 
+                            atr_multiplier_sl: float = 0.75) -> Tuple[pd.Series, pd.Series]:
+    """
+    Calculate dynamic barriers as multiples of ATR (Average True Range).
+    
+    Based on roadmap requirements: ATR-based dynamic barriers that adapt to volatility.
+    
+    Args:
+        df: DataFrame with OHLCV data (must have 'high', 'low', 'close' columns)
+        atr_multiplier_tp: Multiplier for take profit (e.g., 1.5x ATR)
+        atr_multiplier_sl: Multiplier for stop loss (e.g., 0.75x ATR)
+        
+    Returns:
+        Tuple of (take_profit_pct, stop_loss_pct) as percentages
+    """
+    # Calculate ATR
+    high = df['high']
+    low = df['low']
+    close = df['close']
+    
+    # True Range
+    tr1 = high - low
+    tr2 = abs(high - close.shift())
+    tr3 = abs(low - close.shift())
+    true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    
+    # ATR (14-period)
+    atr = true_range.rolling(window=14).mean()
+    
+    # Convert ATR to percentage of price
+    atr_pct = atr / close
+    
+    # Dynamic barriers as multiples of ATR percentage
+    take_profit_pct = atr_multiplier_tp * atr_pct
+    stop_loss_pct = atr_multiplier_sl * atr_pct
+    
+    # Apply bounds: TP between 0.5% and 5%, SL between 0.25% and 3%
+    take_profit_pct = take_profit_pct.clip(lower=0.005, upper=0.05)
+    stop_loss_pct = stop_loss_pct.clip(lower=0.0025, upper=0.03)
+    
+    # Ensure stop loss is smaller than take profit
+    stop_loss_pct = stop_loss_pct.where(stop_loss_pct < take_profit_pct * 0.8, take_profit_pct * 0.5)
+    
+    return take_profit_pct, stop_loss_pct
+
+
+class RegimeAwareBarrierLabeler(DynamicBarrierLabeler):
+    """
+    Regime-aware dynamic barrier labeler with ATR-based barriers.
+    
+    Adjusts barrier multipliers based on market regime:
+    - High Volatility Regime (ATR > 2%): Wider barriers (TP=2.0x ATR, SL=1.0x ATR)
+    - Normal Regime: Standard barriers (TP=1.5x ATR, SL=0.75x ATR)
+    - Low Volatility Regime (ATR < 0.5%): Tighter barriers (TP=1.0x ATR, SL=0.5x ATR)
+    
+    Based on roadmap Phase 2 requirements.
+    """
+    
+    def __init__(
+        self,
+        config: Optional[TripleBarrierConfig] = None,
+        lookback: int = 100,
+        base_profit_multiplier: float = 1.5,
+        base_loss_multiplier: float = 0.75,
+    ):
+        """
+        Initialize regime-aware labeler.
+        
+        Args:
+            config: Base configuration
+            lookback: Lookback period for regime detection
+            base_profit_multiplier: Base multiplier for take profit in normal regime
+            base_loss_multiplier: Base multiplier for stop loss in normal regime
+        """
+        super().__init__(config, lookback, base_profit_multiplier, base_loss_multiplier)
+        self.base_profit_multiplier = base_profit_multiplier
+        self.base_loss_multiplier = base_loss_multiplier
+        
+    def _detect_regime(self, atr_pct: float) -> str:
+        """
+        Detect market regime based on ATR percentage.
+        
+        Args:
+            atr_pct: ATR as percentage of price
+            
+        Returns:
+            Regime string: 'high_volatility', 'normal', or 'low_volatility'
+        """
+        if atr_pct > 0.02:  # 2% ATR
+            return 'high_volatility'
+        elif atr_pct < 0.005:  # 0.5% ATR
+            return 'low_volatility'
+        else:
+            return 'normal'
+    
+    def _get_regime_multipliers(self, regime: str) -> Tuple[float, float]:
+        """
+        Get barrier multipliers for specific regime.
+        
+        Args:
+            regime: Market regime
+            
+        Returns:
+            Tuple of (profit_multiplier, loss_multiplier)
+        """
+        if regime == 'high_volatility':
+            return 2.0, 1.0  # Wider barriers
+        elif regime == 'low_volatility':
+            return 1.0, 0.5  # Tighter barriers
+        else:  # normal
+            return self.base_profit_multiplier, self.base_loss_multiplier
+    
+    def label(self, df: pd.DataFrame) -> pd.Series:
+        """Apply regime-aware dynamic barrier labeling."""
+        logger.info("Applying Regime-Aware Dynamic Barrier labeling")
+        
+        # Calculate ATR for regime detection
+        high = df['high']
+        low = df['low']
+        close = df['close']
+        
+        # True Range
+        tr1 = high - low
+        tr2 = abs(high - close.shift())
+        tr3 = abs(low - close.shift())
+        true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        
+        # ATR (14-period)
+        atr = true_range.rolling(window=14).mean()
+        atr_pct = atr / close
+        
+        labels = pd.Series(index=df.index, dtype=float)
+        
+        for i in range(14, len(df) - self.config.max_holding_period):
+            entry_price = close.iloc[i]
+            current_atr_pct = atr_pct.iloc[i]
+            
+            # Detect regime
+            regime = self._detect_regime(current_atr_pct)
+            
+            # Get regime-specific multipliers
+            profit_multiplier, loss_multiplier = self._get_regime_multipliers(regime)
+            
+            # Calculate dynamic barriers for this regime
+            tp_pct = profit_multiplier * current_atr_pct
+            sl_pct = loss_multiplier * current_atr_pct
+            
+            # Apply bounds
+            tp_pct = max(tp_pct, self.config.take_profit)
+            sl_pct = max(sl_pct, self.config.stop_loss)
+            
+            # Adjust for fees
+            tp_adjusted = tp_pct - self.config.fee_adjustment
+            sl_adjusted = sl_pct + self.config.fee_adjustment
+            
+            upper_barrier = entry_price * (1 + tp_adjusted)
+            lower_barrier = entry_price * (1 - sl_adjusted)
+            
+            label = self._get_barrier_label_binary(
+                high.values[i + 1 : i + 1 + self.config.max_holding_period],
+                low.values[i + 1 : i + 1 + self.config.max_holding_period],
+                close.values[i + 1 : i + 1 + self.config.max_holding_period],
+                entry_price,
+                upper_barrier,
+                lower_barrier,
+            )
+            
+            labels.iloc[i] = label
+        
+        # Fill edges with NaN
+        labels.iloc[:14] = np.nan
+        labels.iloc[-self.config.max_holding_period :] = np.nan
+        
+        label_counts = labels.value_counts()
+        logger.info(f"Regime-aware label distribution: {label_counts.to_dict()}")
+        
+        # Log regime statistics
+        regime_counts = atr_pct.apply(self._detect_regime).value_counts()
+        logger.info(f"Market regime distribution: {regime_counts.to_dict()}")
+        
+        return labels
 
 
 def create_labels_for_training(
@@ -566,7 +868,7 @@ def create_labels_for_training(
 
     Args:
         df: DataFrame with OHLCV data
-        method: Labeling method ('triple_barrier', 'dynamic_barrier', 'simple')
+        method: Labeling method ('triple_barrier', 'dynamic_barrier', 'simple', 'regime_aware')
         **kwargs: Additional arguments for the labeler
 
     Returns:
@@ -590,6 +892,16 @@ def create_labels_for_training(
             fee_adjustment=kwargs.pop("fee_adjustment", 0.001),
         )
         labeler = DynamicBarrierLabeler(config, **kwargs)
+        return labeler.label(df)
+    
+    elif method == "regime_aware":
+        config = TripleBarrierConfig(
+            take_profit=kwargs.pop("take_profit", 0.005),
+            stop_loss=kwargs.pop("stop_loss", 0.002),
+            max_holding_period=kwargs.pop("max_holding_period", 24),
+            fee_adjustment=kwargs.pop("fee_adjustment", 0.001),
+        )
+        labeler = RegimeAwareBarrierLabeler(config, **kwargs)
         return labeler.label(df)
 
     else:

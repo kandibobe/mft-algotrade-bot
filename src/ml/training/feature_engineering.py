@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import joblib
 import numpy as np
 import pandas as pd
+from scipy.special import binom
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,12 @@ class FeatureConfig:
     include_momentum_features: bool = True
     include_volatility_features: bool = True
     include_trend_features: bool = True
+    include_meta_labeling_features: bool = True  # Meta-labeling features for De Prado methodology
+
+    # Stationarity transformation
+    enforce_stationarity: bool = True
+    fractional_differentiation_d: float = 0.5  # Fractional differentiation parameter
+    use_log_returns: bool = True  # Alternative to fractional differentiation
 
     # Lookback periods
     short_period: int = 14
@@ -39,13 +46,104 @@ class FeatureConfig:
 
     # Feature selection
     remove_correlated: bool = True
-    correlation_threshold: float = 0.95
+    correlation_threshold: float = 0.85  # Reduced from 0.95 to 0.85 per roadmap
 
     # Time features
     include_time_features: bool = True
 
     # Custom features
     custom_features: List[str] = field(default_factory=list)
+
+
+class FractionalDifferentiator:
+    """
+    Fractional differentiation for creating stationary time series while preserving memory.
+    
+    Based on the binomial expansion method for fractional differentiation.
+    This transforms non-stationary price series into stationary series suitable for ML models.
+    
+    Reference: Advances in Financial Machine Learning, Marcos Lopez de Prado
+    """
+    
+    def __init__(self, d: float = 0.5, window_size: int = 100):
+        """
+        Initialize fractional differentiator.
+        
+        Args:
+            d: Fractional differentiation parameter (0 < d < 1)
+                d=0: original series
+                d=1: first difference
+                d=0.5: fractional difference (preserves some memory)
+            window_size: Window size for practical implementation
+        """
+        self.d = d
+        self.window_size = window_size
+        self._weights = self._calculate_weights()
+    
+    def _calculate_weights(self) -> np.ndarray:
+        """Calculate binomial weights for fractional differentiation."""
+        weights = [1.0]
+        for k in range(1, self.window_size):
+            weight = -weights[-1] * (self.d - k + 1) / k
+            weights.append(weight)
+        return np.array(weights)
+    
+    def differentiate(self, series: pd.Series) -> pd.Series:
+        """
+        Apply fractional differentiation to a time series.
+        
+        Args:
+            series: Input time series (must be sorted chronologically)
+            
+        Returns:
+            Fractionally differentiated series
+        """
+        if not isinstance(series.index, pd.DatetimeIndex):
+            logger.warning("Series index is not DatetimeIndex, ensure chronological ordering")
+        
+        # Convert to numpy for efficiency
+        values = series.values
+        n = len(values)
+        
+        # Initialize result array
+        result = np.full(n, np.nan, dtype=float)
+        
+        # Apply fractional differentiation
+        for i in range(self.window_size, n):
+            window = values[i - self.window_size + 1:i + 1]
+            result[i] = np.dot(window[::-1], self._weights)
+        
+        # For first window_size elements, use simple difference
+        if self.window_size > 0:
+            result[:self.window_size] = np.diff(values[:self.window_size + 1], prepend=values[0])
+        
+        return pd.Series(result, index=series.index)
+    
+    def inverse_transform(self, diff_series: pd.Series, initial_value: float) -> pd.Series:
+        """
+        Inverse transform of fractional differentiation (approximate).
+        
+        Note: Exact inversion is not possible, but this provides an approximation.
+        
+        Args:
+            diff_series: Fractionally differentiated series
+            initial_value: Initial value of original series
+            
+        Returns:
+            Approximate original series
+        """
+        # This is a simplified approximation
+        # In practice, fractional differentiation is not easily invertible
+        logger.warning("Fractional differentiation inverse transform is approximate")
+        
+        result = np.zeros(len(diff_series))
+        result[0] = initial_value
+        
+        for i in range(1, len(diff_series)):
+            # Simple cumulative sum approximation
+            result[i] = result[i-1] + diff_series.iloc[i]
+        
+        return pd.Series(result, index=diff_series.index)
 
 
 class FeatureEngineer:
@@ -57,6 +155,7 @@ class FeatureEngineer:
     - Statistical features
     - Time-based features
     - Feature scaling and selection
+    - Stationarity transformation (fractional differentiation)
 
     IMPORTANT: To avoid data leakage, use fit_transform() on training data,
     then transform() on test/validation data. Never fit on test data!
@@ -86,16 +185,19 @@ class FeatureEngineer:
         self.scaler = None
         self._is_fitted = False
         self._scaled_feature_cols: List[str] = []
+        self._fractional_differentiator = None
+        self._stationarity_applied = False
 
     def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Fit scaler on data and transform. Use this for TRAINING data only.
 
         This method:
-        1. Engineers features (indicators, time features, etc.)
-        2. Removes correlated features
-        3. FITS the scaler on this data (learns mean/std or min/max)
-        4. Transforms the data using the fitted scaler
+        1. Applies stationarity transformation (fractional differentiation or log returns)
+        2. Engineers features (indicators, time features, etc.)
+        3. Removes correlated features
+        4. FITS the scaler on this data (learns mean/std or min/max)
+        5. Transforms the data using the fitted scaler
 
         IMPORTANT: Only call this on training data to avoid data leakage!
 
@@ -107,7 +209,10 @@ class FeatureEngineer:
         """
         logger.info(f"Fit-transforming features from {len(df)} rows (TRAINING MODE)")
 
-        result = self._engineer_features(df)
+        # Apply stationarity transformation if configured
+        result = self._apply_stationarity_transformation(df.copy())
+
+        result = self._engineer_features(result)
 
         # Validate features before further processing
         is_valid, issues = self.validate_features(
@@ -139,8 +244,9 @@ class FeatureEngineer:
         Transform data using pre-fitted scaler. Use this for TEST/VALIDATION data.
 
         This method:
-        1. Engineers features (same indicators as training)
-        2. Applies the same scaler fitted on training data (NO refitting!)
+        1. Applies the same stationarity transformation as training
+        2. Engineers features (same indicators as training)
+        3. Applies the same scaler fitted on training data (NO refitting!)
 
         IMPORTANT: Must call fit_transform() first on training data!
 
@@ -161,7 +267,10 @@ class FeatureEngineer:
 
         logger.info(f"Transforming features from {len(df)} rows (TEST MODE)")
 
-        result = self._engineer_features(df)
+        # Apply the same stationarity transformation as training
+        result = self._apply_stationarity_transformation(df.copy(), is_training=False)
+
+        result = self._engineer_features(result)
 
         # Validate features (allow auto-fixing in test mode too)
         is_valid, issues = self.validate_features(
@@ -230,7 +339,7 @@ class FeatureEngineer:
                 for col in nan_cols:
                     # For price-related columns, use forward fill then backward fill
                     if col in ['open', 'high', 'low', 'close', 'volume']:
-                        df[col] = df[col].fillna(method='ffill').fillna(method='bfill').fillna(0)
+                        df[col] = df[col].ffill().bfill().fillna(0)
                     # For indicator columns, fill with 0 or appropriate default
                     elif 'rsi' in col.lower():
                         df[col] = df[col].fillna(50)  # RSI default to neutral 50
@@ -241,16 +350,16 @@ class FeatureEngineer:
                         if col == 'bb_position':
                             df[col] = df[col].fillna(0.5)  # Middle of band
                         else:
-                            df[col] = df[col].fillna(method='ffill').fillna(method='bfill').fillna(df['close'])
+                            df[col] = df[col].ffill().bfill().fillna(df['close'])
                     elif 'atr' in col.lower():
-                        df[col] = df[col].fillna(method='ffill').fillna(method='bfill').fillna(df['close'] * 0.01)
+                        df[col] = df[col].ffill().bfill().fillna(df['close'] * 0.01)
                     elif 'macd' in col.lower():
                         df[col] = df[col].fillna(0)  # MACD default to 0
                     elif 'returns' in col.lower() or 'change' in col.lower():
                         df[col] = df[col].fillna(0)  # Returns default to 0
                     else:
                         # Generic fill: forward fill, backward fill, then 0
-                        df[col] = df[col].fillna(method='ffill').fillna(method='bfill').fillna(0)
+                        df[col] = df[col].ffill().bfill().fillna(0)
 
         # Check for Inf values
         numeric_cols = df.select_dtypes(include=[np.number]).columns
@@ -265,7 +374,7 @@ class FeatureEngineer:
             if fix_issues:
                 logger.warning(f"Replacing Inf values in {inf_cols}")
                 df[inf_cols] = df[inf_cols].replace([np.inf, -np.inf], np.nan)
-                df[inf_cols] = df[inf_cols].fillna(method="ffill").fillna(0)
+                df[inf_cols] = df[inf_cols].ffill().fillna(0)
 
         # Check for low variance features (potentially useless)
         if len(df) > 1:
@@ -328,6 +437,63 @@ class FeatureEngineer:
 
         return (not has_critical_issues, issues)
 
+    def _apply_stationarity_transformation(self, df: pd.DataFrame, is_training: bool = True) -> pd.DataFrame:
+        """
+        Apply stationarity transformation to price data.
+        
+        Options:
+        1. Fractional differentiation (preserves memory)
+        2. Log returns (simpler, less memory)
+        
+        Args:
+            df: DataFrame with OHLCV data
+            is_training: Whether this is training data (affects fitting)
+            
+        Returns:
+            DataFrame with stationarity transformations applied
+        """
+        if not self.config.enforce_stationarity:
+            return df
+        
+        result = df.copy()
+        
+        # Apply fractional differentiation if configured
+        if self.config.fractional_differentiation_d > 0 and not self.config.use_log_returns:
+            if is_training or self._fractional_differentiator is not None:
+                if is_training:
+                    # Create and fit fractional differentiator on training data
+                    self._fractional_differentiator = FractionalDifferentiator(
+                        d=self.config.fractional_differentiation_d,
+                        window_size=100
+                    )
+                
+                # Apply fractional differentiation to close prices
+                result['close_fractional_diff'] = self._fractional_differentiator.differentiate(result['close'])
+                
+                # Replace original close with fractionally differentiated version for feature engineering
+                # Keep original close for reference
+                result['close_original'] = result['close']
+                result['close'] = result['close_fractional_diff'].fillna(result['close'])
+                
+                logger.info(f"Applied fractional differentiation (d={self.config.fractional_differentiation_d})")
+        
+        # Apply log returns if configured (simpler alternative)
+        elif self.config.use_log_returns:
+            result['log_returns'] = np.log(result['close'] / result['close'].shift(1)).fillna(0)
+            
+            # For feature engineering, we can use log returns directly
+            # or create a cumulative sum for a stationary price-like series
+            result['close_log_cumsum'] = result['log_returns'].cumsum()
+            
+            # Optionally replace close with log cumulative sum
+            # result['close_original'] = result['close']
+            # result['close'] = result['close_log_cumsum']
+            
+            logger.info("Applied log returns for stationarity")
+        
+        self._stationarity_applied = True
+        return result
+
     def _engineer_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Engineer all features without scaling."""
         result = df.copy()
@@ -348,6 +514,10 @@ class FeatureEngineer:
         if self.config.include_trend_features:
             result = self._add_trend_features(result)
 
+        # Add meta-labeling features (De Prado methodology)
+        if self.config.include_meta_labeling_features:
+            result = self._add_meta_labeling_features(result)
+
         # Add time features
         if self.config.include_time_features:
             result = self._add_time_features(result)
@@ -362,7 +532,7 @@ class FeatureEngineer:
         
         # Multiple timeframes returns
         for period in [2, 3, 5, 10, 20]:
-            df[f"returns_{period}"] = df["close"].pct_change(period)
+            df[f"returns_{period}"] = df["close"].pct_change(period, fill_method=None)
         
         # Lag features (past prices)
         for lag in [1, 2, 3, 5, 10]:
@@ -516,6 +686,112 @@ class FeatureEngineer:
         dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di + 1e-10)
         df["adx"] = dx.rolling(self.config.short_period).mean()
 
+        return df
+
+    def _add_meta_labeling_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Add features for Meta-Labeling (De Prado Methodology).
+        
+        Meta-Labeling uses a secondary model to predict whether 
+        primary signals will be profitable.
+        
+        Features added:
+        1. Primary signal strength (combination of RSI, MACD, etc.)
+        2. Volatility features (for risk assessment)
+        3. Spread estimation (bid-ask spread proxy)
+        4. Order book imbalance proxy
+        5. Market regime features
+        """
+        # 1. Primary signal strength (simple combination of indicators)
+        # RSI-based signal: RSI < 30 (oversold) or RSI > 70 (overbought)
+        if 'rsi' in df.columns:
+            rsi_signal = ((df['rsi'] < 30) | (df['rsi'] > 70)).astype(int)
+            rsi_strength = np.abs(df['rsi'] - 50) / 50  # Normalized 0-1
+        else:
+            rsi_signal = 0
+            rsi_strength = 0
+        
+        # MACD signal: MACD histogram positive and increasing
+        if 'macd_hist' in df.columns:
+            macd_signal = ((df['macd_hist'] > 0) & (df['macd_hist'] > df['macd_hist'].shift(1))).astype(int)
+            macd_strength = df['macd_hist'].abs() / (df['macd_hist'].abs().rolling(20).mean() + 1e-10)
+            macd_strength = macd_strength.clip(upper=2.0) / 2.0  # Normalize to 0-1
+        else:
+            macd_signal = 0
+            macd_strength = 0
+        
+        # EMA crossover signal
+        if 'ema_short' in df.columns and 'ema_medium' in df.columns:
+            ema_cross_signal = (df['ema_short'] > df['ema_medium']).astype(int)
+            ema_strength = (df['ema_short'] - df['ema_medium']).abs() / df['ema_medium'] * 100
+            ema_strength = ema_strength.clip(upper=5.0) / 5.0  # Normalize to 0-1
+        else:
+            ema_cross_signal = 0
+            ema_strength = 0
+        
+        # Combined primary signal (binary)
+        df['primary_signal'] = ((rsi_signal + macd_signal + ema_cross_signal) >= 2).astype(int)
+        
+        # Primary signal strength (0-1 scale)
+        df['primary_signal_strength'] = (rsi_strength + macd_strength + ema_strength) / 3
+        
+        # 2. Volatility features (already have volatility, but add more)
+        if 'volatility' not in df.columns:
+            df['volatility'] = df['returns'].rolling(self.config.medium_period).std()
+        
+        # Volatility regime (high/medium/low)
+        # Calculate quantiles separately to avoid list issue
+        vol_q33 = df['volatility'].rolling(100).quantile(0.33)
+        vol_q66 = df['volatility'].rolling(100).quantile(0.66)
+        df['volatility_regime'] = 0  # Default medium
+        df.loc[df['volatility'] > vol_q66, 'volatility_regime'] = 1  # High
+        df.loc[df['volatility'] < vol_q33, 'volatility_regime'] = -1  # Low
+        
+        # 3. Spread estimation (bid-ask spread proxy)
+        # Use high-low range as proxy for spread
+        df['spread_pct'] = (df['high'] - df['low']) / df['close'] * 100
+        df['spread_ratio'] = df['spread_pct'] / df['spread_pct'].rolling(20).mean()
+        
+        # 4. Order book imbalance proxy
+        # Use volume-price relationship as proxy
+        if 'volume' in df.columns and 'close' in df.columns:
+            # Volume-weighted price change
+            price_change = df['close'].pct_change()
+            volume_change = df['volume'].pct_change()
+            df['order_imbalance'] = price_change * volume_change
+            
+            # Normalized order imbalance
+            df['order_imbalance_norm'] = df['order_imbalance'].rolling(20).apply(
+                lambda x: (x.iloc[-1] - x.mean()) / (x.std() + 1e-10)
+            )
+        
+        # 5. Market regime features
+        # Trend vs mean reversion regime
+        if 'adx' in df.columns:
+            df['trend_regime'] = (df['adx'] > 25).astype(int)  # Strong trend if ADX > 25
+        
+        # Volatility clustering
+        df['volatility_cluster'] = (df['volatility'] > df['volatility'].shift(1)).astype(int)
+        
+        # 6. Signal context features
+        # How many consecutive signals
+        df['signal_consecutive'] = df['primary_signal'].rolling(5).sum()
+        
+        # Time since last signal
+        signal_idx = df[df['primary_signal'] == 1].index
+        if not signal_idx.empty:
+            # Convert to pandas Series for proper datetime operations
+            signal_series = pd.Series(signal_idx)
+            df['time_since_signal'] = df.index.to_series().apply(
+                lambda x: pd.Timedelta(x - signal_series[signal_series <= x].max()).total_seconds() / 3600 
+                if not pd.isna(signal_series[signal_series <= x].max()) else 24
+            )
+        else:
+            df['time_since_signal'] = 24
+        
+        # Normalize time since signal
+        df['time_since_signal_norm'] = df['time_since_signal'].clip(upper=24) / 24
+        
         return df
 
     def _add_time_features(self, df: pd.DataFrame) -> pd.DataFrame:

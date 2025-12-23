@@ -119,4 +119,10 @@ class TestCircuitBreaker:
         breaker.trip_time = datetime.utcnow() - timedelta(minutes=5)
         breaker.can_trade()  # Transition to half-open
         
-        assert breaker.state == Circ
+        assert breaker.state == CircuitState.HALF_OPEN
+        
+        # Failed recovery trade
+        breaker.attempt_recovery(trade_successful=False)
+        
+        assert breaker.state == CircuitState.OPEN
+        assert breaker.recovery_trades == 0

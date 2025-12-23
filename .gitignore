@@ -170,6 +170,8 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
+user_data/data/
+user_data/backtest_results/
 
 # ============================================================
 # BUILD

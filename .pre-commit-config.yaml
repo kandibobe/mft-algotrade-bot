@@ -38,6 +38,9 @@ repos:
       - id: check-json
         name: ✅ Check JSON syntax
 
+      - id: check-toml
+        name: ✅ Check TOML syntax
+
       - id: check-added-large-files
         name: 🚫 Prevent large files
         args: ['--maxkb=1000']

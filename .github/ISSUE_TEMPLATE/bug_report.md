@@ -1,38 +1,32 @@
 ---
-name: 🐛 Bug Report
-about: Report a bug to help us improve
-title: '[BUG] '
+name: Bug report
+about: Create a report to help us improve
+title: ''
 labels: bug
 assignees: ''
+
 ---
 
-## 🐛 Bug Description
-A clear and concise description of the bug.
+**Describe the bug**
+A clear and concise description of what the bug is.
 
-## 📋 Steps to Reproduce
+**To Reproduce**
+Steps to reproduce the behavior:
 1. Go to '...'
-2. Run command '...'
-3. See error
+2. Click on '...'
+3. Scroll down to '...'
+4. See error
 
-## ✅ Expected Behavior
-What you expected to happen.
+**Expected behavior**
+A clear and concise description of what you expected to happen.
 
-## ❌ Actual Behavior
-What actually happened.
+**Screenshots**
+If applicable, add screenshots to help explain your problem.
 
-## 📸 Screenshots
-If applicable, add screenshots.
+**Desktop (please complete the following information):**
+ - OS: [e.g. Ubuntu, Windows]
+ - Python Version [e.g. 3.10.2]
+ - Branch/Commit [e.g. main/a1b2c3d]
 
-## 🖥️ Environment
-- **OS**: [e.g., Ubuntu 22.04, Windows 11]
-- **Docker Version**: [e.g., 24.0.5]
-- **Python Version**: [e.g., 3.11]
-- **Freqtrade Version**: [e.g., 2024.1]
-
-## 📝 Additional Context
-Any other context about the problem.
-
-## 📋 Logs
-```
-Paste relevant logs here
-```
+**Additional context**
+Add any other context about the problem here.

@@ -1,365 +1,253 @@
-# 🏛️ Stoic Citadel - Professional Algorithmic Trading System
+# 🚀 Stoic Citadel - Production-Grade MFT Algotrade Bot
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Freqtrade](https://img.shields.io/badge/freqtrade-2024.11-green.svg)](https://www.freqtrade.io/)
-[![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
-[![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Testing: Pytest](https://img.shields.io/badge/testing-pytest-blue.svg)](https://docs.pytest.org/)
+<div align="center">
 
-> *"The wise man accepts losses with equanimity."* — Marcus Aurelius
+![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Build Status](https://img.shields.io/github/actions/workflow/status/kandibobe/mft-algotrade-bot/ci.yml?branch=main)
+![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)
+![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)
+![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
 
-**Stoic Citadel** is a production-ready algorithmic trading platform built on Freqtrade, featuring advanced machine learning, risk management, and professional-grade infrastructure.
+**A Production-Grade Mid-Frequency Trading Bot powered by XGBoost & Smart Execution**
 
-## 📋 Table of Contents
-- [✨ Features](#-features)
-- [🏗️ Architecture](#️-architecture)
-- [🚀 Quick Start](#-quick-start)
-- [📁 Project Structure](#-project-structure)
-- [📊 System Architecture](#-system-architecture)
-- [🛠️ Development](#️-development)
-- [🧪 Testing](#-testing)
-- [📈 Production Deployment](#-production-deployment)
-- [📄 License](#-license)
+[Quick Start](#-quick-start) • [Architecture](#-architecture) • [Features](#-features) • [Documentation](https://github.com/kandibobe/mft-algotrade-bot#readme)
 
-## ✨ Features
+</div>
 
-### 🎯 **Trading Engine**
-- **Ensemble ML Strategies** - Multiple ML models voting for robust signals
-- **Regime-Aware Trading** - Adapts to bull/bear/sideways markets
-- **Smart Order Execution** - Maker/taker optimization with fee savings
-- **Circuit Breaker Protection** - Automatic risk protection against catastrophic losses
-- **Dynamic Position Sizing** - ATR-based sizing with portfolio risk management
+## 📋 Overview
 
-### 🤖 **MLOps Pipeline**
-- **Feature Engineering** - 50+ technical indicators with proper stationarity
-- **Triple Barrier Labeling** - ML labels accounting for fees and holding periods
-- **Hyperparameter Optimization** - Optuna-based optimization with parallel execution
-- **Model Registry** - Versioned model management with production promotion
-- **Walk-Forward Validation** - Robust out-of-sample testing with sliding windows
+Stoic Citadel is a sophisticated algorithmic trading system designed for mid-frequency trading (MFT) across cryptocurrency markets. Built on top of FreqTrade with advanced machine learning capabilities, it combines traditional technical analysis with modern ML techniques for superior risk-adjusted returns.
 
-### 🛡️ **Production Infrastructure**
-- **Health Monitoring** - Kubernetes-ready health checks with FastAPI
-- **Structured Logging** - JSON logs for ELK stack integration
-- **Metrics & Dashboards** - Prometheus metrics with Grafana visualization
-- **Containerized Deployment** - Docker Compose for all services
-- **CI/CD Ready** - GitHub Actions workflows for automated testing
+### 🎯 Key Features
 
-### 📊 **Validation & Testing**
-- **190+ Unit Tests** - Comprehensive test coverage
-- **Property-Based Testing** - Hypothesis for robust validation
-- **Load Testing** - Locust-based performance testing
-- **Integration Testing** - End-to-end trading flow validation
+- **🤖 ML-Powered Signals**: XGBoost, LightGBM, and ensemble models for predictive trading
+- **⚡ Smart Execution**: Intelligent limit order placement with dynamic slippage management
+- **📊 Advanced Risk Management**: Circuit breakers, correlation monitoring, and position sizing
+- **🔬 Feature Engineering**: 100+ technical indicators with automated feature selection
+- **📈 Walk-Forward Optimization**: Robust out-of-sample validation framework
+- **🐳 Production Ready**: Docker, Kubernetes, and comprehensive monitoring (Prometheus/Grafana)
+- **🔒 Security First**: Built-in security scanning, secret management, and audit trails
 
 ## 🏗️ Architecture
 
 ```mermaid
 graph TB
-    subgraph "Data Layer"
-        A[Exchange APIs] --> B[Data Stream]
-        B --> C[Feature Store]
-        C --> D[Real-time Features]
+    A[Exchange Data] --> B[FreqTrade Engine]
+    B --> C[Feature Engineering]
+    C --> D[ML Model Inference]
+    D --> E[Signal Generation]
+    E --> F[Smart Limit Executor]
+    F --> G[Order Management]
+    G --> H[Risk Management]
+    H --> I[Exchange Execution]
+    
+    subgraph "Monitoring & Observability"
+        J[Prometheus Metrics]
+        K[Grafana Dashboards]
+        L[Structured Logging ELK]
     end
     
     subgraph "ML Pipeline"
-        D --> E[Feature Engineering]
-        E --> F[Model Training]
-        F --> G[Hyperparameter Optimization]
-        G --> H[Model Registry]
+        M[Data Labeling]
+        N[Model Training]
+        O[Hyperparameter Optimization]
+        P[Model Registry]
     end
     
-    subgraph "Trading Engine"
-        I[Market Data] --> J[Signal Generation]
-        H --> J
-        J --> K[Risk Management]
-        K --> L[Order Execution]
-        L --> M[Position Management]
-    end
-    
-    subgraph "Monitoring"
-        N[Health Checks]
-        O[Metrics Export]
-        P[Structured Logging]
-        Q[Alerting]
-    end
-    
+    C --> M
     M --> N
-    M --> O
-    M --> P
-    O --> Q
-    
-    style A fill:#e1f5fe
-    style H fill:#f3e5f5
-    style L fill:#e8f5e8
-    style Q fill:#ffebee
+    N --> O
+    O --> P
+    P --> D
 ```
+
+## 🗺️ Roadmap
+
+- [ ] **Phase 1: Foundation (Done)**
+  - [x] Basic Freqtrade integration
+  - [x] Docker support
+  - [x] Initial ML pipeline
+- [ ] **Phase 2: Advanced ML (In Progress)**
+  - [x] XGBoost integration
+  - [ ] Transformer models for time-series
+  - [ ] Reinforcement Learning (PPO)
+- [ ] **Phase 3: Scaling & Reliability**
+  - [ ] Kubernetes Helm charts
+  - [ ] Multi-exchange arbitration
+  - [ ] Advanced execution algorithms (TWAP/VWAP)
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Docker & Docker Compose
-- Python 3.11+ (for development)
+- Python 3.10+ or Docker
 - Git
+- (Optional) TA-Lib for technical indicators
 
-### 1. Clone & Setup
+### Installation
 
 ```bash
-# Clone repository
+# 1. Clone the repository
 git clone https://github.com/kandibobe/mft-algotrade-bot.git
 cd mft-algotrade-bot
 
-# Copy environment template
+# 2. Install dependencies
+make install
+
+# 3. Configure your environment
 cp .env.example .env
+# Edit .env with your exchange API keys
 
-# Edit with your credentials
-nano .env  # Add exchange API keys
-```
+# 4. Download historical data
+python scripts/download_data.py --days 30
 
-### 2. Start Services
-
-```bash
-# Using Makefile (recommended)
-make setup      # Install dependencies
-make start      # Start all services
-
-# Or using Docker Compose directly
-docker-compose up -d
-```
-
-### 3. Access Dashboards
-
-- **FreqUI Trading Interface**: http://localhost:3000
-- **Jupyter Lab (Research)**: http://localhost:8888
-- **Grafana Metrics**: http://localhost:3001
-- **Prometheus**: http://localhost:9090
-
-### 4. Run Your First Backtest
-
-```bash
-# Using Makefile
+# 5. Run a backtest
 make backtest
+```
 
-# Or directly
-docker-compose exec freqtrade freqtrade backtesting --config user_data/config/config_backtest.json --strategy StoicEnsembleStrategyV4
+### Docker Quick Start
+
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+
+# Or run specific services
+docker-compose -f docker-compose.monitoring.yml up
 ```
 
 ## 📁 Project Structure
 
 ```
 mft-algotrade-bot/
-├── 📁 src/                          # Source code
-│   ├── 📁 config/                   # Configuration management
-│   ├── 📁 data/                     # Data loading & processing
-│   ├── 📁 ml/                       # Machine learning pipeline
-│   │   ├── 📁 training/             # Model training & optimization
-│   │   └── feature_store.py         # Feature storage & retrieval
-│   ├── 📁 monitoring/               # Health checks & metrics
-│   ├── 📁 order_manager/            # Order execution system
-│   ├── 📁 risk/                     # Risk management
-│   ├── 📁 strategies/               # Trading strategies
-│   ├── 📁 utils/                    # Utilities & helpers
-│   └── 📁 websocket/                # WebSocket connections
-├── 📁 scripts/                      # Utility scripts
-│   ├── backtest.py                  # Backtesting utilities
-│   ├── preflight_check.py           # Environment validation
-│   ├── train_models.py              # ML model training
-│   └── walk_forward_analysis.py     # Walk-forward validation
-├── 📁 tests/                        # Test suite (190+ tests)
-├── 📁 user_data/                    # Freqtrade user data
-│   ├── 📁 config/                   # Trading configurations
-│   ├── 📁 strategies/               # Trading strategies
-│   ├── 📁 models/                   # Trained ML models
-│   └── 📁 data/                     # Historical market data
-├── 📁 docs/                         # Documentation
-├── 📁 examples/                     # Usage examples
-├── 📁 notebooks/                    # Jupyter notebooks
-├── 📁 reports/                      # Analysis reports
-├── 📁 monitoring/                   # Monitoring configuration
-├── 📁 mcp_servers/                  # MCP servers for external tools
-├── 📄 .env.example                  # Environment template
-├── 📄 .gitignore                    # Git ignore rules
-├── 📄 docker-compose.yml            # Production services
-├── 📄 Dockerfile                    # Application container
-├── 📄 Makefile                      # Development commands
-├── 📄 pyproject.toml                # Python project configuration
-├── 📄 requirements.txt              # Production dependencies
-├── 📄 requirements-dev.txt          # Development dependencies
-└── 📄 README.md                     # This file
+├── src/                    # Source code (Python src-layout)
+│   ├── config/            # Configuration management
+│   ├── data/              # Data loading and preprocessing
+│   ├── ml/                # Machine learning pipeline
+│   ├── order_manager/     # Smart execution and order management
+│   ├── risk/              # Risk management systems
+│   ├── signals/           # Signal generation
+│   ├── strategies/        # Trading strategies
+│   ├── utils/             # Utilities and helpers
+│   └── websocket/         # Real-time data streaming
+├── tests/                 # Comprehensive test suite
+├── scripts/               # Utility scripts
+├── config/                # Configuration files
+├── user_data/             # User data (gitignored)
+├── monitoring/            # Prometheus/Grafana configs
+├── docker/                # Docker configurations
+├── docs/                  # Documentation
+└── examples/              # Usage examples
 ```
 
-## 📊 System Architecture
+## 🔧 Development
 
-### Data Flow
-1. **Data Ingestion**: Real-time market data from exchanges via WebSocket
-2. **Feature Engineering**: Calculate technical indicators and ML features
-3. **Signal Generation**: ML models predict trading signals
-4. **Risk Assessment**: Position sizing and risk checks
-5. **Order Execution**: Smart order routing with fee optimization
-6. **Monitoring**: Real-time performance tracking and alerts
-
-### ML Pipeline
-- **Training**: Walk-forward cross-validation to prevent look-ahead bias
-- **Validation**: Triple barrier labeling with realistic trading costs
-- **Deployment**: Model registry with version control and A/B testing
-- **Monitoring**: Prediction drift detection and model performance tracking
-
-## 🛠️ Development
-
-### Using Makefile (Recommended)
+### Setup Development Environment
 
 ```bash
-# Setup development environment
-make setup
+# Install development dependencies
+make install-dev
+
+# Run code quality checks
+make lint
+
+# Run tests
+make test
 
 # Format code
 make format
 
-# Run tests
-make test
-
-# Run type checking
-make type-check
-
-# Train ML models
-make train
-
-# Run backtest
-make backtest
-
-# Start live trading (dry-run)
-make trade
+# Run security scans
+make security
 ```
 
-### Manual Commands
+### Available Make Commands
+
+| Command | Description |
+|---------|-------------|
+| `make install` | Install production dependencies |
+| `make install-dev` | Install all development dependencies |
+| `make lint` | Run Ruff linter and type checking |
+| `make format` | Format code with Black and isort |
+| `make test` | Run test suite with coverage |
+| `make security` | Run security scans (Bandit, Safety) |
+| `make backtest` | Run a quick backtest |
+| `make docker-up` | Start Docker services |
+| `make clean` | Clean build artifacts and caches |
+
+## 📊 Performance & Monitoring
+
+The bot includes comprehensive monitoring:
+
+- **Real-time Metrics**: Prometheus exporter for trading metrics
+- **Dashboard**: Grafana dashboard for visualization
+- **Health Checks**: Automated system health monitoring
+- **Structured Logging**: ELK-compatible JSON logging
+- **Alerting**: AlertManager integration for critical events
 
 ```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Start monitoring stack
+docker-compose -f docker-compose.monitoring.yml up
 
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-
-# Run tests
-pytest tests/ -v
-
-# Type checking
-mypy src/
-
-# Code formatting
-black src/ tests/
-isort src/ tests/
+# Access dashboards:
+# - Grafana: http://localhost:3000
+# - Prometheus: http://localhost:9090
 ```
-
-## 🧪 Testing
-
-### Test Categories
-- **Unit Tests**: Individual component testing
-- **Integration Tests**: End-to-end trading flow
-- **Property-Based Tests**: Hypothesis for edge cases
-- **Load Tests**: Performance under high frequency
-- **ML Tests**: Data leakage prevention and model validation
-
-### Running Tests
-
-```bash
-# Run all tests
-make test
-
-# Run specific test categories
-pytest tests/test_ml/ -v           # ML pipeline tests
-pytest tests/test_order_manager/ -v # Order management tests
-pytest tests/test_risk/ -v         # Risk management tests
-
-# Run with coverage
-make coverage
-
-# Run load tests
-python -m locust -f tests/load_test.py
-```
-
-## 📈 Production Deployment
-
-### 1. Configuration
-
-```bash
-# Copy and configure environment
-cp .env.example .env.production
-# Edit with production values:
-# - Exchange API keys
-# - Database credentials
-# - Monitoring endpoints
-```
-
-### 2. Deployment
-
-```bash
-# Using Docker Compose
-docker-compose -f docker-compose.yml -f docker-compose.production.yml up -d
-
-# Or using Kubernetes
-kubectl apply -f k8s/
-```
-
-### 3. Monitoring Setup
-
-1. **Metrics**: Prometheus scrapes application metrics
-2. **Logging**: ELK stack for structured logs
-3. **Alerting**: Alertmanager for critical notifications
-4. **Dashboards**: Grafana for visualization
-
-### 4. Health Checks
-
-```bash
-# Check system health
-curl http://localhost:8000/health
-
-# Check readiness
-curl http://localhost:8000/ready
-
-# Check metrics
-curl http://localhost:8000/metrics
-```
-
-## ⚠️ Risk Disclaimer
-
-**Trading cryptocurrencies carries significant risk of loss. This software is provided for educational purposes only.**
-
-- ❌ **Do not trade with money you cannot afford to lose**
-- ❌ **Past performance does not guarantee future results**
-- ❌ **Always test strategies thoroughly in dry-run mode first**
-- ✅ **Start with small amounts and gradually scale**
-- ✅ **Use proper risk management and position sizing**
-
-## 📄 License
-
-This project contains proprietary trading strategies and ML models. Unauthorized use, distribution, or modification is strictly prohibited.
-
-See [LICENSE](LICENSE) for complete terms and conditions.
 
 ## 🤝 Contributing
 
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+### Development Standards
+- Follow [PEP 8](https://peps.python.org/pep-0008/) style guide
+- Use type hints for all function signatures
+- Write comprehensive tests for new features
+- Update documentation accordingly
+- Run `make lint` and `make test` before submitting PRs
 
-## 📧 Support
+## 📚 Documentation
 
-- **Documentation**: [docs/](docs/) directory
-- **Issue Tracker**: [GitHub Issues](https://github.com/kandibobe/mft-algotrade-bot/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/kandibobe/mft-algotrade-bot/discussions)
+- [📖 Advanced Pipeline Guide](docs/ADVANCED_PIPELINE_GUIDE.md) - ML pipeline architecture
+- [⚙️ Configuration Guide](docs/API_SETUP_RU.md) - API setup and configuration
+- [🛡️ Risk Management](docs/ORDER_MANAGEMENT.md) - Order and risk management
+- [🧪 Testing Guide](docs/TESTING_GUIDE.md) - Testing strategies and best practices
+- [🐳 Deployment Guide](docs/deployment.md) - Production deployment
+
+## ⚠️ Risk Disclaimer
+
+**TRADING INVOLVES SUBSTANTIAL RISK OF LOSS**
+
+This software is for educational and research purposes only. Past performance does not guarantee future results.
+
+- **Not Financial Advice**: This bot is not financial advice. Use at your own risk.
+- **Capital Risk**: You can lose all your invested capital.
+- **Technical Risk**: Software bugs, exchange API failures, and network issues can cause losses.
+- **Regulatory Risk**: Cryptocurrency regulations vary by jurisdiction and may change.
+
+**NEVER TRADE WITH MONEY YOU CANNOT AFFORD TO LOSE.**
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [FreqTrade](https://www.freqtrade.io/) - The open-source trading framework
+- [CCXT](https://github.com/ccxt/ccxt) - Crypto exchange trading library
+- [XGBoost](https://xgboost.ai/) - Gradient boosting framework
+- All contributors and testers of the Stoic Citadel project
 
 ---
 
-**🏛️ Stoic Citadel** - Trade with wisdom, not emotion.
+<div align="center">
 
-**Status**: ✅ Production Ready  
-**Version**: 2.3.0  
-**Last Updated**: 2025-12-23  
-**Test Coverage**: 190+ tests passing  
-**ML Pipeline**: Complete with walk-forward validation  
-**Infrastructure**: Containerized with full monitoring
+**Built with ❤️ by the Stoic Citadel Team**
+
+[Report Bug](https://github.com/kandibobe/mft-algotrade-bot/issues) · [Request Feature](https://github.com/kandibobe/mft-algotrade-bot/issues)
+
+</div>

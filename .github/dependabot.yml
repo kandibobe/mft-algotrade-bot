@@ -1,40 +1,18 @@
 version: 2
 updates:
-  # Python dependencies
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "python"
-    commit-message:
-      prefix: "deps(python):"
-
-  # Docker dependencies
+    groups:
+      dependencies:
+        patterns:
+          - "*"
   - package-ecosystem: "docker"
-    directory: "/docker"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-    labels:
-      - "dependencies"
-      - "docker"
-    commit-message:
-      prefix: "deps(docker):"
-
-  # GitHub Actions
-  - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-    labels:
-      - "dependencies"
-      - "ci"
-    commit-message:
-      prefix: "deps(actions):"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"

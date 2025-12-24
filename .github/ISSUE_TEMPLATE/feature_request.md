@@ -1,27 +1,20 @@
 ---
-name: 💡 Feature Request
-about: Suggest a new feature or improvement
-title: '[FEATURE] '
+name: Feature request
+about: Suggest an idea for this project
+title: ''
 labels: enhancement
 assignees: ''
+
 ---
 
-## 💡 Feature Description
-A clear description of the feature you'd like.
+**Is your feature request related to a problem? Please describe.**
+A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
 
-## 🎯 Use Case
-Why is this feature needed? What problem does it solve?
+**Describe the solution you'd like**
+A clear and concise description of what you want to happen.
 
-## 📝 Proposed Solution
-How do you think this should work?
+**Describe alternatives you've considered**
+A clear and concise description of any alternative solutions or features you've considered.
 
-## 🔄 Alternatives Considered
-Any alternative solutions you've considered.
-
-## 📋 Additional Context
-Any other context, mockups, or examples.
-
-## ✅ Acceptance Criteria
-- [ ] Criterion 1
-- [ ] Criterion 2
-- [ ] Criterion 3
+**Additional context**
+Add any other context or screenshots about the feature request here.

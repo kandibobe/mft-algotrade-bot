@@ -6,7 +6,7 @@
 # ==============================================================================
 
 # Stage 1: Builder - install dependencies and build wheels
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 
 # Install system dependencies for building Python packages
 RUN apt-get update && apt-get install -y \
@@ -42,7 +42,7 @@ RUN pip install --upgrade pip && \
     pip install -e .
 
 # Stage 2: Runner - minimal production image
-FROM python:3.11-slim AS runner
+FROM python:3.14-slim AS runner
 
 # Install runtime dependencies only (no build tools)
 RUN apt-get update && apt-get install -y \

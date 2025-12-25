@@ -64,15 +64,15 @@ graph TB
 
 ## 🗺️ Roadmap
 
-- [ ] **Phase 1: Foundation (Done)**
+- [x] **Phase 1: Foundation (Done)**
   - [x] Basic Freqtrade integration
   - [x] Docker support
   - [x] Initial ML pipeline
-- [ ] **Phase 2: Advanced ML (In Progress)**
+- [x] **Phase 2: Advanced ML (Done)**
   - [x] XGBoost integration
-  - [ ] Transformer models for time-series
-  - [ ] Reinforcement Learning (PPO)
-- [ ] **Phase 3: Scaling & Reliability**
+  - [x] Stoic Ensemble Strategy V4 (Dynamic Thresholding)
+  - [x] Feature Engineering Pipeline
+- [ ] **Phase 3: Scaling & Reliability (In Progress)**
   - [ ] Kubernetes Helm charts
   - [ ] Multi-exchange arbitration
   - [ ] Advanced execution algorithms (TWAP/VWAP)

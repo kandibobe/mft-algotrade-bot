@@ -61,16 +61,26 @@ def calculate_sma(series: pd.Series, period: int = 20) -> pd.Series:
 
 def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
     """
-    Calculate Relative Strength Index.
+    Calculate Relative Strength Index (RSI).
+    
+    RSI is a momentum oscillator that measures the speed and change of price movements.
+    It oscillates between 0 and 100. Traditionally, RSI is considered overbought when above 70 
+    and oversold when below 30.
 
-    Vectorized implementation using exponential weighted moving average.
+    Financial Logic:
+    - RSI > 70: Price has risen rapidly and may correct (Overbought).
+    - RSI < 30: Price has fallen rapidly and may rebound (Oversold).
+    - RSI crossing 50: Often indicates a trend reversal.
+
+    Implementation:
+    Vectorized implementation using exponential weighted moving average (Wilder's smoothing).
 
     Args:
-        series: Price series (typically close)
-        period: RSI period (default 14)
+        series: Price series (typically close prices).
+        period: Lookback period (standard is 14).
 
     Returns:
-        RSI series (0-100 scale)
+        pd.Series: RSI values on 0-100 scale.
     """
     # Calculate price changes
     delta = series.diff()
@@ -94,16 +104,26 @@ def calculate_macd(
     series: pd.Series, fast_period: int = 12, slow_period: int = 26, signal_period: int = 9
 ) -> Dict[str, pd.Series]:
     """
-    Calculate MACD (Moving Average Convergence Divergence).
+    Calculate Moving Average Convergence Divergence (MACD).
+    
+    MACD is a trend-following momentum indicator that shows the relationship between 
+    two moving averages of a security's price.
+
+    Financial Logic:
+    - MACD Line: Difference between Fast EMA (12) and Slow EMA (26).
+    - Signal Line: 9-day EMA of the MACD Line.
+    - Histogram: Difference between MACD Line and Signal Line.
+    - Crossovers: MACD crossing above Signal line is bullish; below is bearish.
+    - Divergence: Price making new highs while MACD makes lower highs suggests reversal.
 
     Args:
-        series: Price series
-        fast_period: Fast EMA period (default 12)
-        slow_period: Slow EMA period (default 26)
-        signal_period: Signal line period (default 9)
+        series: Price series.
+        fast_period: Short-term EMA period (standard 12).
+        slow_period: Long-term EMA period (standard 26).
+        signal_period: EMA period for the Signal line (standard 9).
 
     Returns:
-        Dict with keys: 'macd', 'signal', 'histogram'
+        Dict[str, pd.Series]: Dictionary containing 'macd', 'signal', and 'histogram' series.
     """
     # Calculate EMAs
     ema_fast = calculate_ema(series, fast_period)
@@ -123,16 +143,25 @@ def calculate_macd(
 
 def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
     """
-    Calculate Average True Range.
+    Calculate Average True Range (ATR).
+    
+    ATR is a market volatility indicator derived from the 14-day moving average of a series of 
+    true range indicators. It does not provide an indication of price direction, just the 
+    degree of price volatility.
+
+    Financial Logic:
+    - High ATR: High volatility (large candles, rapid movement).
+    - Low ATR: Low volatility (small candles, consolidation).
+    - Used for: Setting stop losses (e.g., 2x ATR), position sizing (volatility targeting).
 
     Args:
-        high: High price series
-        low: Low price series
-        close: Close price series
-        period: ATR period
+        high: High price series.
+        low: Low price series.
+        close: Close price series.
+        period: Lookback period (standard 14).
 
     Returns:
-        ATR series
+        pd.Series: ATR values representing average price movement range.
     """
     # Previous close
     prev_close = close.shift(1)

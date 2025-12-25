@@ -1,0 +1,43 @@
+{
+  "strategy_name": "StoicEnsembleStrategyV4",
+  "params": {
+    "stoploss": {
+      "stoploss": -0.073
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "buy_adx": 18,
+      "buy_bb_width_min": 0.019,
+      "buy_rsi": 39,
+      "entry_prob_percentile": 94,
+      "entry_prob_window": 2016,
+      "ml_weight": 0.416
+    },
+    "sell": {
+      "atr_exit_mult": 2.99,
+      "atr_stop_mult": 1.472,
+      "exit_decay_end_profit": 0.005,
+      "exit_decay_start_profit": 0.02,
+      "max_hold_duration": 342,
+      "opt_stoploss": -0.073,
+      "sell_hold_time": 44,
+      "sell_rsi": 84
+    },
+    "roi": {
+      "0": 0.255,
+      "25": 0.085,
+      "62": 0.03,
+      "172": 0
+    },
+    "trailing": {
+      "trailing_stop": true,
+      "trailing_stop_positive": 0.032,
+      "trailing_stop_positive_offset": 0.085,
+      "trailing_only_offset_is_reached": false
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2025-12-24 18:18:52.284619+00:00"
+}

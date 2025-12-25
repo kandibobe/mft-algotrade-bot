@@ -487,7 +487,20 @@ class FeatureEngineer:
         
         # Apply log returns if configured (simpler alternative)
         elif self.config.use_log_returns:
-            result['log_returns'] = np.log(result['close'] / result['close'].shift(1)).fillna(0)
+            try:
+                # Safe log calculation
+                # Ensure close prices are positive and non-zero to avoid log errors
+                close_prices = result['close'].replace(0, np.nan).ffill()
+                prev_close = close_prices.shift(1)
+                
+                # Clip ratio to avoid extreme values (though unlikely with price data)
+                price_ratio = close_prices / prev_close
+                price_ratio = price_ratio.clip(lower=1e-9)
+                
+                result['log_returns'] = np.log(price_ratio).fillna(0)
+            except Exception as e:
+                logger.error(f"Error calculating log_returns: {e}")
+                result['log_returns'] = result['close'].pct_change(fill_method=None).fillna(0)
             
             # For feature engineering, we can use log returns directly
             # or create a cumulative sum for a stationary price-like series
@@ -531,13 +544,34 @@ class FeatureEngineer:
         if self.config.include_time_features:
             result = self._add_time_features(result)
 
+        # Prevent massive data loss due to rolling windows by backfilling initial NaNs
+        # Rolling windows create NaNs at the start. If we don't fill them,
+        # _apply_aggressive_cleaning will drop all these rows (potentially 40%+ of data).
+        
+        # FIX: Replace Inf with NaN first, so they can be filled
+        numeric_cols = result.select_dtypes(include=[np.number]).columns
+        result[numeric_cols] = result[numeric_cols].replace([np.inf, -np.inf], np.nan)
+        
+        # We forward fill first (to fill gaps) then backfill (to fill initial NaNs)
+        result = result.ffill().bfill()
+
         return result
 
     def _add_price_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add price-based features with lag features and rolling statistics."""
         # Returns
         df["returns"] = df["close"].pct_change(fill_method=None)
-        df["returns_log"] = np.log(df["close"] / df["close"].shift(1))
+        
+        try:
+            # Safe log returns
+            # Use log1p(pct_change) which is equivalent to log(close/prev_close) but safer for small changes
+            # log(close/prev) = log((prev + diff)/prev) = log(1 + diff/prev) = log1p(pct_change)
+            # Ensure returns are > -1 to avoid log errors
+            safe_returns = df["returns"].clip(lower=-0.999999)
+            df["returns_log"] = np.log1p(safe_returns)
+        except Exception as e:
+            logger.warning(f"Error calculating returns_log: {e}. Using simple returns.")
+            df["returns_log"] = df["returns"]
         
         # Multiple timeframes returns
         for period in [2, 3, 5, 10, 20]:
@@ -797,14 +831,62 @@ class FeatureEngineer:
             # Calculate hours since last signal
             # Convert to Timedelta and get total seconds for each element
             time_diffs = df.index - last_signal_times_ffilled
-            df['time_since_signal'] = time_diffs.apply(lambda td: td.total_seconds() / 3600 if pd.notna(td) else 24)
+            
+            def get_hours(td):
+                if pd.isna(td):
+                    return 24.0
+                if hasattr(td, 'total_seconds'):
+                    return td.total_seconds() / 3600.0
+                try:
+                    # Try to convert to float (assuming it might be seconds/nanoseconds)
+                    # If index is timestamp (int/float), difference is number
+                    val = float(td)
+                    # Heuristic: if value is huge, it's likely ms or ns
+                    if val > 1e12: # nanoseconds
+                        return val / 1e9 / 3600.0
+                    elif val > 1e9: # milliseconds
+                        return val / 1000.0 / 3600.0
+                    else: # seconds
+                        return val / 3600.0
+                except (ValueError, TypeError):
+                    return 24.0
+
+            df['time_since_signal'] = time_diffs.apply(get_hours)
             # Fill any remaining NaN values with 24 hours
             df['time_since_signal'] = df['time_since_signal'].fillna(24)
         else:
             df['time_since_signal'] = 24
         
         # Normalize time since signal
-        df['time_since_signal_norm'] = df['time_since_signal'].clip(upper=24) / 24
+        # We start collecting new features here to avoid fragmentation
+        new_features = {}
+        
+        new_features['time_since_signal_norm'] = df['time_since_signal'].clip(upper=24) / 24
+        
+        # 7. Additional meta-features as requested
+        # Volatility Z-Score: How many standard deviations current volatility is from its mean
+        if 'volatility' in df.columns:
+            # Calculate rolling mean and std of volatility
+            vol_mean = df['volatility'].rolling(window=100).mean()
+            vol_std = df['volatility'].rolling(window=100).std()
+            new_features['volatility_zscore'] = (df['volatility'] - vol_mean) / (vol_std + 1e-10)
+            logger.debug("Added volatility_zscore feature")
+        
+        # Volume Shock: Abnormal volume relative to recent history
+        if 'volume' in df.columns:
+            # Calculate rolling statistics for volume
+            volume_mean = df['volume'].rolling(window=20).mean()
+            volume_std = df['volume'].rolling(window=20).std()
+            # Volume shock is how many standard deviations current volume is from mean
+            new_features['volume_shock'] = (df['volume'] - volume_mean) / (volume_std + 1e-10)
+            # Also create a binary indicator for extreme volume shocks (> 2 std devs)
+            new_features['volume_shock_extreme'] = (new_features['volume_shock'].abs() > 2).astype(int)
+            logger.debug("Added volume_shock and volume_shock_extreme features")
+        
+        # Batch add new features to avoid fragmentation
+        if new_features:
+            new_features_df = pd.DataFrame(new_features, index=df.index)
+            df = pd.concat([df, new_features_df], axis=1)
         
         return df
 
@@ -814,15 +896,29 @@ class FeatureEngineer:
             return df
 
         # Hour, day of week, month
-        df["hour"] = df.index.hour
-        df["day_of_week"] = df.index.dayofweek
-        df["month"] = df.index.month
+        hour = df.index.hour
+        day_of_week = df.index.dayofweek
+        month = df.index.month
 
         # Cyclical encoding (sin/cos for periodicity)
-        df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
-        df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
-        df["day_sin"] = np.sin(2 * np.pi * df["day_of_week"] / 7)
-        df["day_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
+        hour_sin = np.sin(2 * np.pi * hour / 24)
+        hour_cos = np.cos(2 * np.pi * hour / 24)
+        day_sin = np.sin(2 * np.pi * day_of_week / 7)
+        day_cos = np.cos(2 * np.pi * day_of_week / 7)
+
+        # Create a new DataFrame with all time features to avoid fragmentation
+        time_features = pd.DataFrame({
+            "hour": hour,
+            "day_of_week": day_of_week,
+            "month": month,
+            "hour_sin": hour_sin,
+            "hour_cos": hour_cos,
+            "day_sin": day_sin,
+            "day_cos": day_cos
+        }, index=df.index)
+
+        # Concatenate with original df to avoid fragmentation
+        df = pd.concat([df, time_features], axis=1)
 
         return df
 
@@ -994,7 +1090,13 @@ class FeatureEngineer:
             path: Path to load scaler from
         """
         input_path = Path(path)
-        scaler_data = joblib.load(input_path)
+        # Use mmap_mode='r' to share memory across processes (crucial for Hyperopt)
+        try:
+            scaler_data = joblib.load(input_path, mmap_mode='r')
+        except Exception:
+            # Fallback if mmap fails (e.g. compressed file)
+            logger.warning(f"Failed to mmap scaler from {path}, loading into RAM")
+            scaler_data = joblib.load(input_path)
 
         self.scaler = scaler_data["scaler"]
         self._scaled_feature_cols = scaler_data["feature_cols"]

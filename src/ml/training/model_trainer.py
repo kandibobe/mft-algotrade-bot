@@ -11,7 +11,7 @@ import pickle
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -73,7 +73,7 @@ class ModelTrainer:
         model, metrics = trainer.train(X_train, y_train, X_val, y_val)
     """
 
-    def __init__(self, config: Optional[TrainingConfig] = None):
+    def __init__(self, config: Optional[TrainingConfig] = None) -> None:
         """
         Initialize model trainer.
 
@@ -81,9 +81,9 @@ class ModelTrainer:
             config: Training configuration
         """
         self.config = config or TrainingConfig()
-        self.model = None
-        self.feature_importance = None
-        self.training_history = []
+        self.model: Any = None
+        self.feature_importance: Optional[pd.DataFrame] = None
+        self.training_history: List[Any] = []
 
         # Create models directory
         Path(self.config.models_dir).mkdir(parents=True, exist_ok=True)
@@ -94,7 +94,7 @@ class ModelTrainer:
         y: pd.Series,
         X_val: Optional[pd.DataFrame] = None,
         y_val: Optional[pd.Series] = None,
-    ) -> tuple[Any, Dict[str, float]]:
+    ) -> Tuple[Any, Dict[str, float]]:
         """
         Train model.
 
@@ -105,7 +105,7 @@ class ModelTrainer:
             y_val: Validation labels (optional)
 
         Returns:
-            (model, metrics)
+            Tuple containing (model, metrics)
         """
         logger.info(f"Training {self.config.model_type} model...")
         logger.info(f"Training samples: {len(X)}, Features: {X.shape[1]}")
@@ -137,23 +137,25 @@ class ModelTrainer:
         self._calculate_feature_importance(X)
 
         # Evaluate
-        metrics = self._evaluate(X_val, y_val)
+        if X_val is not None and y_val is not None:
+            metrics = self._evaluate(X_val, y_val)
+        else:
+            metrics = {}
 
         # Save model
         if self.config.save_model:
             self._save_model(metrics)
 
-        logger.info(f"Training complete. Validation F1: {metrics['f1']:.4f}")
+        logger.info(f"Training complete. Validation F1: {metrics.get('f1', 0.0):.4f}")
 
         return self.model, metrics
 
-    def _create_model(self, **hyperparams) -> Any:
+    def _create_model(self, **hyperparams: Any) -> Any:
         """Create model with given hyperparameters."""
         if self.config.model_type == "random_forest":
             from sklearn.ensemble import RandomForestClassifier
 
             # Add class_weight='balanced' to handle class imbalance
-            # This gives higher weight to minority class
             if 'class_weight' not in hyperparams:
                 hyperparams['class_weight'] = 'balanced'
             
@@ -163,8 +165,6 @@ class ModelTrainer:
         elif self.config.model_type == "xgboost":
             import xgboost as xgb
 
-            # For XGBoost, use scale_pos_weight parameter for class imbalance
-            # This will be calculated dynamically based on class distribution
             # Default regularization parameters to prevent overfitting
             default_params = {
                 'max_depth': 3,
@@ -184,7 +184,6 @@ class ModelTrainer:
         elif self.config.model_type == "lightgbm":
             import lightgbm as lgb
 
-            # LightGBM automatically handles class imbalance with is_unbalance parameter
             return lgb.LGBMClassifier(
                 random_state=self.config.random_state, n_jobs=-1, **hyperparams
             )
@@ -193,11 +192,11 @@ class ModelTrainer:
 
     def _optimize_hyperparams(
         self, X: pd.DataFrame, y: pd.Series, X_val: pd.DataFrame, y_val: pd.Series
-    ) -> tuple[Any, Dict]:
+    ) -> Tuple[Any, Dict[str, Any]]:
         """Optimize hyperparameters using Optuna."""
         import optuna
 
-        def objective(trial):
+        def objective(trial: optuna.Trial) -> float:
             # Suggest hyperparameters based on model type
             if self.config.model_type == "random_forest":
                 params = {
@@ -255,7 +254,7 @@ class ModelTrainer:
 
     def _select_features(
         self, X_train: pd.DataFrame, y_train: pd.Series, X_val: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Select most important features."""
         from sklearn.ensemble import RandomForestClassifier
         from sklearn.feature_selection import SelectFromModel
@@ -282,12 +281,12 @@ class ModelTrainer:
         )
 
         logger.info(
-            f"Selected {X_train_selected.shape[1]} features " f"from {X_train.shape[1]} total"
+            f"Selected {X_train_selected.shape[1]} features from {X_train.shape[1]} total"
         )
 
         return X_train_selected, X_val_selected
 
-    def _calculate_feature_importance(self, X: pd.DataFrame):
+    def _calculate_feature_importance(self, X: pd.DataFrame) -> None:
         """Calculate and store feature importance."""
         if hasattr(self.model, "feature_importances_"):
             importance = pd.DataFrame(
@@ -326,7 +325,7 @@ class ModelTrainer:
 
         return metrics
 
-    def _save_model(self, metrics: Dict[str, float]):
+    def _save_model(self, metrics: Dict[str, float]) -> None:
         """Save trained model to disk."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         model_name = f"{self.config.model_type}_{timestamp}.pkl"
@@ -377,7 +376,9 @@ class ModelTrainer:
 
         tscv = TimeSeriesSplit(n_splits=self.config.n_splits)
 
-        cv_metrics = {"accuracy": [], "precision": [], "recall": [], "f1": []}
+        cv_metrics: Dict[str, List[float]] = {
+            "accuracy": [], "precision": [], "recall": [], "f1": []
+        }
 
         for fold, (train_idx, val_idx) in enumerate(tscv.split(X), 1):
             logger.info(f"Fold {fold}/{self.config.n_splits}")
@@ -392,14 +393,16 @@ class ModelTrainer:
             # Evaluate
             y_pred = model.predict(X_val)
 
-            cv_metrics["accuracy"].append(accuracy_score(y_val, y_pred))
+            cv_metrics["accuracy"].append(float(accuracy_score(y_val, y_pred)))
             cv_metrics["precision"].append(
-                precision_score(y_val, y_pred, average="weighted", zero_division=0)
+                float(precision_score(y_val, y_pred, average="weighted", zero_division=0))
             )
             cv_metrics["recall"].append(
-                recall_score(y_val, y_pred, average="weighted", zero_division=0)
+                float(recall_score(y_val, y_pred, average="weighted", zero_division=0))
             )
-            cv_metrics["f1"].append(f1_score(y_val, y_pred, average="weighted", zero_division=0))
+            cv_metrics["f1"].append(
+                float(f1_score(y_val, y_pred, average="weighted", zero_division=0))
+            )
 
         # Log results
         logger.info("Cross-validation results:")
@@ -410,7 +413,7 @@ class ModelTrainer:
 
         return cv_metrics
 
-    def load_model(self, model_path: str):
+    def load_model(self, model_path: str) -> None:
         """Load trained model from disk."""
         with open(model_path, "rb") as f:
             self.model = pickle.load(f)

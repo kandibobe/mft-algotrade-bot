@@ -2,16 +2,24 @@
 Stoic Citadel - Advanced Position Sizing
 =========================================
 
-Multiple position sizing methods:
-- Fixed Risk (Kelly Criterion variant)
-- Volatility-adjusted sizing
-- VaR-based sizing
-- Correlation-adjusted portfolio sizing
+This module implements institutional-grade position sizing logic.
+
+Financial Logic:
+----------------
+Position sizing is the primary determinant of long-term survival and profitability.
+- **Fixed Risk**: Risk a fixed % of account per trade (e.g., 1%).
+- **Volatility Adjusted**: Reduce size when asset volatility is high to maintain constant risk.
+- **VaR (Value at Risk)**: Limit size so that the 95% worst-case daily loss is within limits.
+- **Kelly Criterion**: Mathematically optimal size for maximum geometric growth (fractional).
+
+We default to a "Dynamic" method that takes the most conservative of Volatility and ATR-based sizing.
+
+Author: Stoic Citadel Team
 """
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -49,7 +57,13 @@ class PositionSizer:
     Advanced position sizing with multiple methods.
     """
 
-    def __init__(self, config: Optional[PositionSizingConfig] = None):
+    def __init__(self, config: Optional[PositionSizingConfig] = None) -> None:
+        """
+        Initialize PositionSizer.
+
+        Args:
+            config: Configuration object.
+        """
         self.config = config or PositionSizingConfig()
         self._correlation_matrix: Optional[pd.DataFrame] = None
         self._current_positions: Dict[str, float] = {}
@@ -60,22 +74,22 @@ class PositionSizer:
         entry_price: float,
         stop_loss_price: float,
         method: str = "fixed_risk",
-        **kwargs,
-    ) -> Dict[str, float]:
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
         """
         Calculate position size using specified method.
 
         Args:
-            account_balance: Total account balance
-            entry_price: Planned entry price
-            stop_loss_price: Stop loss price
-            method: Sizing method to use
-            **kwargs: Additional parameters for specific methods
+            account_balance: Total account balance.
+            entry_price: Planned entry price.
+            stop_loss_price: Stop loss price.
+            method: Sizing method to use ('fixed_risk', 'volatility', 'var', 'kelly', 'optimal').
+            **kwargs: Additional parameters for specific methods.
 
         Returns:
-            Dictionary with position details
+            Dictionary with position details.
         """
-        methods = {
+        methods: Dict[str, Callable] = {
             "fixed_risk": self._fixed_risk_size,
             "volatility": self._volatility_adjusted_size,
             "var": self._var_based_size,
@@ -110,8 +124,8 @@ class PositionSizer:
         entry_price: float,
         stop_loss_price: float,
         risk_pct: Optional[float] = None,
-        **kwargs,
-    ) -> Dict[str, float]:
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
         """
         Fixed risk position sizing.
 
@@ -145,8 +159,8 @@ class PositionSizer:
         stop_loss_price: float,
         current_volatility: Optional[float] = None,
         returns: Optional[pd.Series] = None,
-        **kwargs,
-    ) -> Dict[str, float]:
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
         """
         Volatility-adjusted position sizing.
 
@@ -157,12 +171,12 @@ class PositionSizer:
 
         # Calculate volatility scalar
         if current_volatility is None and returns is not None:
-            current_volatility = returns.std() * np.sqrt(252)  # Annualized
+            current_volatility = float(returns.std() * np.sqrt(252))  # Annualized
         elif current_volatility is None:
             current_volatility = self.config.target_volatility
 
         vol_scalar = self.config.target_volatility / max(current_volatility, 0.001)
-        vol_scalar = np.clip(vol_scalar, self.config.min_vol_scalar, self.config.max_vol_scalar)
+        vol_scalar = float(np.clip(vol_scalar, self.config.min_vol_scalar, self.config.max_vol_scalar))
 
         adjusted_size = base_result["position_size"] * vol_scalar
         adjusted_value = adjusted_size * entry_price
@@ -185,8 +199,8 @@ class PositionSizer:
         entry_price: float,
         stop_loss_price: float,
         returns: Optional[pd.Series] = None,
-        **kwargs,
-    ) -> Dict[str, float]:
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
         """
         VaR-based position sizing.
 
@@ -210,12 +224,11 @@ class PositionSizer:
         fixed_result = self._fixed_risk_size(account_balance, entry_price, stop_loss_price)
 
         # Use smaller of VaR and fixed risk
+        limiting_factor = "var"
         if position_size > fixed_result["position_size"]:
             position_size = fixed_result["position_size"]
             max_position_value = position_size * entry_price
             limiting_factor = "fixed_risk"
-        else:
-            limiting_factor = "var"
 
         return {
             "method": "var_based",
@@ -235,8 +248,8 @@ class PositionSizer:
         win_rate: float = 0.50,
         avg_win: float = 0.03,
         avg_loss: float = 0.02,
-        **kwargs,
-    ) -> Dict[str, float]:
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
         """
         Kelly Criterion position sizing.
 
@@ -253,7 +266,7 @@ class PositionSizer:
         kelly_pct = (win_rate * win_loss_ratio - (1 - win_rate)) / win_loss_ratio
 
         # Use fractional Kelly
-        kelly_pct = max(0, kelly_pct * self.config.kelly_fraction)
+        kelly_pct = max(0.0, kelly_pct * self.config.kelly_fraction)
         kelly_pct = min(kelly_pct, self.config.max_position_pct)
 
         position_value = account_balance * kelly_pct
@@ -274,8 +287,8 @@ class PositionSizer:
         }
 
     def _optimal_size(
-        self, account_balance: float, entry_price: float, stop_loss_price: float, **kwargs
-    ) -> Dict[str, float]:
+        self, account_balance: float, entry_price: float, stop_loss_price: float, **kwargs: Any
+    ) -> Dict[str, Any]:
         """
         Optimal position sizing combining all methods.
 
@@ -321,10 +334,10 @@ class PositionSizer:
     def _calculate_var(self, returns: pd.Series, confidence: Optional[float] = None) -> float:
         """Calculate VaR from returns."""
         confidence = confidence or self.config.var_confidence
-        return abs(np.percentile(returns, (1 - confidence) * 100))
+        return float(abs(np.percentile(returns, (1 - confidence) * 100)))
 
     def check_portfolio_risk(
-        self, new_position: Dict[str, float], symbol: str, account_balance: float
+        self, new_position: Dict[str, Any], symbol: str, account_balance: float
     ) -> Tuple[bool, str]:
         """
         Check if new position fits within portfolio risk limits.
@@ -389,7 +402,7 @@ class PositionSizer:
         atr_period: int = 14,
         atr_multiplier: float = 2.0,
         risk_per_trade: float = 0.01,
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """
         Calculate position size based on ATR for stop-loss sizing.
 
@@ -433,12 +446,11 @@ class PositionSizer:
 
         # Apply max position limit
         max_position_value = account_balance * self.config.max_position_pct
+        limiting_factor = None
         if position_value > max_position_value:
             position_value = max_position_value
             position_size = position_value / entry_price
             limiting_factor = "max_position_pct"
-        else:
-            limiting_factor = None
 
         return {
             "method": "atr_based",
@@ -464,7 +476,7 @@ class PositionSizer:
         win_rate: Optional[float] = None,
         avg_win: Optional[float] = None,
         avg_loss: Optional[float] = None,
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """
         Calculate dynamic stake using best available method.
 
@@ -540,7 +552,7 @@ class PositionSizer:
         }
 
 
-def create_freqtrade_stake_function(config: Optional[PositionSizingConfig] = None):
+def create_freqtrade_stake_function(config: Optional[PositionSizingConfig] = None) -> Callable:
     """
     Create a custom_stake_amount function for Freqtrade strategies.
 
@@ -553,9 +565,9 @@ def create_freqtrade_stake_function(config: Optional[PositionSizingConfig] = Non
     sizer = PositionSizer(config)
 
     def custom_stake_amount(
-        self,
+        self: Any,
         pair: str,
-        current_time,
+        current_time: Any,
         current_rate: float,
         proposed_stake: float,
         min_stake: Optional[float],
@@ -563,7 +575,7 @@ def create_freqtrade_stake_function(config: Optional[PositionSizingConfig] = Non
         leverage: float,
         entry_tag: Optional[str],
         side: str,
-        **kwargs,
+        **kwargs: Any,
     ) -> float:
         """
         Freqtrade custom_stake_amount callback.
@@ -582,7 +594,7 @@ def create_freqtrade_stake_function(config: Optional[PositionSizingConfig] = Non
             # Calculate current drawdown
             starting_balance = self.wallets.get_starting_balance()
             if starting_balance > 0:
-                current_drawdown = max(0, (starting_balance - wallet_balance) / starting_balance)
+                current_drawdown = max(0.0, (starting_balance - wallet_balance) / starting_balance)
             else:
                 current_drawdown = 0.0
 

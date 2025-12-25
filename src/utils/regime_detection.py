@@ -37,18 +37,29 @@ def detect_trend_regime(
     low: Optional[pd.Series] = None,
 ) -> pd.Series:
     """
-    Detect trend regime using EMA crossover and ADX.
+    Detect market trend regime using EMA crossover and ADX strength.
+    
+    Identifies if the market is in a specific trend (Bullish/Bearish) or Ranging.
+    
+    Financial Logic:
+    - **Bull Trend**: Short EMA > Long EMA AND Trend Strength (ADX) > Threshold.
+    - **Bear Trend**: Short EMA < Long EMA AND Trend Strength (ADX) > Threshold.
+    - **Ranging**: Trend Strength (ADX) < Threshold (choppy market).
+    
+    Strategies often perform best when aligned with the regime:
+    - Trend Following: Buy dips in Bull, Short rallies in Bear.
+    - Mean Reversion: Buy low/Sell high in Ranging.
 
     Args:
-        close: Close price series
-        ema_short: Short EMA period
-        ema_long: Long EMA period
-        adx_threshold: ADX threshold for trending market
-        high: High price series (for ADX)
-        low: Low price series (for ADX)
+        close: Close price series.
+        ema_short: Short-term EMA period (default 50).
+        ema_long: Long-term EMA period (default 200).
+        adx_threshold: Minimum ADX value to consider a market "trending" (default 25.0).
+        high: High price series (required for accurate ADX).
+        low: Low price series (required for accurate ADX).
 
     Returns:
-        Series with regime labels
+        pd.Series: Series containing regime labels (e.g., 'trending_bull', 'ranging').
     """
     from .indicators import calculate_adx, calculate_ema
 
@@ -87,16 +98,25 @@ def detect_volatility_regime(
     low_vol_percentile: float = 25,
 ) -> pd.Series:
     """
-    Detect volatility regime using realized volatility.
+    Detect volatility regime based on historical realized volatility distribution.
+    
+    Classifies market conditions into High, Low, or Normal volatility based on 
+    how current volatility compares to its recent history (percentile rank).
+
+    Financial Logic:
+    - **High Volatility**: Prices moving rapidly. Risk is high. Stops should be wider.
+      Position sizes often reduced. Breakout strategies work well.
+    - **Low Volatility**: Prices consolidated. Risk is lower. Stops can be tighter.
+      Position sizes often increased. Mean reversion strategies work well.
 
     Args:
-        close: Close price series
-        lookback: Period for volatility calculation
-        high_vol_percentile: Percentile threshold for high vol
-        low_vol_percentile: Percentile threshold for low vol
+        close: Close price series.
+        lookback: Rolling window for volatility calculation (default 30).
+        high_vol_percentile: Percentile rank (0-100) above which is "High Volatility" (default 75).
+        low_vol_percentile: Percentile rank (0-100) below which is "Low Volatility" (default 25).
 
     Returns:
-        Series with volatility regime labels
+        pd.Series: Series with volatility labels.
     """
     # Calculate rolling realized volatility
     returns = close.pct_change()

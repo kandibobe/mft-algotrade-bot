@@ -19,7 +19,7 @@ import warnings
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterator, Literal, Optional, Tuple, Union
+from typing import Iterator, Literal, Optional, Tuple, Union, Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -67,6 +67,7 @@ def get_ohlcv(
 
     Returns:
         DataFrame with columns: [date, open, high, low, close, volume]
+        Index is DatetimeIndex.
 
     Raises:
         FileNotFoundError: If data file doesn't exist
@@ -85,6 +86,10 @@ def get_ohlcv(
     symbol_normalized = symbol.replace("/", "_")
 
     # Try different file formats (prioritize Parquet for performance)
+    df = pd.DataFrame()
+    found = False
+    
+    # Priority: Parquet > Feather > CSV > JSON
     for fmt, loader in [
         ("parquet", load_parquet),
         ("feather", load_feather),
@@ -94,9 +99,15 @@ def get_ohlcv(
         file_path = data_path / exchange / f"{symbol_normalized}-{timeframe}.{fmt}"
         if file_path.exists():
             logger.info(f"Loading data from {file_path}")
-            df = loader(file_path)
-            break
-    else:
+            try:
+                df = loader(file_path)
+                found = True
+                break
+            except Exception as e:
+                logger.warning(f"Failed to load {file_path}: {e}")
+                continue
+    
+    if not found:
         raise FileNotFoundError(
             f"No data found for {symbol} {timeframe} in {data_path}/{exchange}/"
         )
@@ -111,11 +122,22 @@ def get_ohlcv(
     # Filter by date range
     if start:
         start_dt = pd.to_datetime(start)
+        # Ensure timezone consistency
+        if df.index.tz is not None and start_dt.tz is None:
+            start_dt = start_dt.tz_localize(df.index.tz)
+        elif df.index.tz is None and start_dt.tz is not None:
+            start_dt = start_dt.tz_convert(None)
         df = df[df.index >= start_dt]
+        
     if end:
         end_dt = pd.to_datetime(end)
+        # Ensure timezone consistency
+        if df.index.tz is not None and end_dt.tz is None:
+            end_dt = end_dt.tz_localize(df.index.tz)
+        elif df.index.tz is None and end_dt.tz is not None:
+            end_dt = end_dt.tz_convert(None)
         df = df[df.index < end_dt]
-
+        
     # Validate required columns
     required_cols = {"open", "high", "low", "close", "volume"}
     df_cols = set(df.columns.str.lower())
@@ -176,26 +198,37 @@ def load_ohlcv_chunked(
 
     # Determine date range for chunking
     if start is None or end is None:
-        # Load metadata to get date range
-        df_sample = get_ohlcv(
-            symbol,
-            timeframe,
-            start=None,
-            end=None,
-            exchange=exchange,
-            data_dir=data_dir,
-            use_cache=False,
-        )
-        if start is None:
-            start = df_sample.index.min()
-        if end is None:
-            end = df_sample.index.max()
+        # Load metadata to get date range - careful not to load full file
+        # Ideally we read metadata only, but here we load full for simplicity if not implementing header parsing
+        # Optimization: Just load head/tail or use pyarrow for parquet metadata
+        try:
+            df_sample = get_ohlcv(
+                symbol,
+                timeframe,
+                start=None,
+                end=None,
+                exchange=exchange,
+                data_dir=data_dir,
+                use_cache=False,
+            )
+            if start is None:
+                start = df_sample.index.min()
+            if end is None:
+                end = df_sample.index.max()
+        except Exception:
+             # Fallback
+             start = datetime.now()
+             end = datetime.now()
 
     start_dt = pd.to_datetime(start)
     end_dt = pd.to_datetime(end)
 
     # Create date ranges for chunking
-    date_ranges = pd.date_range(start=start_dt, end=end_dt, freq=chunk_size)
+    try:
+        date_ranges = pd.date_range(start=start_dt, end=end_dt, freq=chunk_size)
+    except Exception:
+        # Fallback if frequency invalid
+        date_ranges = pd.date_range(start=start_dt, end=end_dt, periods=10)
 
     for i in range(len(date_ranges) - 1):
         chunk_start = date_ranges[i]
@@ -253,7 +286,7 @@ def _get_cached_data(
     cache_key = _generate_cache_key(symbol, timeframe, start, end, exchange)
 
     # Try Redis cache first if enabled
-    if REDIS_CACHE_ENABLED and REDIS_AVAILABLE:
+    if REDIS_CACHE_ENABLED and REDIS_AVAILABLE and redis:
         try:
             redis_client = redis.Redis(decode_responses=False)
             cached_bytes = redis_client.get(cache_key)
@@ -263,10 +296,6 @@ def _get_cached_data(
                 return df
         except Exception as e:
             logger.warning(f"Redis cache error: {e}")
-
-    # Fall back to in-memory LRU cache (implemented via function decorator)
-    # Note: For simplicity, we're not implementing a full in-memory cache here
-    # since get_ohlcv already has caching logic
 
     return None
 
@@ -285,7 +314,7 @@ def _set_cached_data(
     cache_key = _generate_cache_key(symbol, timeframe, start, end, exchange)
 
     # Store in Redis if enabled
-    if REDIS_CACHE_ENABLED and REDIS_AVAILABLE:
+    if REDIS_CACHE_ENABLED and REDIS_AVAILABLE and redis:
         try:
             redis_client = redis.Redis(decode_responses=False)
             cached_bytes = pickle.dumps(df, protocol=pickle.HIGHEST_PROTOCOL)
@@ -293,8 +322,6 @@ def _set_cached_data(
             logger.debug(f"Cached data in Redis with key {cache_key}")
         except Exception as e:
             logger.warning(f"Failed to cache in Redis: {e}")
-
-    # Note: In-memory caching is handled by @lru_cache decorator on specific functions
 
 
 def _generate_cache_key(
@@ -381,19 +408,6 @@ def save_to_parquet(df: pd.DataFrame, path: Union[str, Path]) -> None:
     logger.info(f"Saved data to Parquet: {path} (size: {path.stat().st_size / 1024 / 1024:.2f} MB)")
 
 
-def save_ohlcv_parquet(df, symbol, timeframe):
-    """Сохранить в Parquet (быстрее чем CSV)."""
-    path = f"user_data/data/{symbol.replace('/', '_')}_{timeframe}.parquet"
-    df.to_parquet(path, engine="pyarrow", compression="snappy")
-    print(f"Saved to {path}")
-
-
-def load_ohlcv_parquet(symbol, timeframe):
-    """Загрузить из Parquet."""
-    path = f"user_data/data/{symbol.replace('/', '_')}_{timeframe}.parquet"
-    return pd.read_parquet(path)
-
-
 def load_json(file_path: Union[str, Path]) -> pd.DataFrame:
     """
     Load OHLCV data from JSON file.
@@ -441,7 +455,7 @@ def get_data_hash(df: pd.DataFrame) -> str:
     return hashlib.md5(hash_content.encode()).hexdigest()[:12]
 
 
-def get_data_metadata(df: pd.DataFrame, symbol: str, timeframe: str) -> dict:
+def get_data_metadata(df: pd.DataFrame, symbol: str, timeframe: str) -> Dict[str, Any]:
     """
     Generate metadata for a dataset.
     """

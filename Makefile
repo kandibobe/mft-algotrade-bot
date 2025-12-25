@@ -11,11 +11,11 @@
 #   - Monitoring: Health checks, metrics, structured logging
 #
 # Author: Stoic Citadel Team
-# License: Proprietary
+# License: MIT
 # ==============================================================================
 
 .DEFAULT_GOAL := help
-.PHONY: help setup install test lint format type-check clean backtest train trade monitor
+.PHONY: help setup install install-dev test lint format type-check clean backtest train trade monitor security
 
 # ==============================================================================
 # CONFIGURATION
@@ -56,12 +56,15 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(GREEN)Examples:$(NC)"
 	@echo "  make install                    # Install dependencies"
+	@echo "  make install-dev                # Install development dependencies"
 	@echo "  make test                       # Run all tests"
 	@echo "  make lint                       # Check code quality"
 	@echo "  make format                     # Auto-format code"
+	@echo "  make security                   # Run security scans"
 	@echo "  make train                      # Train ML model"
 	@echo "  make backtest                   # Run backtest"
 	@echo "  make monitor                    # Start monitoring stack"
+	@echo "  make docker-up                  # Start Docker services"
 	@echo ""
 
 # ==============================================================================
@@ -74,15 +77,20 @@ setup: ## Setup development environment (virtualenv + dependencies)
 	@echo "$(CYAN)Setting up development environment...$(NC)"
 	@$(PYTHON) -m venv $(VENV) || echo "$(YELLOW)Virtual environment already exists$(NC)"
 	@echo "$(GREEN)✅ Virtual environment created$(NC)"
-	@$(MAKE) install
+	@$(MAKE) install-dev
 	@echo "$(GREEN)✅ Development environment ready$(NC)"
 
-install: ## Install all dependencies
-	@echo "$(CYAN)Installing dependencies...$(NC)"
+install: ## Install production dependencies
+	@echo "$(CYAN)Installing production dependencies...$(NC)"
 	@$(VENV)/Scripts/activate && $(PIP) install --upgrade pip
 	@$(VENV)/Scripts/activate && $(PIP) install -e .
+	@echo "$(GREEN)✅ Production dependencies installed$(NC)"
+
+install-dev: ## Install all development dependencies
+	@echo "$(CYAN)Installing development dependencies...$(NC)"
+	@$(VENV)/Scripts/activate && $(PIP) install --upgrade pip
 	@$(VENV)/Scripts/activate && $(PIP) install -e ".[dev]"
-	@echo "$(GREEN)✅ Dependencies installed$(NC)"
+	@echo "$(GREEN)✅ Development dependencies installed$(NC)"
 
 check-env: ## Check if .env file exists
 	@if [ ! -f .env ]; then \
@@ -97,19 +105,30 @@ check-env: ## Check if .env file exists
 
 ##@ Code Quality
 
-lint: ## Run all linters (black, isort, flake8, mypy)
+lint: ## Run all linters (ruff, black, isort, mypy)
 	@echo "$(CYAN)Running code quality checks...$(NC)"
-	@$(VENV)/Scripts/activate && black --check --line-length 88 src/ tests/ scripts/ || (echo "$(RED)❌ Black formatting issues found$(NC)" && exit 1)
+	@$(VENV)/Scripts/activate && ruff check src/ tests/ scripts/ || (echo "$(RED)❌ Ruff linting issues found$(NC)" && exit 1)
+	@$(VENV)/Scripts/activate && black --check --line-length 100 src/ tests/ scripts/ || (echo "$(RED)❌ Black formatting issues found$(NC)" && exit 1)
 	@$(VENV)/Scripts/activate && isort --check-only src/ tests/ scripts/ || (echo "$(RED)❌ Import sorting issues found$(NC)" && exit 1)
-	@$(VENV)/Scripts/activate && flake8 src/ tests/ scripts/ --max-line-length=88 --extend-ignore=E203,W503 || (echo "$(RED)❌ Flake8 issues found$(NC)" && exit 1)
 	@$(VENV)/Scripts/activate && mypy src/ --ignore-missing-imports || (echo "$(RED)❌ Type checking issues found$(NC)" && exit 1)
 	@echo "$(GREEN)✅ All code quality checks passed!$(NC)"
 
-format: ## Auto-format code with black and isort
+format: ## Auto-format code with ruff, black and isort
 	@echo "$(CYAN)Formatting code...$(NC)"
-	@$(VENV)/Scripts/activate && black --line-length 88 src/ tests/ scripts/
+	@$(VENV)/Scripts/activate && ruff check --fix src/ tests/ scripts/
+	@$(VENV)/Scripts/activate && black --line-length 100 src/ tests/ scripts/
 	@$(VENV)/Scripts/activate && isort src/ tests/ scripts/
 	@echo "$(GREEN)✅ Code formatted!$(NC)"
+
+ruff: ## Run Ruff linter only
+	@echo "$(CYAN)Running Ruff linter...$(NC)"
+	@$(VENV)/Scripts/activate && ruff check src/ tests/ scripts/
+	@echo "$(GREEN)✅ Ruff checks passed!$(NC)"
+
+ruff-fix: ## Auto-fix Ruff issues
+	@echo "$(CYAN)Fixing Ruff issues...$(NC)"
+	@$(VENV)/Scripts/activate && ruff check --fix src/ tests/ scripts/
+	@echo "$(GREEN)✅ Ruff fixes applied!$(NC)"
 
 type-check: ## Run type checking with mypy
 	@echo "$(CYAN)Running type checking...$(NC)"
@@ -121,6 +140,28 @@ pre-commit: ## Install and run pre-commit hooks
 	@$(VENV)/Scripts/activate && pre-commit install
 	@$(VENV)/Scripts/activate && pre-commit run --all-files
 	@echo "$(GREEN)✅ Pre-commit checks passed!$(NC)"
+
+# ==============================================================================
+# SECURITY
+# ==============================================================================
+
+##@ Security
+
+security: ## Run security scans (bandit, safety)
+	@echo "$(CYAN)Running security scans...$(NC)"
+	@$(VENV)/Scripts/activate && bandit -r src/ -c pyproject.toml || (echo "$(YELLOW)⚠️  Bandit found potential security issues$(NC)" && exit 0)
+	@$(VENV)/Scripts/activate && safety check || (echo "$(YELLOW)⚠️  Safety found vulnerable dependencies$(NC)" && exit 0)
+	@echo "$(GREEN)✅ Security scans completed!$(NC)"
+
+bandit: ## Run Bandit security scanner
+	@echo "$(CYAN)Running Bandit security scan...$(NC)"
+	@$(VENV)/Scripts/activate && bandit -r src/ -c pyproject.toml
+	@echo "$(GREEN)✅ Bandit scan completed!$(NC)"
+
+safety: ## Run Safety dependency checker
+	@echo "$(CYAN)Running Safety dependency check...$(NC)"
+	@$(VENV)/Scripts/activate && safety check
+	@echo "$(GREEN)✅ Safety check completed!$(NC)"
 
 # ==============================================================================
 # TESTING
@@ -240,7 +281,7 @@ trade-live: check-env ## Start LIVE trading (USE WITH EXTREME CAUTION!)
 
 ##@ Docker Operations
 
-docker-start: ## Start all Docker services
+docker-up: ## Start all Docker services
 	@echo "$(CYAN)Starting Docker services...$(NC)"
 	@$(DOCKER_COMPOSE) up -d
 	@echo "$(GREEN)✅ All services started!$(NC)"
@@ -259,7 +300,7 @@ docker-stop: ## Stop all Docker services
 docker-restart: ## Restart all Docker services
 	@$(MAKE) docker-stop
 	@sleep 2
-	@$(MAKE) docker-start
+	@$(MAKE) docker-up
 
 docker-logs: ## View service logs
 	@echo "$(CYAN)Logs for $(SERVICE):$(NC)"
@@ -305,9 +346,12 @@ health-check: ## Run health checks
 clean: ## Remove Python cache files and build artifacts
 	@echo "$(CYAN)Cleaning up...$(NC)"
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	@find . -type d -name "*.pyc" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete
+	@find . -type f -name "*.pyo" -delete
+	@find . -type f -name "*.pyd" -delete
 	@find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type d -name ".coverage" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type d -name "htmlcov" -exec rm -rf {} + 2>/dev/null || true
 	@find . -type d -name ".hypothesis" -exec rm -rf {} + 2>/dev/null || true
@@ -332,3 +376,5 @@ clean-all: ## Remove EVERYTHING including volumes and data
 		$(DOCKER_COMPOSE) down -v; \
 		docker-compose -f docker-compose.test.yml down -v 2>/dev/null || true; \
 		docker-compose -f docker-compose.monitoring.yml down -v 2>/dev/null || true; \
+		echo "$(GREEN)✅ Complete cleanup finished!$(NC)"; \
+	fi

@@ -310,6 +310,12 @@ class MLTrainingPipeline:
 
         print(f"  💾 Model saved: {model_path}")
 
+        # Save scaler
+        scaler_name = f"{model_name}_scaler.joblib"
+        scaler_path = self.models_dir / scaler_name
+        self.feature_engineer.save_scaler(str(scaler_path))
+        print(f"  💾 Scaler saved: {scaler_path}")
+
         return model, metrics
 
     def run(

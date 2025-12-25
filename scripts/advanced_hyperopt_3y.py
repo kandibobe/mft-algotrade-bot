@@ -1,37 +1,10 @@
 #!/usr/bin/env python3
 """
-Advanced Hyperparameter Optimization for XGBoost Trading Models
+Advanced Hyperparameter Optimization for XGBoost Trading Models - 3 YEAR VERSION
 ================================================================
 
-Robust hyperparameter optimization focusing on Sharpe Ratio optimization
-with strict constraints to prevent overfitting.
-
-CRITICAL REQUIREMENTS:
-1. Search Space (Strict to prevent overfitting):
-   - max_depth: Int [2, 3, 4, 5]
-   - learning_rate: Float [0.005, 0.05]
-   - n_estimators: Int [100, 800]
-   - subsample: Float [0.6, 0.9]
-   - colsample_bytree: Float [0.6, 0.9]
-   - gamma: Float [0.1, 5.0]
-
-2. Objective Function:
-   - Train XGBoost with suggested params
-   - Predict on Validation set
-   - Calculate Sharpe Ratio of the strategy (assuming simple entry if prob > 0.55)
-   - MAXIMIZE the average Sharpe Ratio across all 5 folds
-
-3. Cross-Validation:
-   - TimeSeriesSplit (5 folds)
-   - DO NOT shuffle data. Train on Past, Validate on Future.
-
-4. Execution:
-   - n_trials=200
-   - Use all available CPU cores (n_jobs=-1)
-
-OUTPUT:
-- Saves best params to config/model_best_params.json
-- Prints the best Sharpe Ratio found
+Modified version for 3-year retraining as part of Production Hardening.
+Saves results to user_data/model_best_params_3y.json
 
 Author: Stoic Citadel Team
 Date: December 23, 2025
@@ -192,12 +165,12 @@ class SharpeRatioObjective:
         return avg_sharpe
 
 
-class AdvancedHyperparameterOptimizer:
+class AdvancedHyperparameterOptimizer3Y:
     """
-    Advanced hyperparameter optimizer for XGBoost trading models.
+    Advanced hyperparameter optimizer for XGBoost trading models - 3 Year Version.
     
     Focuses on Sharpe Ratio optimization with strict regularization
-    to prevent overfitting.
+    to prevent overfitting. Saves to user_data/model_best_params_3y.json
     """
     
     def __init__(self, config: Optional[Dict] = None):
@@ -215,21 +188,19 @@ class AdvancedHyperparameterOptimizer:
         
         # Create output directories
         self.output_dir = Path("user_data")
-        self.config_dir = Path("config")
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.config_dir.mkdir(parents=True, exist_ok=True)
         
     def load_and_prepare_data(self, 
                              symbol: str = "BTC/USDT",
                              timeframe: str = "5m",
-                             days: int = 180) -> Tuple[pd.DataFrame, pd.Series, pd.Series]:
+                             days: int = 1095) -> Tuple[pd.DataFrame, pd.Series, pd.Series]:
         """
         Load and prepare data for optimization.
         
         Args:
             symbol: Trading pair
             timeframe: Candle timeframe
-            days: Number of days to load (180-365)
+            days: Number of days to load (1095 for 3 years)
             
         Returns:
             Tuple of (X, y, close_prices) - features, labels, and close prices
@@ -291,7 +262,7 @@ class AdvancedHyperparameterOptimizer:
                  X: pd.DataFrame, 
                  y: pd.Series,
                  close_prices: pd.Series,
-                 n_trials: int = 200,
+                 n_trials: int = 300,
                  timeout: Optional[int] = None,
                  n_jobs: int = -1) -> Dict[str, Any]:
         """
@@ -317,7 +288,7 @@ class AdvancedHyperparameterOptimizer:
         # Create study with MedianPruner
         self.study = optuna.create_study(
             direction="maximize",
-            study_name="xgboost_sharpe_optimization",
+            study_name="xgboost_sharpe_optimization_3y",
             pruner=MedianPruner(
                 n_startup_trials=5,
                 n_warmup_steps=1,
@@ -386,14 +357,14 @@ class AdvancedHyperparameterOptimizer:
         Args:
             results: Optimization results
         """
-        # Save best parameters to config directory
-        params_path = self.config_dir / "model_best_params.json"
+        # Save best parameters to user_data directory with 3y suffix
+        params_path = self.output_dir / "model_best_params_3y.json"
         with open(params_path, 'w') as f:
             json.dump(results["best_params"], f, indent=2)
         logger.info(f"Best parameters saved to {params_path}")
         
         # Save full results to user_data directory
-        results_path = self.output_dir / "hyperopt_results.json"
+        results_path = self.output_dir / "hyperopt_results_3y.json"
         
         # Convert study to serializable format
         serializable_results = {
@@ -450,11 +421,11 @@ class AdvancedHyperparameterOptimizer:
         plt.barh(range(len(importance_df)), importance_df['importance'])
         plt.yticks(range(len(importance_df)), importance_df['feature'])
         plt.xlabel('Importance')
-        plt.title('Top 20 Feature Importance')
+        plt.title('Top 20 Feature Importance (3-Year Model)')
         plt.tight_layout()
         
         # Save
-        plot_path = self.output_dir / "feature_importance.png"
+        plot_path = self.output_dir / "feature_importance_3y.png"
         plt.savefig(plot_path, dpi=150)
         plt.close()
         
@@ -464,7 +435,7 @@ class AdvancedHyperparameterOptimizer:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Advanced hyperparameter optimization for XGBoost trading models"
+        description="Advanced hyperparameter optimization for XGBoost trading models - 3 Year Version"
     )
     
     parser.add_argument(
@@ -482,14 +453,14 @@ def main():
     parser.add_argument(
         '--days',
         type=int,
-        default=180,
-        help='Number of days to load (default: 180, range: 180-365)'
+        default=1095,
+        help='Number of days to load (default: 1095 for 3 years)'
     )
     parser.add_argument(
         '--trials',
         type=int,
-        default=200,
-        help='Number of Optuna trials (default: 200)'
+        default=300,
+        help='Number of Optuna trials (default: 300)'
     )
     parser.add_argument(
         '--timeout',
@@ -511,12 +482,12 @@ def main():
     
     args = parser.parse_args()
     print("\n" + "="*70)
-    print("🚀 ADVANCED HYPERPARAMETER OPTIMIZATION")
+    print("🚀 ADVANCED HYPERPARAMETER OPTIMIZATION - 3 YEAR RETRAINING")
     print("="*70)
     print(f"\nConfiguration:")
     print(f"  Symbol:     {args.symbol}")
     print(f"  Timeframe:  {args.timeframe}")
-    print(f"  Days:       {args.days}")
+    print(f"  Days:       {args.days} (3 years)")
     print(f"  Trials:     {args.trials}")
     print(f"  Timeout:    {args.timeout}")
     print(f"  Quick mode: {args.quick}")
@@ -525,7 +496,7 @@ def main():
     
     try:
         # Initialize optimizer
-        optimizer = AdvancedHyperparameterOptimizer()
+        optimizer = AdvancedHyperparameterOptimizer3Y()
         
         # Load and prepare data
         X, y, close_prices = optimizer.load_and_prepare_data(
@@ -559,8 +530,8 @@ def main():
         print("✅ OPTIMIZATION COMPLETED SUCCESSFULLY!")
         print("="*70)
         print(f"\nBest Sharpe Ratio: {results['best_value']:.4f}")
-        print(f"\nBest parameters saved to: config/model_best_params.json")
-        print(f"Full results saved to: user_data/hyperopt_results.json")
+        print(f"\nBest parameters saved to: user_data/model_best_params_3y.json")
+        print(f"Full results saved to: user_data/hyperopt_results_3y.json")
         print("\n" + "="*70)
         
     except Exception as e:

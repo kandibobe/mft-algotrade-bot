@@ -218,12 +218,12 @@ class TestScalerLeakage:
 
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, drop_low_variance=True):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
+                return original_validate(df, fix_issues=False, raise_on_error=False, drop_low_variance=drop_low_variance)
+            return original_validate(df, fix_issues, raise_on_error, drop_low_variance)
         
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
@@ -272,12 +272,12 @@ class TestScalerLeakage:
 
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, drop_low_variance=True):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
+                return original_validate(df, fix_issues=False, raise_on_error=False, drop_low_variance=drop_low_variance)
+            return original_validate(df, fix_issues, raise_on_error, drop_low_variance)
         
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
@@ -330,12 +330,12 @@ class TestWalkForwardValidation:
         engineer = FeatureEngineer(config)
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, drop_low_variance=True):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
+                return original_validate(df, fix_issues=False, raise_on_error=False, drop_low_variance=drop_low_variance)
+            return original_validate(df, fix_issues, raise_on_error, drop_low_variance)
         
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
@@ -455,12 +455,12 @@ class TestFeatureCorrelationFilter:
 
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, drop_low_variance=True):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
+                return original_validate(df, fix_issues=False, raise_on_error=False, drop_low_variance=drop_low_variance)
+            return original_validate(df, fix_issues, raise_on_error, drop_low_variance)
         
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 

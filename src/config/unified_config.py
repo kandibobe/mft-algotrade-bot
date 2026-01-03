@@ -248,6 +248,34 @@ class MLConfig(BaseModel):
     )
 
 
+class TrainingConfig(BaseModel):
+    """Training pipeline configuration."""
+    
+    target_variable: str = Field(default="target", description="Name of target variable")
+    model_type: Literal["lightgbm", "xgboost", "random_forest", "catboost"] = Field(
+        default="lightgbm", description="ML model type"
+    )
+    hyperopt_trials: int = Field(
+        default=100, ge=1, le=1000, description="Number of hyperparameter optimization trials"
+    )
+    validation_split: float = Field(
+        default=0.2, ge=0.1, le=0.5, description="Validation data split ratio"
+    )
+    feature_set_version: str = Field(
+        default="v1", description="Feature set version for tracking"
+    )
+    n_jobs: int = Field(default=-1, description="Number of parallel jobs (-1 for all cores)")
+    early_stopping_rounds: int = Field(default=10, description="Early stopping rounds")
+
+
+class TelegramConfig(BaseModel):
+    """Telegram bot configuration."""
+    
+    token: Optional[str] = Field(default=None, description="Telegram Bot Token")
+    chat_id: Optional[str] = Field(default=None, description="Telegram Chat ID")
+    enabled: bool = Field(default=False, description="Enable Telegram notifications")
+
+
 class TradingConfig(BaseSettings):
     """Main trading configuration with environment variable support."""
     
@@ -284,6 +312,8 @@ class TradingConfig(BaseSettings):
     exchange: ExchangeConfig = Field(default_factory=ExchangeConfig)
     risk: RiskConfig = Field(default_factory=RiskConfig)
     ml: MLConfig = Field(default_factory=MLConfig)
+    training: TrainingConfig = Field(default_factory=TrainingConfig)
+    telegram: TelegramConfig = Field(default_factory=TelegramConfig)
     strategy: Optional[StrategyConfig] = Field(default=None, description="Strategy configuration")
     
     # Strategy settings
@@ -298,6 +328,10 @@ class TradingConfig(BaseSettings):
     # Environment variables for API credentials
     api_key: Optional[str] = Field(default=None, validation_alias="BINANCE_API_KEY")
     api_secret: Optional[str] = Field(default=None, validation_alias="BINANCE_API_SECRET")
+    
+    # Telegram environment variables
+    telegram_token: Optional[str] = Field(default=None, validation_alias="TELEGRAM_TOKEN")
+    telegram_chat_id: Optional[str] = Field(default=None, validation_alias="TELEGRAM_CHAT_ID")
     
     @field_validator("pairs")
     @classmethod
@@ -333,10 +367,27 @@ class TradingConfig(BaseSettings):
             dry_run = values.get('dry_run')
             exchange = values.get('exchange')
             leverage = values.get('leverage')
+            telegram = values.get('telegram')
+            telegram_token = values.get('telegram_token')
+            telegram_chat_id = values.get('telegram_chat_id')
         else:
             dry_run = getattr(values, 'dry_run', None)
             exchange = getattr(values, 'exchange', None)
             leverage = getattr(values, 'leverage', None)
+            telegram = getattr(values, 'telegram', None)
+            telegram_token = getattr(values, 'telegram_token', None)
+            telegram_chat_id = getattr(values, 'telegram_chat_id', None)
+
+        # Sync environment variables to telegram config if provided
+        if telegram:
+            if telegram_token and not telegram.token:
+                telegram.token = telegram_token
+            if telegram_chat_id and not telegram.chat_id:
+                telegram.chat_id = telegram_chat_id
+            
+            # Auto-enable if token and chat_id are present
+            if telegram.token and telegram.chat_id and not telegram.enabled:
+                telegram.enabled = True
 
         if dry_run is not None and exchange is not None and leverage is not None:
             if not dry_run and exchange.sandbox:

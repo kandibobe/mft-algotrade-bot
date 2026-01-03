@@ -6,8 +6,8 @@ Advanced order types for MFT execution.
 """
 
 import logging
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, Dict, List
 from datetime import datetime
 
 from src.order_manager.order_types import Order, OrderType, OrderStatus, LimitOrder
@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SmartOrder(Order):
     """Base class for smart orders."""
-    
+    attribution_metadata: Optional[Dict] = None
+
     def on_ticker_update(self, ticker: dict):
         """Handle ticker update to adjust order parameters."""
         pass
@@ -80,3 +81,30 @@ class ChaseLimitOrder(LimitOrder):
             logger.info(f"SmartOrder {self.order_id}: Adjusting price {self.price} -> {new_price}")
             self.price = new_price
             # In real system, this would trigger a replace_order call
+
+@dataclass
+class TWAPOrder(SmartOrder):
+    """
+    Time-Weighted Average Price order.
+    Splits the order into smaller chunks to be executed over a set duration.
+    """
+    duration_minutes: int = 60
+    num_chunks: int = 12
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.order_type = OrderType.TWAP
+
+@dataclass
+class VWAPOrder(SmartOrder):
+    """
+    Volume-Weighted Average Price order.
+    Splits the order into smaller chunks based on historical volume profile.
+    """
+    duration_minutes: int = 60
+    num_chunks: int = 12
+    volume_profile: Optional[List[float]] = None  # List of volume percentages for each chunk
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.order_type = OrderType.VWAP

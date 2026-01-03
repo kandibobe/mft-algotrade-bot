@@ -23,6 +23,8 @@ from typing import Dict, Optional, Tuple, Any, Callable
 
 import numpy as np
 import pandas as pd
+from src.utils.logger import log
+from src.risk.hrp import get_hrp_weights
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +85,7 @@ class PositionSizer:
             account_balance: Total account balance.
             entry_price: Planned entry price.
             stop_loss_price: Stop loss price.
-            method: Sizing method to use ('fixed_risk', 'volatility', 'var', 'kelly', 'optimal').
+            method: Sizing method to use ('fixed_risk', 'volatility', 'var', 'kelly', 'hrp', 'optimal').
             **kwargs: Additional parameters for specific methods.
 
         Returns:
@@ -94,6 +96,7 @@ class PositionSizer:
             "volatility": self._volatility_adjusted_size,
             "var": self._var_based_size,
             "kelly": self._kelly_size,
+            "hrp": self._hrp_size,
             "optimal": self._optimal_size,  # Combines all methods
         }
 
@@ -286,6 +289,36 @@ class PositionSizer:
             "limited_by": None,
         }
 
+    def _hrp_size(
+        self,
+        account_balance: float,
+        entry_price: float,
+        stop_loss_price: float,
+        prices: pd.DataFrame,
+        symbol: str,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """
+        Hierarchical Risk Parity (HRP) position sizing.
+        """
+        if prices is None or prices.empty:
+            raise ValueError("HRP sizing requires a `prices` dataframe.")
+
+        weights = get_hrp_weights(prices)
+        symbol_weight = weights.get(symbol, 0.0)
+
+        position_value = account_balance * symbol_weight
+        position_size = position_value / entry_price
+
+        return {
+            "method": "hrp",
+            "position_size": position_size,
+            "position_value": position_value,
+            "symbol_weight": symbol_weight,
+            "hrp_weights": weights,
+            "limited_by": None,
+        }
+
     def _optimal_size(
         self, account_balance: float, entry_price: float, stop_loss_price: float, **kwargs: Any
     ) -> Dict[str, Any]:
@@ -313,6 +346,11 @@ class PositionSizer:
 
         if "win_rate" in kwargs:
             results["kelly"] = self._kelly_size(
+                account_balance, entry_price, stop_loss_price, **kwargs
+            )
+
+        if "prices" in kwargs and "symbol" in kwargs:
+            results["hrp"] = self._hrp_size(
                 account_balance, entry_price, stop_loss_price, **kwargs
             )
 
@@ -351,10 +389,9 @@ class PositionSizer:
         max_exposure = account_balance * self.config.max_portfolio_risk_pct
 
         if new_exposure > max_exposure:
-            return (
-                False,
-                f"Portfolio exposure {new_exposure/account_balance:.1%} exceeds limit {self.config.max_portfolio_risk_pct:.1%}",
-            )
+            msg = f"Portfolio exposure {new_exposure/account_balance:.1%} exceeds limit {self.config.max_portfolio_risk_pct:.1%}"
+            log.info("risk_rejection", symbol=symbol, reason=msg, rejection_type="portfolio_exposure")
+            return (False, msg)
 
         # Check correlation exposure if matrix available
         if self._correlation_matrix is not None and symbol in self._correlation_matrix.columns:
@@ -364,10 +401,9 @@ class PositionSizer:
             max_correlated = account_balance * self.config.max_correlation_exposure
 
             if correlated_exposure > max_correlated:
-                return (
-                    False,
-                    f"Correlated exposure {correlated_exposure/account_balance:.1%} exceeds limit",
-                )
+                msg = f"Correlated exposure {correlated_exposure/account_balance:.1%} exceeds limit"
+                log.info("risk_rejection", symbol=symbol, reason=msg, rejection_type="correlation_exposure")
+                return (False, msg)
 
         return True, "OK"
 

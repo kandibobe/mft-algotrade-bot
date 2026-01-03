@@ -46,6 +46,12 @@ class DatabaseManager:
 
             logger.info(f"Initializing database engine: {db_url.split('@')[-1]}") # Log without credentials
             
+            # BRUTE-FORCE FIX: Force 127.0.0.1 instead of localhost for Windows compatibility
+            if "localhost" in db_url:
+                db_url = db_url.replace("localhost", "127.0.0.1")
+
+            logger.info(f"Connecting to DB at: {db_url}")
+
             cls._engine = create_engine(
                 db_url,
                 poolclass=pool.QueuePool if db_url.startswith("postgresql") else pool.StaticPool,

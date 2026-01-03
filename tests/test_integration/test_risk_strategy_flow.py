@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 from datetime import datetime
 from src.strategies.risk_mixin import StoicRiskMixin
 from src.risk.risk_manager import RiskManager
-from src.risk.circuit_breaker import TripReason
+from src.risk.circuit_breaker import TripReason, CircuitState
 
 @pytest.mark.integration
 class TestRiskStrategyFlow:
@@ -25,6 +25,8 @@ class TestRiskStrategyFlow:
             def __init__(self):
                 # Mock attributes expected by Mixin/Strategy
                 self.config = {'dry_run': True}
+                self.stoploss = -0.10
+                self.timeframe = '5m'
                 self.wallets = MagicMock()
                 self.wallets.get_total_stake_amount.return_value = 10000.0
                 super().__init__()
@@ -52,10 +54,7 @@ class TestRiskStrategyFlow:
     def test_circuit_breaker_rejects_trade(self, strategy):
         """Test that RiskManager rejects trades when Circuit Breaker is tripped."""
         # Force Trip Circuit Breaker
-        # We need to access the private method or use manual_stop
         strategy.risk_manager.circuit_breaker.manual_stop()
-        
-        assert not strategy.risk_manager.circuit_breaker.can_trade()
         
         # Attempt Trade
         allowed = strategy.confirm_trade_entry(
@@ -70,6 +69,7 @@ class TestRiskStrategyFlow:
         )
         
         assert allowed is False, "Trade should be rejected when Circuit Breaker is open"
+        assert strategy.risk_manager.circuit_breaker.state == CircuitState.OPEN
 
     def test_emergency_exit_signal(self, strategy):
         """Test that emergency exit signal is propagated via custom_exit."""

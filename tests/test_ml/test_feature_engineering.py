@@ -88,12 +88,12 @@ class TestFeatureEngineer:
 
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, **kwargs):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
+                return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
+            return original_validate(df, fix_issues, raise_on_error, **kwargs)
         
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
@@ -127,12 +127,12 @@ class TestFeatureEngineer:
 
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, **kwargs):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
+                return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
+            return original_validate(df, fix_issues, raise_on_error, **kwargs)
         
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
@@ -162,12 +162,12 @@ class TestFeatureEngineer:
 
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, **kwargs):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
+                return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
+            return original_validate(df, fix_issues, raise_on_error, **kwargs)
         
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
@@ -196,12 +196,12 @@ class TestFeatureEngineer:
 
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, **kwargs):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
+                return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
+            return original_validate(df, fix_issues, raise_on_error, **kwargs)
         
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
@@ -232,12 +232,12 @@ class TestFeatureEngineer:
 
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, **kwargs):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
+                return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
+            return original_validate(df, fix_issues, raise_on_error, **kwargs)
         
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
@@ -269,12 +269,12 @@ class TestFeatureEngineer:
 
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, **kwargs):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
+                return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
+            return original_validate(df, fix_issues, raise_on_error, **kwargs)
         
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
@@ -307,12 +307,12 @@ class TestFeatureEngineer:
 
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, **kwargs):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
+                return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
+            return original_validate(df, fix_issues, raise_on_error, **kwargs)
         
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
@@ -424,12 +424,12 @@ class TestFeatureEngineer:
 
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, **kwargs):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
+                return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
+            return original_validate(df, fix_issues, raise_on_error, **kwargs)
         
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 

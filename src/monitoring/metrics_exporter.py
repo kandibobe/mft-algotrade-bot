@@ -169,6 +169,35 @@ class TradingMetricsExporter:
             ["model", "prediction_type"]
         )
 
+        # HRP Metrics
+        self.hrp_weights = Gauge(
+            f"{self.namespace}_hrp_asset_weight",
+            "Calculated HRP weight for an asset",
+            ["asset"]
+        )
+
+        # TWAP/VWAP Metrics
+        self.twap_vwap_orders_total = Counter(
+            f"{self.namespace}_twap_vwap_orders_total",
+            "Total TWAP/VWAP orders",
+            ["order_type"]
+        )
+        self.twap_vwap_slippage = Histogram(
+            f"{self.namespace}_twap_vwap_slippage_pct",
+            "Slippage of TWAP/VWAP orders in percent",
+            ["order_type"]
+        )
+
+        # Rebalancer Metrics
+        self.rebalancer_runs_total = Counter(
+            f"{self.namespace}_rebalancer_runs_total",
+            "Total rebalancer runs"
+        )
+        self.portfolio_deviation = Gauge(
+            f"{self.namespace}_portfolio_deviation_pct",
+            "Portfolio deviation from target in percent"
+        )
+
         # System metrics
         self.metrics_up = Gauge(f"{self.namespace}_up", "Metrics exporter status (1=up, 0=down)")
         self.metrics_up.set(1)
@@ -327,6 +356,27 @@ class TradingMetricsExporter:
         if not self._enabled:
             return
         self.ws_message_latency.observe(latency_ms)
+
+    def record_hrp_weights(self, weights: dict) -> None:
+        """Record HRP weights."""
+        if not self._enabled:
+            return
+        for asset, weight in weights.items():
+            self.hrp_weights.labels(asset=asset).set(weight)
+
+    def record_twap_vwap_order(self, order_type: str, slippage_pct: float) -> None:
+        """Record TWAP/VWAP order."""
+        if not self._enabled:
+            return
+        self.twap_vwap_orders_total.labels(order_type=order_type).inc()
+        self.twap_vwap_slippage.labels(order_type=order_type).observe(slippage_pct)
+
+    def record_rebalancer_run(self, deviation_pct: float) -> None:
+        """Record rebalancer run."""
+        if not self._enabled:
+            return
+        self.rebalancer_runs_total.inc()
+        self.portfolio_deviation.set(deviation_pct)
 
 
 # Global exporter instance

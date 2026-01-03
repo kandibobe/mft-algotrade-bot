@@ -1,13 +1,13 @@
 {
   "state": "open",
-  "trip_reason": "max_drawdown",
-  "trip_time": "2025-12-28T11:11:33.019447",
+  "trip_reason": "daily_loss_limit",
+  "trip_time": "2026-01-03T13:19:36.655276",
   "recovery_trades": 0,
   "session": {
-    "start_time": "2025-12-28T10:36:23.955909",
-    "initial_balance": 0.0,
+    "start_time": "2026-01-03T12:45:37.266904",
+    "initial_balance": 10000.0,
     "current_balance": 8000.0,
-    "peak_balance": 8000.0,
-    "consecutive_losses": 3
+    "peak_balance": 10000.0,
+    "consecutive_losses": 14
   }
 }

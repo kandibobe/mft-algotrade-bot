@@ -207,7 +207,7 @@ train: ## Train ML model with proper data split
 
 optimize: ## Run hyperparameter optimization
 	@echo "$(CYAN)Running hyperparameter optimization...$(NC)"
-	@$(VENV)/Scripts/activate && python tools/ops/optimize_strategy.py --n-trials 100
+	@$(VENV)/Scripts/activate && python manage.py optimize
 	@echo "$(GREEN)✅ Hyperparameter optimization completed!$(NC)"
 
 walk-forward: ## Run walk-forward validation
@@ -228,11 +228,9 @@ preflight: ## Run preflight checks
 
 backtest: ## Run backtest with default strategy
 	@echo "$(CYAN)Running backtest for strategy: $(STRATEGY)$(NC)"
-	@$(VENV)/Scripts/activate && freqtrade backtesting \
-		--config config/config_backtest.json \
+	@$(VENV)/Scripts/activate && python manage.py backtest \
 		--strategy $(STRATEGY) \
-		--timerange $(TIMERANGE) \
-		--enable-protections
+		--timerange $(TIMERANGE)
 	@echo "$(GREEN)✅ Backtest completed!$(NC)"
 
 backtest-batch: ## Run batch backtesting
@@ -240,16 +238,10 @@ backtest-batch: ## Run batch backtesting
 	@$(VENV)/Scripts/activate && python tools/backtesting/batch_backtest.py
 	@echo "$(GREEN)✅ Batch backtesting completed!$(NC)"
 
-trade-dry: ## Start trading in dry-run mode (paper trading)
+trade-dry: ## Start trading in dry-run mode
 	@echo "$(CYAN)Starting trading bot in DRY-RUN mode...$(NC)"
-	@$(DOCKER_COMPOSE) up -d freqtrade frequi
-	@sleep 3
+	@$(VENV)/Scripts/activate && python manage.py trade --dry-run
 	@echo "$(GREEN)✅ Trading bot started (dry-run mode)!$(NC)"
-	@echo ""
-	@echo "$(CYAN)Monitor:$(NC)"
-	@echo "  📊 Dashboard: http://localhost:3000"
-	@echo "  📋 Logs:      make logs SERVICE=freqtrade"
-	@echo ""
 
 trade-live: check-env ## Start LIVE trading (USE WITH EXTREME CAUTION!)
 	@echo "$(RED)╔═══════════════════════════════════════════════════════════════╗$(NC)"
@@ -260,9 +252,7 @@ trade-live: check-env ## Start LIVE trading (USE WITH EXTREME CAUTION!)
 	@echo "$(RED)║  Checklist:                                                   ║$(NC)"
 	@echo "$(RED)║  [ ] Tested extensively in dry-run                            ║$(NC)"
 	@echo "$(RED)║  [ ] API keys configured with trading permissions            ║$(NC)"
-	@echo "$(RED)║  [ ] Risk limits set in config_production.json                ║$(NC)"
-	@echo "$(RED)║  [ ] Telegram notifications enabled                           ║$(NC)"
-	@echo "$(RED)║  [ ] Monitoring and alerts configured                         ║$(NC)"
+	@echo "$(RED)║  [ ] CONFIRM_LIVE_TRADING=true in .env                        ║$(NC)"
 	@echo "$(RED)╚═══════════════════════════════════════════════════════════════╝$(NC)"
 	@echo ""
 	@read -p "Type 'I UNDERSTAND THE RISKS' to proceed: " confirm; \
@@ -270,10 +260,8 @@ trade-live: check-env ## Start LIVE trading (USE WITH EXTREME CAUTION!)
 		echo "$(YELLOW)⚠️  Live trading cancelled. Stay safe!$(NC)"; \
 		exit 1; \
 	fi
-	@echo "$(RED)⚠️  REMEMBER TO SET dry_run: false IN config_production.json$(NC)"
-	@$(DOCKER_COMPOSE) up -d freqtrade frequi
+	@export CONFIRM_LIVE_TRADING=true && $(VENV)/Scripts/activate && python manage.py trade --live
 	@echo "$(GREEN)✅ Live trading started!$(NC)"
-	@echo "$(RED)⚠️  Monitor closely! Check logs regularly!$(NC)"
 
 # ==============================================================================
 # DOCKER OPERATIONS

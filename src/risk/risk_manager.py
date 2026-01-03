@@ -158,6 +158,7 @@ class RiskManager:
         entry_price: float | Decimal,
         stop_loss_price: float | Decimal,
         side: str = "long",
+        sizing_method: str = "optimal",
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -212,12 +213,14 @@ class RiskManager:
         
         # Calculate position size
         try:
+            # Pass symbol for HRP
+            kwargs['symbol'] = symbol
             # Note: PositionSizer still expects floats, converting for compatibility
             sizing_result = self.position_sizer.calculate_position_size(
                 account_balance=float(self._account_balance),
                 entry_price=float(d_entry_price),
                 stop_loss_price=float(d_stop_loss_price),
-                method="optimal",
+                method=sizing_method,
                 **kwargs,
             )
         except Exception as e:
@@ -311,7 +314,7 @@ class RiskManager:
             d_size = Decimal(str(position["size"]))
             
             d_pnl = (d_exit_price - d_entry_price) * d_size
-            d_pnl_pct = (d_exit_price - d_entry_price) / d_entry_price
+            d_pnl_pct = (d_exit_price - d_entry_price) / d_entry_price if d_entry_price != 0 else 0
             
             # Convert for downstream consumption
             pnl_pct = float(d_pnl_pct)

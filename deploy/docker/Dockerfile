@@ -63,15 +63,18 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /freqtrade
 
 # Copy application source code
-COPY src/ /freqtrade/user_data/src/
+# We copy to /freqtrade/src so that 'import src.xxx' works when PYTHONPATH=/freqtrade
+COPY src/ /freqtrade/src/
 COPY deploy/scripts/ /freqtrade/scripts/
 COPY config/ /freqtrade/config/
+COPY manage.py /freqtrade/
 
 # Create necessary directories
 RUN mkdir -p /freqtrade/user_data/{logs,data,strategies,config,backtest_results}
 
 # Set environment variables
-ENV PYTHONPATH=/freqtrade/user_data/src
+# Add /freqtrade to PYTHONPATH so we can import src.xxx and run manage.py
+ENV PYTHONPATH=/freqtrade:${PYTHONPATH}
 ENV PYTHONUNBUFFERED=1
 ENV FREQTRADE__USER_DATA_PATH=/freqtrade/user_data
 
@@ -87,5 +90,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8080/api/v1/ping', timeout=2)" || exit 1
 
-# Default command (can be overridden by docker-compose)
-CMD ["freqtrade", "--version"]
+# Default command: Use manage.py trade
+CMD ["python", "manage.py", "trade"]

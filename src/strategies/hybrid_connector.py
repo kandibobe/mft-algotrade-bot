@@ -14,6 +14,7 @@ from datetime import datetime
 
 from src.websocket.aggregator import DataAggregator, AggregatedTicker
 from src.websocket.data_stream import Exchange
+from src.order_manager.smart_order_executor import SmartOrderExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ class HybridConnectorMixin:
     """
     
     _aggregator: Optional[DataAggregator] = None
+    _executor: Optional[SmartOrderExecutor] = None
     _loop: Optional[asyncio.AbstractEventLoop] = None
     _thread: Optional[threading.Thread] = None
     _metrics_cache: Dict[str, AggregatedTicker] = {}
@@ -47,6 +49,27 @@ class HybridConnectorMixin:
         self._loop = asyncio.new_event_loop()
         self._aggregator = DataAggregator()
         
+        # Initialize Executor with config
+        from src.config.manager import ConfigurationManager
+        dry_run = True # Default safe
+        try:
+            config = ConfigurationManager.get_config()
+            exchange_config = {
+                'name': config.exchange.name,
+                'key': config.exchange.api_key,
+                'secret': config.exchange.api_secret,
+            }
+            dry_run = config.dry_run
+        except Exception:
+            logger.warning("Could not load exchange config for SmartExecutor, execution disabled.")
+            exchange_config = None
+
+        self._executor = SmartOrderExecutor(
+            aggregator=self._aggregator, 
+            exchange_config=exchange_config,
+            dry_run=dry_run
+        )
+        
         # Add exchange
         # Map string name to Enum
         try:
@@ -70,7 +93,12 @@ class HybridConnectorMixin:
     def _run_async_loop(self):
         """Internal method to run the asyncio loop."""
         asyncio.set_event_loop(self._loop)
-        self._loop.run_until_complete(self._aggregator.start())
+        
+        tasks = [self._aggregator.start()]
+        if self._executor:
+            tasks.append(self._executor.start())
+            
+        self._loop.run_until_complete(asyncio.gather(*tasks))
 
     def get_realtime_metrics(self, pair: str) -> Optional[AggregatedTicker]:
         """
@@ -104,7 +132,7 @@ class HybridConnectorMixin:
             return False
             
         # 2. Arbitrage/Cross-Exchange Integrity (Optional)
-        # if ticker.arbitrage_opportunity:
-        #     logger.info("Arbitrage opportunity detected - executing aggressively!")
+        if ticker.arbitrage_opportunity:
+            logger.info(f"⚡ Arbitrage opportunity detected for {pair}! Profit: {ticker.arbitrage_profit_pct:.2f}%")
             
         return True

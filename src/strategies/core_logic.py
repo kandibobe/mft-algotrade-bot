@@ -22,19 +22,38 @@ from src.utils.indicators import (
     calculate_stochastic, calculate_adx, calculate_obv
 )
 from src.utils.regime_detection import calculate_regime, MarketRegime
+from src.utils.logger import log, log_strategy_signal
 
 logger = logging.getLogger(__name__)
 
 @dataclass
-class TradeDecision:
-    should_enter_long: bool = False
-    should_exit_long: bool = False
-    reason: str = ""
+class StructuredTradeDecision:
+    signal: str  # 'buy', 'sell', 'hold'
+    confidence: float
+    regime: str
+    reason: str
+    metadata: Dict[str, Any]
+
+    @property
+    def should_enter_long(self) -> bool:
+        return self.signal == 'buy'
+
+    @property
+    def should_exit_long(self) -> bool:
+        return self.signal == 'sell'
+
+# Legacy Alias for backward compatibility
+TradeDecision = StructuredTradeDecision
 
 class StoicLogic:
     """
     Encapsulates the core decision making logic.
     """
+
+    @staticmethod
+    def calculate_ema(series: pd.Series, period: int) -> pd.Series:
+        """Wrapper for EMA calculation."""
+        return calculate_ema(series, period)
 
     @staticmethod
     def populate_indicators(dataframe: pd.DataFrame) -> pd.DataFrame:
@@ -46,8 +65,14 @@ class StoicLogic:
         dataframe['ema_200'] = calculate_ema(dataframe['close'], 200)
         dataframe['rsi'] = calculate_rsi(dataframe['close'], 14)
         
+        macd = calculate_macd(dataframe['close'])
+        dataframe['macd'] = macd['macd']
+        dataframe['macd_signal'] = macd['signal']
+        dataframe['macd_hist'] = macd['histogram']
+
         bb = calculate_bollinger_bands(dataframe['close'], 20, 2.0)
         dataframe['bb_lower'] = bb['lower']
+        dataframe['bb_middle'] = bb['middle']
         dataframe['bb_upper'] = bb['upper']
         dataframe['bb_width'] = bb['width']
         
@@ -63,6 +88,7 @@ class StoicLogic:
     def populate_entry_exit_signals(dataframe: pd.DataFrame, 
                                   buy_threshold: float = 0.6,
                                   sell_rsi: int = 75,
+                                  mean_rev_rsi: int = 30,
                                   persistence_window: int = 3) -> pd.DataFrame:
         """
         Vectorized signal generation using Regime Permission Matrix.
@@ -91,9 +117,9 @@ class StoicLogic:
         )
         
         # 2. Mean Reversion Signal (Dip Buy)
-        # Condition: RSI < 30 AND Price < BB Lower
+        # Condition: RSI < mean_rev_rsi AND Price < BB Lower
         raw_mean_rev_signal = (
-            (df['rsi'] < 30) &
+            (df['rsi'] < mean_rev_rsi) &
             (df['close'] <= df['bb_lower'])
         )
         
@@ -132,7 +158,7 @@ class StoicLogic:
         return df
 
     @staticmethod
-    def get_entry_decision(candle: Dict[str, Any], regime: MarketRegime, threshold: float = 0.6) -> TradeDecision:
+    def get_entry_decision(candle: Dict[str, Any], regime: MarketRegime, threshold: float = 0.6) -> StructuredTradeDecision:
         """
         Scalar version for unit testing or event-driven execution.
         """
@@ -142,24 +168,58 @@ class StoicLogic:
         bb_lower = candle.get('bb_lower', 0)
         ema_200 = candle.get('ema_200', 0)
         ml_pred = candle.get('ml_prediction', 0.5)
-        
+        symbol = candle.get('symbol', 'unknown')
+
+        # Default: Hold
+        signal = "hold"
+        reason = "No Signal"
+
         # Logic Matrix
         if regime == MarketRegime.QUIET_CHOP:
-            return TradeDecision(False, False, "Quiet Chop - Stay Flat")
-            
+            reason = "Quiet Chop - Stay Flat"
+
         elif regime == MarketRegime.PUMP_DUMP:
             # Trend Following Allowed
             if (close > ema_200) and (ml_pred > threshold):
-                return TradeDecision(True, False, "Trend Follow (Pump)")
-                
+                signal = "buy"
+                reason = "Trend Follow (Pump)"
+
         elif regime == MarketRegime.GRIND:
             # Trend Following Allowed
             if (close > ema_200) and (ml_pred > threshold):
-                return TradeDecision(True, False, "Trend Follow (Grind)")
-                
+                signal = "buy"
+                reason = "Trend Follow (Grind)"
+
         elif regime == MarketRegime.VIOLENT_CHOP:
             # Mean Reversion Allowed
             if (rsi < 30) and (close <= bb_lower):
-                return TradeDecision(True, False, "Mean Reversion (Violent)")
-                    
-        return TradeDecision(False, False)
+                signal = "buy"
+                reason = "Mean Reversion (Violent)"
+
+        # Construct Structured Decision
+        decision = StructuredTradeDecision(
+            signal=signal,
+            confidence=float(ml_pred),
+            regime=str(regime),
+            reason=reason,
+            metadata={
+                "rsi": float(rsi),
+                "ema_200": float(ema_200),
+                "close": float(close),
+                "bb_lower": float(bb_lower),
+                "threshold": threshold
+            }
+        )
+
+        # Log significant decisions (Entry or Exit)
+        if decision.should_enter_long or decision.should_exit_long:
+            log_strategy_signal(
+                strategy="StoicLogic",
+                symbol=symbol,
+                signal=decision.signal,
+                confidence=decision.confidence,
+                indicators=decision.metadata,
+                reason=decision.reason
+            )
+
+        return decision

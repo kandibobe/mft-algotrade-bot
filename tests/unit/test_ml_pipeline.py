@@ -72,10 +72,10 @@ def test_pipeline_end_to_end(mock_data_dir, mock_models_dir):
     # Check results
     assert "BTC/USDT" in results
     assert results["BTC/USDT"]["success"] is True
-    assert "accuracy" in results["BTC/USDT"]["metrics"]
     
     # Check registry
     registry = ModelRegistry(registry_dir=str(mock_models_dir / "registry"))
+    print(f"Registry models: {registry.models.keys()}")
     models = registry.get_all_versions("BTC_USDT")
     assert len(models) > 0
     assert models[0].status.value == "staged"

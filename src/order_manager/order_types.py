@@ -23,6 +23,8 @@ class OrderType(Enum):
     STOP_LOSS = "stop_loss"
     TAKE_PROFIT = "take_profit"
     TRAILING_STOP = "trailing_stop"
+    TWAP = "twap"
+    VWAP = "vwap"
 
 
 class OrderSide(Enum):
@@ -103,6 +105,9 @@ class Order:
     # Timeout management
     timeout_seconds: int = 300  # 5 minutes default timeout
     timeout_at: Optional[datetime] = None
+
+    # Exchange flags
+    reduce_only: bool = False
 
     def __post_init__(self):
         """Initialize calculated fields."""

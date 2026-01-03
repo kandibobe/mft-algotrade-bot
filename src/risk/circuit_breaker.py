@@ -136,7 +136,8 @@ class CircuitBreaker:
         with self._lock:
             # If we loaded a session and it's from today (approx), keep the PnL tracking
             # Otherwise start fresh
-            if self.session.start_time.date() != datetime.utcnow().date():
+            # Also reset if initial_balance is invalid (fresh instance)
+            if self.session.start_time.date() != datetime.utcnow().date() or self.session.initial_balance <= 0:
                 self.session = TradingSession(
                     start_time=datetime.utcnow(),
                     initial_balance=initial_balance,

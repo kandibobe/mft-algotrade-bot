@@ -43,9 +43,9 @@ class TestIndicatorCalculation:
             "slowk",
             "slowd",
             "macd",
-            "macdsignal",
-            "bb_lowerband",
-            "bb_upperband",
+            "macd_signal",
+            "bb_lower",
+            "bb_upper",
             "atr",
             "volume_mean",
         ]
@@ -83,13 +83,13 @@ class TestIndicatorCalculation:
         df = stoic_strategy.populate_indicators(sample_dataframe.copy(), strategy_metadata)
 
         # Skip warmup period
-        df_valid = df.iloc[250:].dropna(subset=["bb_lowerband", "bb_upperband", "bb_middleband"])
+        df_valid = df.iloc[250:].dropna(subset=["bb_lower", "bb_upper", "bb_middle"])
 
         assert (
-            df_valid["bb_lowerband"] <= df_valid["bb_middleband"]
+            df_valid["bb_lower"] <= df_valid["bb_middle"]
         ).all(), "Lower band above middle"
         assert (
-            df_valid["bb_middleband"] <= df_valid["bb_upperband"]
+            df_valid["bb_middle"] <= df_valid["bb_upper"]
         ).all(), "Middle band above upper"
 
     def test_ema_trend_logic(self, stoic_strategy, uptrend_dataframe, strategy_metadata):

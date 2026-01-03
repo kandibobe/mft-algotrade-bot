@@ -22,7 +22,7 @@ class NightlyOptimizer:
         self.results_dir = Path(results_dir)
         self.results_dir.mkdir(parents=True, exist_ok=True)
         
-    def run_hyperopt(self, strategy: str, pairs: List[str], epochs: int = 100) -> bool:
+    def run_hyperopt(self, strategy: str, pairs: List[str], epochs: int = 100, config_path: str = None) -> bool:
         """Run Freqtrade Hyperopt."""
         logger.info(f"🚀 Starting Hyperopt for {strategy} ({epochs} epochs)")
         
@@ -33,7 +33,7 @@ class NightlyOptimizer:
             "--hyperopt-loss", "SharpeHyperOptLoss",
             "--spaces", "buy", "sell", "roi", "stoploss",
             "-e", str(epochs),
-            "--config", "user_data/config/config_backtest.json"
+            "--config", config_path or "user_data/config/config_backtest.json"
         ]
         
         # Note: We assume config handles pairs, or we patch config. 
@@ -73,7 +73,7 @@ class NightlyOptimizer:
             logger.error(f"❌ ML Training crashed: {e}")
             return False
 
-    def execute_nightly_cycle(self, strategy: str, pairs: List[str], epochs: int = 500, ml_trials: int = 100):
+    def execute_nightly_cycle(self, strategy: str, pairs: List[str], epochs: int = 500, ml_trials: int = 100, config_path: str = None):
         """Execute the full nightly cycle."""
         start_time = datetime.now()
         report = []
@@ -81,7 +81,7 @@ class NightlyOptimizer:
         report.append(f"# Nightly Optimization Report - {start_time.strftime('%Y-%m-%d')}")
         
         # 1. Hyperopt
-        if self.run_hyperopt(strategy, pairs, epochs):
+        if self.run_hyperopt(strategy, pairs, epochs, config_path):
             report.append(f"- [x] Hyperopt ({epochs} epochs): Success")
         else:
             report.append(f"- [ ] Hyperopt ({epochs} epochs): Failed")

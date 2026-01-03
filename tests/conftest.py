@@ -386,7 +386,22 @@ def stoic_strategy(minimal_config):
         # Fallback to V5 if standard not found
         from StoicEnsembleStrategyV5 import StoicEnsembleStrategyV5 as StoicEnsembleStrategy
     
-    return StoicEnsembleStrategy(minimal_config)
+    strategy = StoicEnsembleStrategy(minimal_config)
+    
+    # Mock dp and config
+    from unittest.mock import MagicMock
+    strategy.dp = MagicMock()
+    strategy.dp.current_whitelist.return_value = ["BTC/USDT", "ETH/USDT"]
+    strategy.dp.get_pair_dataframe.return_value = pd.DataFrame() # Fallback
+    
+    # Setup config
+    strategy.config = minimal_config
+    
+    # Mock wallets
+    strategy.wallets = MagicMock()
+    strategy.wallets.get_total_stake_amount.return_value = 1000.0
+    
+    return strategy
 
 
 @pytest.fixture

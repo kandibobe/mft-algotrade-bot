@@ -1,277 +1,181 @@
 """
-Vectorized Backtester
-=====================
+Walk-Forward Optimization (WFO) Engine
+======================================
 
-A high-performance, event-driven backtester for ML strategies.
-Simulates realistic execution, fees, and slippage.
+Implements Walk-Forward Optimization for robust ML strategy validation.
 
 Key Features:
-- Event-driven execution (Entry at Open of Next Bar)
-- Realistic Fee & Slippage modeling (Deducted from every trade)
-- Correct handling of Take Profit / Stop Loss / Time Exits
-- Conservative execution assumptions (SL hits before TP in ambiguous cases)
-- Fast iteration using Numpy
+- Splits data into training and out-of-sample (OOS) testing folds.
+- Retrains the ML model on each training fold.
+- Evaluates the model on the subsequent OOS fold.
+- Stitches together OOS results to provide a realistic performance estimate.
+- Generates reports and visualizations of WFO performance.
+
+Author: Stoic Citadel Team
+License: MIT
 """
 
 import logging
-import numpy as np
+from typing import Dict, Any, List
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any
+import numpy as np
 from dataclasses import dataclass
+
+from src.ml.pipeline import MLTrainingPipeline
+from src.backtesting.vectorized_backtester import VectorizedBacktester, BacktestConfig
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class BacktestConfig:
-    """Configuration for backtesting."""
-    initial_capital: float = 10000.0
-    fee_rate: float = 0.001       # 0.1% per trade
-    slippage_rate: float = 0.0005 # 0.05% slippage per trade
-    take_profit: float = 0.015    # 1.5% default
-    stop_loss: float = 0.0075     # 0.75% default
-    max_holding_bars: int = 24    # Max bars to hold
-    position_size_pct: float = 0.99 # Use 99% of capital (leave dust)
 
 @dataclass
-class Trade:
-    """Trade record."""
-    entry_time: pd.Timestamp
-    exit_time: pd.Timestamp
-    entry_price: float
-    exit_price: float
-    quantity: float
-    direction: int # 1 for Long
-    gross_pnl: float
-    net_pnl: float
-    fees: float
-    exit_reason: str
-    holding_bars: int
+class WFOConfig:
+    """Configuration for Walk-Forward Optimization."""
+    train_days: int = 365
+    test_days: int = 90
+    step_days: int = 90  # How many days to step forward for the next fold
 
-class VectorizedBacktester:
+
+class WFOEngine:
     """
-    Backtester that iterates through signals and simulates trade lifecycles.
+    Orchestrates Walk-Forward Optimization.
     """
-    
-    def __init__(self, config: BacktestConfig):
-        self.config = config
-    
-    def run(self, signals: pd.Series, ohlcv: pd.DataFrame) -> Dict[str, Any]:
+
+    def __init__(self, wfo_config: WFOConfig, backtest_config: BacktestConfig):
+        self.wfo_config = wfo_config
+        self.backtest_config = backtest_config
+        self.backtester = VectorizedBacktester(backtest_config)
+
+    def run(self, data: pd.DataFrame, pair: str) -> Dict[str, Any]:
         """
-        Run backtest.
-        
+        Run the Walk-Forward Optimization.
+
         Args:
-            signals: Series of signals (1=Buy, 0=No Signal). Index must match ohlcv.
-            ohlcv: DataFrame with open, high, low, close, volume.
-            
+            data: The full historical dataset for a single pair.
+            pair: The trading pair being tested.
+
         Returns:
-            Dict with results (trades, equity_curve, metrics).
+            A dictionary with aggregated results and fold-by-fold details.
         """
-        # Align signals and data
-        common_idx = signals.index.intersection(ohlcv.index)
-        if len(common_idx) == 0:
-            raise ValueError("Signals and OHLCV have no overlapping timestamps")
-        
-        signals = signals.loc[common_idx]
-        ohlcv = ohlcv.loc[common_idx]
-        
-        # Prepare numpy arrays for fast iteration
-        opens = ohlcv['open'].values
-        highs = ohlcv['high'].values
-        lows = ohlcv['low'].values
-        closes = ohlcv['close'].values
-        times = ohlcv.index
-        sig_values = signals.values
-        
-        n_bars = len(closes)
-        trades: List[Trade] = []
-        equity_curve = [self.config.initial_capital]
-        current_capital = self.config.initial_capital
-        
-        # State
-        in_position = False
-        entry_price = 0.0
-        entry_idx = 0
-        quantity = 0.0
-        
-        # Iterate through bars
-        for i in range(n_bars - 1):
-            # 1. Check Exit if in position
-            if in_position:
-                # Check for TP/SL/Time
-                # Execution happens at CURRENT bar prices (we are checking if price HIT barriers within this bar i)
-                # Note: We entered at Open of Entry Bar. Now we are at Bar i (>= Entry Bar).
-                
-                # Barrier Levels
-                tp_price = entry_price * (1 + self.config.take_profit)
-                sl_price = entry_price * (1 - self.config.stop_loss)
-                
-                exit_price = 0.0
-                exit_reason = None
-                
-                # Check Barriers (Conservative: SL check first)
-                # Case 1: Low dropped below SL
-                if lows[i] <= sl_price:
-                    exit_price = sl_price
-                    exit_reason = 'stop_loss'
-                    # Apply slippage to SL exit (execution might be worse)
-                    exit_price *= (1 - self.config.slippage_rate)
-                
-                # Case 2: High went above TP (only if SL not hit, or if we assume OCO)
-                elif highs[i] >= tp_price:
-                    exit_price = tp_price
-                    exit_reason = 'take_profit'
-                    # Apply slippage? Usually limits fill at price, but let's be conservative
-                    exit_price *= (1 - self.config.slippage_rate)
-                    
-                # Case 3: Time Limit
-                elif (i - entry_idx) >= self.config.max_holding_bars:
-                    exit_price = closes[i] # Exit at Close of this bar
-                    exit_reason = 'time_limit'
-                    exit_price *= (1 - self.config.slippage_rate)
-                
-                # Case 4: Force Exit Signal (optional, if we have sell signals)
-                # Not implemented for this ML model (Binary Buy/Ignore)
-                
-                if exit_reason:
-                    # Execute Exit
-                    # Calculate fees
-                    exit_fee = (quantity * exit_price) * self.config.fee_rate
-                    gross_payout = (quantity * exit_price)
-                    net_payout = gross_payout - exit_fee
-                    
-                    current_capital += net_payout
-                    
-                    # Record Trade
-                    gross_pnl = (exit_price - entry_price) * quantity
-                    total_fees = (quantity * entry_price * self.config.fee_rate) + exit_fee
-                    net_pnl = gross_pnl - total_fees
-                    
-                    trades.append(Trade(
-                        entry_time=times[entry_idx],
-                        exit_time=times[i],
-                        entry_price=entry_price,
-                        exit_price=exit_price,
-                        quantity=quantity,
-                        direction=1,
-                        gross_pnl=gross_pnl,
-                        net_pnl=net_pnl,
-                        fees=total_fees,
-                        exit_reason=exit_reason,
-                        holding_bars=i - entry_idx
-                    ))
-                    
-                    in_position = False
-                    quantity = 0.0
-            
-            # 2. Check Entry (if not in position)
-            # Signal at i means we buy at Open of i+1
-            if not in_position:
-                if sig_values[i] == 1:
-                    # Execute Entry at Open of NEXT bar (i+1)
-                    # We can simulate this by setting state to "Entered at i+1"
-                    # But we are inside loop i. We need to handle the entry at i+1 step.
-                    # Correct logic: Set flag to enter at i+1
-                    
-                    # Check if i+1 exists
-                    if i + 1 < n_bars:
-                        entry_idx = i + 1
-                        raw_entry_price = opens[entry_idx]
-                        
-                        # Apply slippage to Entry
-                        entry_price = raw_entry_price * (1 + self.config.slippage_rate)
-                        
-                        # Calculate Quantity
-                        # Deduct entry fee upfront from capital to find buyable quantity?
-                        # Or buy quantity and deduct fee from remaining capital?
-                        # Standard: Position Size = Capital * Pct
-                        # Cost = Qty * Price * (1 + Fee)
-                        # So Qty = (Capital * Pct) / (Price * (1 + Fee))
-                        
-                        position_cost = current_capital * self.config.position_size_pct
-                        quantity = position_cost / (entry_price * (1 + self.config.fee_rate))
-                        
-                        # Deduct cost (Actual cash outflow)
-                        cost_outflow = quantity * entry_price
-                        entry_fee = cost_outflow * self.config.fee_rate
-                        
-                        current_capital -= (cost_outflow + entry_fee)
-                        
-                        in_position = True
-                        
-                        # Note: We entered at i+1. The loop will continue to i+1.
-                        # At i+1 iteration, we will check exits for the bar i+1 itself.
-                        # This implies we can enter and exit in the same bar (i+1) if Price hits SL/TP.
-                        # This is realistic (Open -> crash to SL -> Close).
-                        # However, we must ensure we don't double-process entry.
-                        # Since we set in_position=True and entry_idx=i+1, 
-                        # in the next iteration (idx = i+1), the "if in_position" block will run.
-                        # It will check if Low[i+1] <= SL. Correct.
-                        pass
+        logger.info("=" * 70)
+        logger.info(f"🚀 Starting Walk-Forward Optimization for {pair}")
+        logger.info("=" * 70)
 
-            # Update Equity Curve (mark-to-market)
-            # If in position, equity = cash + position_value
-            # Position value = Qty * Close[i] (approx)
-            if in_position:
-                # Use current close for MTM
-                # Note: If we just entered at i+1 (which is future), we shouldn't record equity at i using i+1 entry.
-                # But here we are at end of processing i.
-                # If we decided to enter at i+1, the entry hasn't happened yet in time 'i'.
-                # So at 'i', we are still flat cash.
-                # Wait, my logic above sets in_position=True immediately.
-                # This effectively means "At end of bar i, we place order for Open i+1".
-                # Realistically, the position exposure starts at i+1.
-                # So for equity curve at 'i', we are still flat.
-                
-                # Correction:
-                # If entry_idx > i, we are "pending entry", not "in position" for MTM purposes.
-                if entry_idx > i:
-                    total_equity = current_capital + (quantity * entry_price) # wait, we deducted capital already?
-                    # Let's rewind.
-                    # We deducted capital at 'i' for a trade happening at 'i+1'.
-                    # This makes accounting tricky.
-                    # Cleaner way: Perform entry logic at the START of the loop for i.
-                    pass
-                else:
-                    # We are in position at bar i
-                    mtm_value = quantity * closes[i]
-                    total_equity = current_capital + mtm_value
+        all_trades = []
+        all_equity_curves = []
+        fold_results = []
+
+        start_date = data.index.min()
+        end_date = data.index.max()
+
+        fold_start = start_date
+        while fold_start + pd.Timedelta(days=self.wfo_config.train_days + self.wfo_config.test_days) <= end_date:
+            train_start = fold_start
+            train_end = train_start + pd.Timedelta(days=self.wfo_config.train_days)
+            test_start = train_end
+            test_end = test_start + pd.Timedelta(days=self.wfo_config.test_days)
+
+            train_data = data.loc[train_start:train_end]
+            test_data = data.loc[test_start:test_end]
+
+            logger.info("-" * 70)
+            logger.info(f"Fold: Train {train_start.date()} - {train_end.date()} | Test {test_start.date()} - {test_end.date()}")
+
+            # 1. Train the model on the training data for this fold
+            pipeline = MLTrainingPipeline(quick_mode=True) # Using quick_mode for speed in this example
+            model = pipeline.train_and_get_model(train_data, pair)
+            
+            if model is None:
+                logger.warning(f"Skipping fold due to training failure for {pair}")
+                continue
+
+            # 2. Generate signals using the trained model
+            try:
+                predictions = model.predict(test_data)
+                signals = pd.Series(predictions, index=test_data.index)
+            except Exception as e:
+                logger.error(f"Error generating signals for fold: {e}")
+                continue
+
+            # 3. Run the backtester on the out-of-sample test data
+            results = self.backtester.run(signals, test_data)
+            
+            if not results['trades'].empty:
+                all_trades.append(results['trades'])
+                all_equity_curves.append(results['equity_curve'])
+                fold_results.append({
+                    "fold": f"{test_start.date()}_{test_end.date()}",
+                    "num_trades": len(results['trades']),
+                    "return": results['total_return']
+                })
+                logger.info(f"  ✅ Fold completed: {len(results['trades'])} trades, Return: {results['total_return']:.2%}")
             else:
-                total_equity = current_capital
-                
-            equity_curve.append(total_equity)
+                logger.info("  No trades in this fold.")
 
-        # Force close at end if open
-        if in_position:
-            i = n_bars - 1
-            exit_price = closes[i] * (1 - self.config.slippage_rate)
-            exit_fee = (quantity * exit_price) * self.config.fee_rate
-            net_payout = (quantity * exit_price) - exit_fee
-            current_capital += net_payout
+            fold_start += pd.Timedelta(days=self.wfo_config.step_days)
             
-            # Record Trade
-            gross_pnl = (exit_price - entry_price) * quantity
-            total_fees = (quantity * entry_price * self.config.fee_rate) + exit_fee
-            net_pnl = gross_pnl - total_fees
-            
-            trades.append(Trade(
-                entry_time=times[entry_idx],
-                exit_time=times[i],
-                entry_price=entry_price,
-                exit_price=exit_price,
-                quantity=quantity,
-                direction=1,
-                gross_pnl=gross_pnl,
-                net_pnl=net_pnl,
-                fees=total_fees,
-                exit_reason='end_of_data',
-                holding_bars=i - entry_idx
-            ))
-            
-            equity_curve[-1] = current_capital
+        if not all_trades:
+            logger.warning("No trades were executed in the entire Walk-Forward Optimization.")
+            return {"summary": "No trades executed."}
+
+        # 4. Aggregate and analyze the results
+        combined_trades = pd.concat(all_trades)
+        
+        stitched_equity = self._stitch_equity_curves(all_equity_curves)
+
+        summary = self._calculate_summary_metrics(combined_trades, stitched_equity)
+
+        logger.info("=" * 70)
+        logger.info("📊 WFO Summary")
+        logger.info("=" * 70)
+        for key, value in summary.items():
+            logger.info(f"  {key}: {value}")
 
         return {
-            'trades': pd.DataFrame(trades),
-            'equity_curve': pd.Series(equity_curve, index=times[:len(equity_curve)]),
-            'final_capital': current_capital,
-            'total_return': (current_capital - self.config.initial_capital) / self.config.initial_capital
+            "summary": summary,
+            "trades": combined_trades,
+            "equity_curve": stitched_equity,
+            "fold_results": fold_results,
+        }
+
+    def _stitch_equity_curves(self, equity_curves: List[pd.Series]) -> pd.Series:
+        """Stitch together multiple equity curves from WFO folds."""
+        if not equity_curves:
+            return pd.Series()
+
+        full_curve = equity_curves[0]
+        
+        for i in range(1, len(equity_curves)):
+            prev_curve_end_value = full_curve.iloc[-1]
+            next_curve = equity_curves[i]
+            
+            growth = next_curve / next_curve.iloc[0]
+            
+            stitched_part = growth * prev_curve_end_value
+            
+            full_curve = pd.concat([full_curve, stitched_part.iloc[1:]])
+
+        return full_curve
+        
+    def _calculate_summary_metrics(self, trades: pd.DataFrame, equity_curve: pd.Series) -> Dict[str, Any]:
+        """Calculate summary metrics for the WFO results."""
+        total_return = (equity_curve.iloc[-1] / equity_curve.iloc[0]) - 1
+        
+        daily_returns = equity_curve.pct_change().dropna()
+        sharpe_ratio = (daily_returns.mean() / daily_returns.std()) * np.sqrt(252) if daily_returns.std() > 0 else 0
+
+        rolling_max = equity_curve.cummax()
+        drawdown = (equity_curve - rolling_max) / rolling_max
+        max_drawdown = drawdown.min()
+
+        return {
+            "Total Return": f"{total_return:.2%}",
+            "Sharpe Ratio": f"{sharpe_ratio:.2f}",
+            "Max Drawdown": f"{max_drawdown:.2%}",
+            "Total Trades": len(trades),
+            "Win Rate": f"{(trades['net_pnl'] > 0).mean():.2%}" if len(trades) > 0 else "N/A",
+            "Profit Factor": (
+                trades[trades['net_pnl'] > 0]['net_pnl'].sum() / 
+                abs(trades[trades['net_pnl'] < 0]['net_pnl'].sum())
+                if abs(trades[trades['net_pnl'] < 0]['net_pnl'].sum()) > 0 else "inf"
+            ),
         }

@@ -40,7 +40,10 @@ def calculate_regime(
     close: pd.Series, 
     volume: pd.Series,
     lookback_vol: int = 500,
-    lookback_trend: int = 100
+    lookback_trend: int = 100,
+    vol_threshold: float = 0.5,
+    adx_threshold: float = 25.0,
+    hurst_threshold: float = 0.55
 ) -> pd.DataFrame:
     """
     Calculate Regime State based on Volatility Z-Score and Trend Strength.
@@ -52,6 +55,9 @@ def calculate_regime(
         volume: Volume data
         lookback_vol: Window for volatility percentile/z-score
         lookback_trend: Window for Hurst/ADX
+        vol_threshold: Z-Score threshold for high volatility
+        adx_threshold: ADX threshold for trending
+        hurst_threshold: Hurst threshold for persistence
         
     Returns:
         DataFrame with 'regime' column (MarketRegime value) and metrics.
@@ -91,9 +97,9 @@ def calculate_regime(
     # --- 3. Classification Logic ---
     
     # Thresholds
-    VOL_HIGH_THRESHOLD = 0.5  # Z-Score > 0.5 implies elevated volatility
-    TREND_ADX_THRESHOLD = 25.0
-    TREND_HURST_THRESHOLD = 0.55
+    VOL_HIGH_THRESHOLD = vol_threshold
+    TREND_ADX_THRESHOLD = adx_threshold
+    TREND_HURST_THRESHOLD = hurst_threshold
     
     # Vectorized Classification
     # Initialize with default
@@ -173,15 +179,37 @@ def calculate_regime_score(
     }
     
     regime_df['regime_score'] = regime_df['regime'].map(score_map)
+    
+    # Calculate risk factor (inverse of score, normalized 0-1)
+    # Higher score = Lower risk factor (more aggressive)
+    # Lower score = Higher risk factor (more defensive)
+    regime_df['risk_factor'] = 1.0 - (regime_df['regime_score'] / 100.0)
+    
     return regime_df
 
-def get_regime_parameters(regime_score: float) -> Dict[str, Any]:
+def get_regime_parameters(regime_score: float, base_risk: float = 0.02) -> Dict[str, Any]:
     """
     Get strategy parameters based on regime score.
+    
+    Args:
+        regime_score: Score from 0 to 100
+        base_risk: Base risk per trade (default 2%)
     """
     if regime_score > 70:
-        return {"mode": "aggressive", "leverage_mult": 1.2}
+        return {
+            "mode": "aggressive", 
+            "leverage_mult": 1.2,
+            "risk_per_trade": base_risk * 1.5  # Scale base risk up
+        }
     elif regime_score < 30:
-        return {"mode": "defensive", "leverage_mult": 0.5}
+        return {
+            "mode": "defensive", 
+            "leverage_mult": 0.5,
+            "risk_per_trade": base_risk * 0.5  # Scale base risk down
+        }
     else:
-        return {"mode": "normal", "leverage_mult": 1.0}
+        return {
+            "mode": "normal", 
+            "leverage_mult": 1.0,
+            "risk_per_trade": base_risk  # Use base risk
+        }

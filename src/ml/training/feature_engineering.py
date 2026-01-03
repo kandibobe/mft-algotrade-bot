@@ -1057,7 +1057,8 @@ class FeatureEngineer:
         
         Steps:
         1. Replace all np.inf and -np.inf with NaN
-        2. Impute NaNs (Forward Fill -> Backward Fill -> Zero)
+        2. Impute NaNs (Forward Fill)
+        3. Drop remaining NaNs (at the beginning) - NO bfill to avoid leakage
         
         NOTE: We do NOT drop rows in live trading to prevent "silent failures" 
         where the strategy goes blind due to a single NaN.
@@ -1086,27 +1087,34 @@ class FeatureEngineer:
                 # Fallback for safe handling
                 result[col] = result[col].replace([np.inf, -np.inf], np.nan)
         
-        # Step 2: Impute NaNs instead of dropping
+        # Step 2: Impute NaNs
         # Count NaNs before
         nan_count_before = result.isnull().sum().sum()
         
         if nan_count_before > 0:
-            logger.warning(f"Found {nan_count_before} NaNs. Imputing with ffill/bfill/zero.")
+            logger.warning(f"Found {nan_count_before} NaNs. Applying strict cleaning (ffill + dropna).")
             
             # Forward fill (propagate last valid value)
             result = result.ffill()
             
-            # Backward fill (for initial window NaNs)
-            result = result.bfill()
+            # STAGE 3 FIX: Removed bfill() to prevent future data leakage.
+            # Instead of backfilling, we drop the initial rows that contain NaNs.
+            # This reduces dataset size slightly but guarantees 0 leakage.
             
-            # Fill remaining with 0 (should be rare/impossible unless column is all NaN)
-            result = result.fillna(0)
-            
+            # Check if any NaNs remain (these would be at the start)
+            if result.isnull().any().any():
+                rows_before = len(result)
+                result = result.dropna()
+                rows_dropped = rows_before - len(result)
+                logger.info(f"Dropped {rows_dropped} rows with initial NaNs to prevent leakage.")
+            else:
+                logger.info("No initial NaNs found after ffill.")
+                
             nan_count_after = result.isnull().sum().sum()
             if nan_count_after == 0:
-                logger.info("NaN imputation successful.")
+                logger.info("NaN cleaning successful.")
             else:
-                logger.error(f"NaN imputation failed! {nan_count_after} NaNs remain.")
+                logger.error(f"NaN cleaning failed! {nan_count_after} NaNs remain.")
         
         return result
 

@@ -18,13 +18,14 @@ class TestCircuitBreaker:
     """Test suite for CircuitBreaker."""
     
     @pytest.fixture
-    def breaker(self):
+    def breaker(self, tmp_path):
         """Create a circuit breaker with test config."""
         config = CircuitBreakerConfig(
             daily_loss_limit_pct=0.05,
             consecutive_loss_limit=3,
             max_drawdown_pct=0.10,
-            cooldown_minutes=1
+            cooldown_minutes=1,
+            state_file_path=tmp_path / "circuit_breaker_state.json"
         )
         cb = CircuitBreaker(config)
         cb.initialize_session(10000.0)
@@ -38,8 +39,8 @@ class TestCircuitBreaker:
     
     def test_daily_loss_limit_trip(self, breaker):
         """Test trip on daily loss limit."""
-        # Simulate 5% loss
-        breaker.record_trade({"symbol": "BTC/USDT"}, -0.05)
+        # Simulate >5% loss to avoid float precision issues
+        breaker.record_trade({"symbol": "BTC/USDT"}, -0.051)
         
         assert breaker.state == CircuitState.OPEN
         assert breaker.trip_reason == TripReason.DAILY_LOSS_LIMIT

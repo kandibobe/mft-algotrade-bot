@@ -94,7 +94,8 @@ class DatabaseConfig:
         # Construct from parts
         user = os.getenv('POSTGRES_USER', 'stoic_trader')
         password = os.getenv('POSTGRES_PASSWORD', '')
-        host = os.getenv('POSTGRES_HOST', 'localhost')
+        # Fix IPv6 resolution issue on Windows by defaulting to 127.0.0.1
+        host = os.getenv('POSTGRES_HOST', '127.0.0.1')
         port = os.getenv('POSTGRES_PORT', '5433')
         database = os.getenv('POSTGRES_DB', 'trading_analytics')
 
@@ -102,6 +103,13 @@ class DatabaseConfig:
             logger.warning("POSTGRES_PASSWORD not set - using empty password")
 
         url = f"postgresql://{user}:{password}@{host}:{port}/{database}"
+        
+        # CRITICAL FIX: Force 127.0.0.1 instead of localhost for Windows compatibility
+        # This handles cases where POSTGRES_URL env var might contain localhost
+        if "localhost" in url:
+            logger.info("Replacing 'localhost' with '127.0.0.1' in database URL for compatibility")
+            url = url.replace("localhost", "127.0.0.1")
+            
         return url
 
     def get_engine(self) -> Engine:

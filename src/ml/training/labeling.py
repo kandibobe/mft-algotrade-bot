@@ -27,13 +27,13 @@ class TripleBarrierConfig:
     """Configuration for Triple Barrier labeling."""
 
     # Take profit threshold (e.g., 0.008 = 0.8%)
-    take_profit: float = 0.008
+    take_profit: float = 0.015
 
     # Stop loss threshold (e.g., 0.004 = 0.4%)
-    stop_loss: float = 0.004
+    stop_loss: float = 0.0075
 
     # Maximum bars to hold position
-    max_holding_period: int = 48  # 48 bars = 4 hours for 5m timeframe
+    max_holding_period: int = 24  # 48 bars = 4 hours for 5m timeframe
 
     # Minimum price movement to consider (filters noise)
     min_movement: float = 0.001
@@ -528,8 +528,8 @@ class DynamicBarrierLabeler(TripleBarrierLabeler):
         self,
         config: Optional[TripleBarrierConfig] = None,
         lookback: int = 100,
-        profit_multiplier: float = 1.5,
-        loss_multiplier: float = 0.75,
+        profit_multiplier: float = 2.0,
+        loss_multiplier: float = 1.0,
         **kwargs
     ):
         """
@@ -546,7 +546,11 @@ class DynamicBarrierLabeler(TripleBarrierLabeler):
         self.lookback = lookback
         self.profit_multiplier = profit_multiplier
         self.loss_multiplier = loss_multiplier
-        self.atr_period = kwargs.get('atr_period', 14) # Absorb for compatibility with tests
+        
+        # Compatibility attributes
+        self.atr_period = kwargs.get('atr_period', 14)
+        self.atr_multiplier_tp = kwargs.get('atr_multiplier_tp', profit_multiplier)
+        self.atr_multiplier_sl = kwargs.get('atr_multiplier_sl', loss_multiplier)
 
     def label(self, df: pd.DataFrame) -> pd.Series:
         """Apply dynamic barrier labeling with BINARY classification."""

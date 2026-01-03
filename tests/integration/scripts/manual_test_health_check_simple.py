@@ -46,7 +46,8 @@ async def test_health_check_with_mocks():
     # Mock database client with proper async context manager
     mock_session = AsyncMock()
     mock_session.execute = AsyncMock()
-    mock_session.execute.return_value.scalar = AsyncMock(return_value=1)
+    # scalar() is usually synchronous in SQLAlchemy results
+    mock_session.execute.return_value.scalar = Mock(return_value=1)
     
     mock_db_context = AsyncMock()
     mock_db_context.__aenter__ = AsyncMock(return_value=mock_session)

@@ -12,8 +12,20 @@
     "unidirectional_wills": true,
     "exchange": {
         "name": "binance",
-        "key": null,
-        "secret": null
+        "key": "CI32gjbKszpqiaCXia2C7QbYiVk6p5Ff8uzGhqyDM41WudveRVxjdDjUQu5dqurT",
+        "secret": "MCtbMWyVebWwdM5Ns4dZH5mw2IqS9gT8TFV9ArgVZ7jRVhIMHREpISafz2HS4aVG",
+        "pair_whitelist": [
+            "BTC/USDT:USDT",
+            "ETH/USDT:USDT",
+            "SOL/USDT:USDT",
+            "BNB/USDT:USDT",
+            "XRP/USDT:USDT",
+            "ADA/USDT:USDT",
+            "DOGE/USDT:USDT",
+            "AVAX/USDT:USDT",
+            "DOT/USDT:USDT",
+            "LINK/USDT:USDT"
+        ]
     },
     "timeframe": "1h",
     "entry_pricing": {
@@ -33,19 +45,44 @@
     },
     "pairlists": [
         {
-            "method": "StaticPairList"
+            "method": "StaticPairList",
+            "pair_whitelist": [
+                "BTC/USDT:USDT",
+                "ETH/USDT:USDT",
+                "SOL/USDT:USDT",
+                "BNB/USDT:USDT",
+                "XRP/USDT:USDT",
+                "ADA/USDT:USDT",
+                "DOGE/USDT:USDT",
+                "AVAX/USDT:USDT",
+                "DOT/USDT:USDT",
+                "LINK/USDT:USDT"
+            ]
         }
     ],
     "telegram": {
-        "enabled": false,
+        "enabled": true,
         "token": "",
-        "chat_id": ""
+        "chat_id": "",
+        "notification_settings": {
+            "status": "on",
+            "warning": "on",
+            "startup": "on",
+            "entry": "on",
+            "exit": "on",
+            "entry_fill": "on",
+            "exit_fill": "on",
+            "signal": "on",
+            "show_candle": "ohlc"
+        }
     },
     "api_server": {
         "enabled": true,
         "listen_ip_address": "0.0.0.0",
         "listen_port": 8080,
         "verbosity": "info",
+        "username": "freqtrader",
+        "password": "StrongPassword123!",
         "jwt_secret_key": "somethingrandom"
     },
     "bot_name": "StoicCitadel",
@@ -53,5 +90,36 @@
     "force_entry_enable": true,
     "internals": {
         "process_throttle_secs": 5
+    },
+    "freqai": {
+        "enabled": true,
+        "purge_old_models": true,
+        "train_period_days": 15,
+        "backtest_period_days": 7,
+        "live_retrain_hours": 12,
+        "expiration_hours": 24,
+        "identifier": "stoic_v5_test",
+        "feature_parameters": {
+            "include_timeframes": ["1h", "4h"],
+            "include_corr_pairlist": ["BTC/USDT:USDT", "ETH/USDT:USDT"],
+            "label_period_candles": 20,
+            "include_shifted_candles": 2,
+            "enable_feature_normalized_dissimilarity_measure": true,
+            "indicator_periods_candles": [10, 20],
+            "indicator_max_period_candles": 20,
+            "noise_standard_deviation": 0.05
+        },
+        "data_split_parameters": {
+            "test_size": 0.25,
+            "random_state": 42
+        },
+        "model_training_parameters": {
+            "n_estimators": 500,
+            "learning_rate": 0.05,
+            "max_depth": 6,
+            "subsample": 0.8,
+            "colsample_bytree": 0.8,
+            "n_jobs": -1
+        }
     }
 }

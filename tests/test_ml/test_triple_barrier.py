@@ -383,13 +383,14 @@ class TestDynamicBarrierLabeler:
     def test_atr_calculation(self):
         """Test that ATR is calculated correctly."""
         # Create data with known ATR
+        dates = pd.date_range(start='2024-01-01', periods=50, freq='5min')
         df = pd.DataFrame({
             'open': [100.0, 101.0, 102.0, 103.0, 104.0] * 10,
             'high': [101.0, 102.0, 103.0, 104.0, 105.0] * 10,
             'low': [99.0, 100.0, 101.0, 102.0, 103.0] * 10,
             'close': [100.5, 101.5, 102.5, 103.5, 104.5] * 10,
             'volume': [1000] * 50,
-        })
+        }, index=dates)
 
         config = TripleBarrierConfig(
             take_profit=0.005,
@@ -401,7 +402,8 @@ class TestDynamicBarrierLabeler:
             config=config,
             atr_period=14,
             atr_multiplier_tp=2.0,
-            atr_multiplier_sl=1.0
+            atr_multiplier_sl=1.0,
+            lookback=14  # Reduce lookback to match data length
         )
 
         labels = labeler.label(df)
@@ -414,13 +416,14 @@ class TestDynamicBarrierLabeler:
         """Test that barriers widen during volatile periods."""
         # Create data with increasing volatility
         n = 100
+        dates = pd.date_range(start='2024-01-01', periods=n, freq='5min')
         low_vol = pd.DataFrame({
             'open': [100.0 + i * 0.1 for i in range(n)],
             'high': [100.2 + i * 0.1 for i in range(n)],  # Low volatility
             'low': [99.8 + i * 0.1 for i in range(n)],
             'close': [100.0 + i * 0.1 for i in range(n)],
             'volume': [1000] * n,
-        })
+        }, index=dates)
 
         config = TripleBarrierConfig(
             take_profit=0.005,
@@ -443,13 +446,14 @@ class TestDataLeakagePrevention:
         CRITICAL: Verify labels at time T don't use data from T+1, T+2, etc.
         """
         # Create price series where we can track causality
+        dates = pd.date_range(start='2024-01-01', periods=4, freq='5min')
         df = pd.DataFrame({
             'open': [100.0, 100.0, 100.0, 110.0],  # Big jump at index 3
             'high': [100.5, 100.5, 100.5, 111.0],
             'low': [99.5, 99.5, 99.5, 109.0],
             'close': [100.0, 100.0, 100.0, 110.0],
             'volume': [1000, 1000, 1000, 1000],
-        })
+        }, index=dates)
 
         config = TripleBarrierConfig(
             take_profit=0.01,
@@ -472,13 +476,14 @@ class TestDataLeakagePrevention:
     def test_no_lookahead_bias(self):
         """Test that barrier calculation doesn't peek into future."""
         # Create simple test case
+        dates = pd.date_range(start='2024-01-01', periods=4, freq='5min')
         df = pd.DataFrame({
             'open': [100.0, 101.0, 99.0, 100.0],
-            'high': [100.5, 101.5, 99.5, 100.5],
+            'high': [100.5, 102.0, 99.5, 100.5],  # Increased high to 102.0 to hit TP
             'low': [99.5, 100.5, 98.5, 99.5],
             'close': [100.0, 101.0, 99.0, 100.0],
             'volume': [1000] * 4,
-        })
+        }, index=dates)
 
         config = TripleBarrierConfig(
             take_profit=0.008,  # 0.8%

@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:13
+    container_name: mft-algotrade-bot-db-1
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: stoic_trader
+      POSTGRES_PASSWORD: "Zuvs!vNMXKnWPwq3wnzmJ^iW1XDza9*A"
+      POSTGRES_DB: trading_analytics
+    volumes:
+      - mft-algotrade-bot_postgres_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stoic_trader -d trading_analytics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mft-algotrade-bot_postgres_data:

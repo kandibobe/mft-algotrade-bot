@@ -1,240 +1,60 @@
-# ============================================================
-# mft-algotrade-bot - Professional Git Ignore Configuration
-# ============================================================
+# IDEs
+.vscode/
+.idea/
 
-# ============================================================
-# SECRETS & CREDENTIALS (CRITICAL - NEVER COMMIT!)
-# ============================================================
+# Environment
 .env
-.env.*
-!.env.example
-*.pem
-*.key
-*.crt
-*.p12
-*.pfx
-*_secret*
-*secret.txt
-*secrets.txt
-secrets/
-CREDENTIALS.md
-credentials.json
-api_keys.yml
-api_keys.yaml
-config_production.json
-config_live.json
+.venv/
+env/
+venv/
+*.env
 
-# SSH & GPG keys
-id_rsa
-id_rsa.pub
-id_dsa
-id_dsa.pub
-id_ecdsa
-id_ecdsa.pub
-id_ed25519
-id_ed25519.pub
+# Configuration (STRICT)
+config*.json
+!config.json.example
+secrets.json
+connectors.yaml
 
-# Generated config with credentials
-user_data/config/config.json
-user_data/config/config_local.json
-user_data/config/*_live.json
-user_data/config/*_production.json
+# Data & Databases
+*.sqlite
+*.sqlite3
+*.db
+user_data/data/*
+!user_data/data/.gitkeep
 
-# ============================================================
-# PYTHON
-# ============================================================
+# Strategies (STRICT - Alpha Sanitization)
+user_data/strategies/*
+!user_data/strategies/StrategyTemplate.py
+!user_data/strategies/sample_strategy.py
+
+# ML Artifacts (STRICT)
+user_data/models/*
+user_data/freqaimodels/*
+*.joblib
+*.pkl
+*.pth
+*.onnx
+*.parquet
+user_data/notebooks/*
+
+# Logs
+user_data/logs/*
+*.log
+
+# System
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Virtual environments
-venv/
-ENV/
-env/
-.venv/
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb_checkpoints
-
-# Type checking
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
-coverage.xml
-*.cover
-.hypothesis/
-
-# ============================================================
-# IDE & EDITORS
-# ============================================================
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-.project
-.pydevproject
-.settings/
-*.sublime-*
-Pycharm*
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-desktop.ini
 
-# ============================================================
-# TRADING DATA & RESULTS (LARGE FILES)
-# ============================================================
-# Historical data (large files)
-user_data/data/
-!user_data/data/.gitkeep
+# Backtest Results
+user_data/backtest_results/*
+user_data/hyperopt_results/*
+user_data/plot/*
+user_data/walk_forward_results/*
 
-# Backtest results
-user_data/backtest_results/
-!user_data/backtest_results/.gitkeep
-
-# HyperOpt results
-user_data/hyperopt_results/
-!user_data/hyperopt_results/.gitkeep
-
-# Walk-forward optimization results
-user_data/walk_forward_results/
-!user_data/walk_forward_results/.gitkeep
-user_data/walk_forward_results_track_b/
-
-# Logs
-user_data/logs/
-!user_data/logs/.gitkeep
-*.log
-
-# Database
-*.sqlite
-*.sqlite3
-*.sqlite-*
-*.db
-
-# Notebooks (personal)
-user_data/notebooks/
-!user_data/notebooks/.gitkeep
-
-# ML Models (proprietary)
-user_data/models/**/*.pkl
-user_data/models/**/*.h5
-user_data/models/**/*.pt
-user_data/models/**/*.pth
-user_data/models/**/*.onnx
-user_data/models/**/*.joblib
-user_data/models/**/*.csv
-user_data/models/**/*.json
-!user_data/models/.gitkeep
-!user_data/models/registry/registry.json
-
-# Trading strategies (proprietary)
-user_data/strategies/*_private.py
-user_data/strategies/*_prod.py
-
-# ============================================================
-# BACKUP & TEMPORARY FILES
-# ============================================================
-*.bak
-*.backup
+# Temporary files
 *.tmp
-*.temp
-backups/
-!backups/.gitkeep
-reports/
-!reports/.gitkeep
-.claude/
-
-# ============================================================
-# DOCKER
-# ============================================================
-docker-compose.override.yml
-docker-compose.local.yml
-
-# ============================================================
-# BUILD & DEPLOYMENT
-# ============================================================
-*.manifest
-*.spec
-dist/
-build/
-*.egg-info/
-
-# ============================================================
-# OS SPECIFIC
-# ============================================================
-# Windows
-[Dd]esktop.ini
-[Tt]humbs.db
-
-# Linux
-*~
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# ============================================================
-# PROJECT SPECIFIC
-# ============================================================
-# Output files
-output.txt
-tradesv3.*.sqlite*
-
-# Research notebooks
-notebooks/
-!notebooks/.gitkeep
-
-# Analysis reports
-reports/
-!reports/.gitkeep
-
-# Feature importance visualizations
-user_data/feature_importance.png
-
-# Hyperopt results JSON
-user_data/hyperopt_results.json
-
-# Model parameters
-user_data/model_best_params.json
-
-# Feature selection results
-user_data/selected_features*.json
-user_data/test_selected_features.json
-
-# Walk-forward results
-user_data/walk_forward_results_track_b/
+*.bak
+*.swp

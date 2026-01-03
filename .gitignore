@@ -1,60 +1,215 @@
-# IDEs
+# ============================================================
+# mft-algotrade-bot - Professional Git Ignore Configuration
+# ============================================================
+
+# IDEs & Editors
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-*
+Pycharm*
 
-# Environment
+# OS Specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+[Dd]esktop.ini
+[Tt]humbs.db
+.AppleDouble
+.LSOverride
+
+# ============================================================
+# SECRETS & CREDENTIALS (CRITICAL - NEVER COMMIT!)
+# ============================================================
 .env
-.venv/
-env/
-venv/
-*.env
-
-# Configuration (STRICT)
-config*.json
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*_secret*
+*secret.txt
+*secrets.txt
+secrets/
+CREDENTIALS.md
+credentials.json
+api_keys.yml
+api_keys.yaml
+config_production.json
+config_live.json
+config_*.json
 !config.json.example
 secrets.json
 connectors.yaml
 
-# Data & Databases
-*.sqlite
-*.sqlite3
-*.db
-user_data/data/*
-!user_data/data/.gitkeep
+# SSH & GPG keys
+id_rsa
+id_rsa.pub
+id_dsa
+id_dsa.pub
+id_ecdsa
+id_ecdsa.pub
+id_ed25519
+id_ed25519.pub
 
-# Strategies (STRICT - Alpha Sanitization)
-user_data/strategies/*
-!user_data/strategies/StrategyTemplate.py
-!user_data/strategies/sample_strategy.py
+# Generated config with credentials
+user_data/config/config.json
+user_data/config/config_local.json
+user_data/config/*_live.json
+user_data/config/*_production.json
 
-# ML Artifacts (STRICT)
-user_data/models/*
-user_data/freqaimodels/*
-*.joblib
-*.pkl
-*.pth
-*.onnx
-*.parquet
-user_data/notebooks/*
-
-# Logs
-user_data/logs/*
-*.log
-
-# System
+# ============================================================
+# PYTHON
+# ============================================================
 __pycache__/
 *.py[cod]
 *$py.class
-.DS_Store
-Thumbs.db
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Backtest Results
-user_data/backtest_results/*
-user_data/hyperopt_results/*
-user_data/plot/*
-user_data/walk_forward_results/*
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+*.env
 
-# Temporary files
-*.tmp
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ============================================================
+# TRADING DATA & RESULTS (LARGE FILES)
+# ============================================================
+# Historical data
+user_data/data/
+!user_data/data/.gitkeep
+
+# Backtest & Hyperopt results
+user_data/backtest_results/
+!user_data/backtest_results/.gitkeep
+user_data/hyperopt_results/
+!user_data/hyperopt_results/.gitkeep
+user_data/hyperopt_results.json
+user_data/plot/
+!user_data/plot/.gitkeep
+
+# Walk-forward results
+user_data/walk_forward_results/
+!user_data/walk_forward_results/.gitkeep
+user_data/walk_forward_results_track_b/
+
+# Database
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.db
+tradesv3.*.sqlite*
+
+# Logs
+user_data/logs/
+!user_data/logs/.gitkeep
+*.log
+
+# ============================================================
+# ALPHA & STRATEGIES (STRICT SANITIZATION)
+# ============================================================
+# Trading strategies (Alpha)
+user_data/strategies/*
+!user_data/strategies/StrategyTemplate.py
+!user_data/strategies/sample_strategy.py
+user_data/strategies/*_private.py
+user_data/strategies/*_prod.py
+
+# ML Models & Artifacts
+user_data/models/
+!user_data/models/.gitkeep
+!user_data/models/registry/registry.json
+user_data/freqaimodels/
+*.joblib
+*.pkl
+*.pth
+*.pt
+*.h5
+*.onnx
+*.parquet
+user_data/model_best_params.json
+user_data/model_best_params_*.json
+
+# Feature & Research Artifacts
+user_data/notebooks/
+!user_data/notebooks/.gitkeep
+user_data/selected_features*.json
+user_data/test_selected_features.json
+user_data/feature_importance.png
+user_data/feature_importance*.png
+notebooks/
+!notebooks/.gitkeep
+
+# ============================================================
+# BACKUP & TEMPORARY FILES
+# ============================================================
 *.bak
+*.backup
+*.tmp
+*.temp
 *.swp
+backups/
+!backups/.gitkeep
+reports/
+!reports/.gitkeep
+.claude/
+output.txt
+
+# ============================================================
+# DOCKER & DEPLOYMENT
+# ============================================================
+docker-compose.override.yml
+docker-compose.local.yml
+*.manifest
+*.spec

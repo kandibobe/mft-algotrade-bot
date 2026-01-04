@@ -1,63 +1,122 @@
-# MFT Algotrade Bot (Stoic Citadel)
+# Stoic Citadel: Hybrid MFT Trading System
 
-A hybrid Mid-Frequency Trading (MFT) bot combining Freqtrade's robust strategy engine with custom high-performance execution logic.
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Status: Active](https://img.shields.io/badge/Status-Active-green)](https://github.com/kandibobe/mft-algotrade-bot)
 
-## 🚀 Features
+**Stoic Citadel** is an advanced, hybrid Mid-Frequency Trading (MFT) bot designed for high-performance cryptocurrency trading. It bridges the gap between robust strategy management (Freqtrade) and low-latency execution (AsyncIO/Aiohttp), providing a sophisticated platform for quantitative trading.
 
-*   **Hybrid Architecture**: Freqtrade for strategy signals + AsyncIO for execution.
-*   **Stoic Ensemble Strategy**: Multi-strategy ensemble with regime detection.
-*   **Smart Order Execution**: `ChaseLimit` logic for optimal entry/exit.
-*   **Risk Management**: Integrated risk manager with circuit breakers.
-*   **Telegram Companion Bot**: Full-featured interactive bot for alerts, portfolio tracking, and market news.
+---
 
-## 🤖 Telegram Companion Bot
+## 🚀 Key Features
 
-The project now includes an advanced interactive Telegram bot (ported from `bot-finance-tg`).
+### 🧠 Hybrid Architecture
+*   **Macro Strategy Layer (Freqtrade):** Leveraging the battle-tested Freqtrade framework for strategy definition, backtesting, and signal generation.
+*   **Micro Execution Layer (Custom Async):** A high-performance, asynchronous execution engine (`ChaseLimit`) for optimal entry and exit, minimizing slippage and maximizing fill rates.
 
-### Features:
-- **Price Alerts**: Set alerts like "BTC > 100000" or "ETH +5%".
-- **Watchlist**: Track your favorite assets.
-- **Market News**: Get the latest crypto news (via CryptoPanic/NewsAPI).
-- **Volatility Scanner**: See top gainers and losers.
-- **Portfolio Tracking**: Manually track your crypto portfolio.
+### 🛡️ Institutional-Grade Risk Management
+*   **Circuit Breakers:** Automatic system pauses during extreme volatility or consecutively losing trades.
+*   **Dynamic Position Sizing:** ATR-based volatility sizing to normalize risk across different assets.
+*   **Correlation Protection:** Prevents overexposure to highly correlated assets.
 
-### Setup:
-1.  Ensure `TELEGRAM_BOT_TOKEN` is set in your `.env` file.
-2.  (Optional) Add API keys for full functionality:
-    *   `NEWS_API_ORG_KEY` (for general news)
-    *   `CRYPTO_PANIC_API_KEY` (for crypto news)
-    *   `ALPHA_VANTAGE_API_KEY` (for forex/stocks)
-    *   `FRED_API_KEY` (for economic data)
+### 🤖 Interactive Telegram Companion
+A full-featured Telegram bot for real-time monitoring and control:
+*   **Smart Alerts:** Set custom price triggers (e.g., `BTC > 100k`, `ETH +5%`).
+*   **Portfolio Tracking:** Monitor your holdings and performance on the go.
+*   **Market Intelligence:** Access real-time news, volatility scanners, and fear/greed indices directly from chat.
 
-### Running the Bot:
-You can run the Telegram bot as a standalone process:
-```bash
-python -m src.telegram_bot.runner
-```
+### 📈 Advanced Strategy: Stoic Ensemble
+*   **Regime Detection:** Automatically adapts trading logic based on market conditions (Trending vs. Ranging).
+*   **Multi-Strategy Ensemble:** Combines signals from multiple sub-strategies for robust decision-making.
 
-## 🛠 Installation
+---
 
-1.  Clone the repository.
-2.  Install dependencies:
+## 🛠️ Quick Start
+
+### Prerequisites
+*   Python 3.10 or higher
+*   Docker & Docker Compose (recommended)
+*   Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
+
+### Installation
+
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/kandibobe/mft-algotrade-bot.git
+    cd mft-algotrade-bot
+    ```
+
+2.  **Set Up Environment**
+    Copy the example configuration and fill in your details:
+    ```bash
+    cp .env.example .env
+    ```
+    *Edit `.env` to add your Exchange API Keys and Telegram Token.*
+
+3.  **Install Dependencies** (for local development)
     ```bash
     pip install -r requirements.txt
     ```
-3.  Copy `.env.example` to `.env` and configure your keys.
 
-## 📈 Usage
+### Running the System
 
-Run the main trading bot:
+**Option A: Full System (Docker)**
 ```bash
-freqtrade trade --config config.json --strategy StoicEnsembleStrategy
+docker-compose up -d
 ```
 
-Run the Telegram companion bot:
-```bash
-python -m src.telegram_bot.runner
+**Option B: Hybrid Mode (Local)**
+1.  Start the Trading Engine:
+    ```bash
+    freqtrade trade --config config.json --strategy StoicEnsembleStrategyV4
+    ```
+2.  Start the Companion Bot (in a separate terminal):
+    ```bash
+    python -m src.telegram_bot.runner
+    ```
+
+---
+
+## 📱 Telegram Bot Guide
+
+The companion bot extends your control beyond standard Freqtrade notifications.
+
+| Feature | Command | Description |
+| :--- | :--- | :--- |
+| **Main Menu** | `/start` | Open the interactive dashboard. |
+| **Add Alert** | `/addalert` | Create a custom price or indicator alert. |
+| **Watchlist** | `/watchlist` | View your tracked assets. |
+| **Market Report** | `/report` | Get a comprehensive market summary. |
+| **Signals** | `/signal` | Check technical indicators for a specific pair. |
+
+**Quick Alerts:**
+Simply type in the chat:
+> `BTC > 95000`
+> `ETH +3%`
+
+---
+
+## 📂 Project Structure
+
+```
+mft-algotrade-bot/
+├── config/                 # Configuration templates
+├── docs/                   # Detailed documentation
+├── src/
+│   ├── strategies/         # Freqtrade strategy logic
+│   ├── risk/               # Risk management modules
+│   ├── order_manager/      # Execution engine (AsyncIO)
+│   ├── telegram_bot/       # Interactive Companion Bot
+│   └── ml/                 # Machine Learning pipeline
+├── tests/                  # Unit and integration tests
+└── user_data/              # Local data (logs, db, results)
 ```
 
-## 📚 Documentation
+## 🤝 Contributing
 
-*   [Telegram Bot Guide](docs/TELEGRAM_BOT.md)
-*   [Architecture](docs/ARCHITECTURE.md)
-*   [Risk Management](docs/RISK_MANAGEMENT_SPEC.md)
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

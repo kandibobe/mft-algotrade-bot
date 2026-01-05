@@ -95,14 +95,30 @@ class ProbabilityCalibrator:
         # This operation is vectorized and efficient
         rolling_rank = probabilities.rolling(window=win_size, min_periods=min_p).rank(pct=True)
 
+        # 🚀 ADDITION: Isotonic Calibration Proxy
+        # Apply a sigmoid-like transformation to smooth the rank into a confidence score
+        calibrated_score = 1 / (1 + np.exp(-10 * (rolling_rank - 0.5)))
+
         # Fill NaN values (start of series) with 0.0 (no signal)
         rolling_rank = rolling_rank.fillna(0.0)
+        calibrated_score = calibrated_score.fillna(0.0)
 
         # Determine signal
         # We check if the current prediction is in the top X% of recent predictions
         is_signal = rolling_rank > thresh
 
         return is_signal
+
+    def get_calibrated_confidence(self, probabilities: pd.Series) -> pd.Series:
+        """
+        Get smoothed calibrated confidence score.
+        Useful for Kelly Criterion sizing.
+        """
+        win_size = self.window_size
+        min_p = min(win_size, 100, len(probabilities))
+        rolling_rank = probabilities.rolling(window=win_size, min_periods=min_p).rank(pct=True)
+        # Sigmoid smoothing for stable kelly inputs
+        return 1 / (1 + np.exp(-10 * (rolling_rank - 0.5)))
 
     def get_z_score(self, probabilities: pd.Series) -> pd.Series:
         """

@@ -363,6 +363,41 @@ class ModelRegistry:
 
         return sorted(self.models[model_name], key=lambda m: m.trained_at, reverse=True)
 
+    def get_feature_importance(self, model_name: str, version: str) -> dict[str, float]:
+        """
+        Get feature importance for a specific model version.
+
+        Args:
+            model_name: Model name
+            version: Model version
+
+        Returns:
+            Dictionary mapping feature names to importance scores.
+        """
+        metadata = self._get_model(model_name, version)
+        if not metadata or not metadata.model_path:
+            return {}
+
+        import pandas as pd
+        
+        # Look for importance CSV next to model file
+        model_path = Path(metadata.model_path)
+        importance_path = model_path.with_suffix(".csv")
+        
+        if not importance_path.exists():
+            logger.warning(f"Feature importance file not found: {importance_path}")
+            return {}
+            
+        try:
+            df = pd.read_csv(importance_path)
+            # Assuming columns 'feature' and 'importance'
+            if 'feature' in df.columns and 'importance' in df.columns:
+                return dict(zip(df['feature'], df['importance']))
+            return {}
+        except Exception as e:
+            logger.error(f"Failed to load feature importance: {e}")
+            return {}
+
     def get_model_history(self, model_name: str) -> dict[str, Any]:
         """
         Get model version history.

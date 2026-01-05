@@ -105,3 +105,35 @@ class SystemEvent(Base):
     component = Column(String(50))
     message = Column(String(500))
     details = Column(JSON)
+
+
+class ShadowTradeRecord(Base):
+    """
+    Record of a "Shadow" trade (Paper Trading 2.0).
+    Used to validate execution quality without risking real funds.
+    """
+
+    __tablename__ = "shadow_trades"
+
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    symbol = Column(String(20), nullable=False)
+    side = Column(String(10))
+    
+    # Latency Metrics
+    signal_timestamp = Column(DateTime)
+    submission_timestamp = Column(DateTime)
+    fill_timestamp = Column(DateTime)
+    latency_ms = Column(Float)
+
+    # Decision Context
+    target_price = Column(Float)
+    fill_price = Column(Float)
+    amount = Column(Float)
+    
+    # Quality Metrics
+    slippage_pct = Column(Float)
+    expected_pnl_usd = Column(Float)
+    
+    strategy_name = Column(String(100))
+    meta_data = Column(JSON)

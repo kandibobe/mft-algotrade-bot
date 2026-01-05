@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 class LiquidationConfig:
     """Configuration for liquidation guard."""
 
+    # ADL Protection
+    max_adl_score: int = 3 # Trigger reduction if ADL score >= 3 (out of 5)
+
     # Safety buffer: Stop loss must be this much closer to entry than liq price
     # e.g. 0.20 means SL must be at 80% of the distance to liquidation
     safety_buffer: float = 0.20
@@ -49,6 +52,20 @@ class LiquidationGuard:
 
     def __init__(self, config: LiquidationConfig | None = None):
         self.config = config or LiquidationConfig()
+
+    def check_adl_risk(self, adl_score: int) -> tuple[bool, str]:
+        """
+        Check if Auto-Deleverage risk is too high.
+        
+        Args:
+            adl_score: 0-5 scale of ADL risk.
+            
+        Returns:
+            (is_safe, reason)
+        """
+        if adl_score >= self.config.max_adl_score:
+            return False, f"ADL Risk too high: {adl_score}/5"
+        return True, "ADL Risk safe"
 
     def calculate_liquidation_price(
         self,

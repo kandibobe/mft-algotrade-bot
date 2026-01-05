@@ -1,0 +1,38 @@
+site_name: Stoic Citadel Documentation
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [.]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - MFT Layer: mft_architecture.md
+  - Strategy Development: strategy_development.md
+  - Risk Management: risk_management.md
+  - ML Pipeline: ml_pipeline.md
+  - API Reference:
+      - Config: api/config.md
+      - Database: api/database.md
+      - Order Manager: api/order_manager.md
+      - Websocket: api/websocket.md

@@ -8,6 +8,7 @@ Delegates training and optimization to ModelOptimizer.
 
 import json
 import logging
+import joblib
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ import pandas as pd
 from src.config.manager import ConfigurationManager
 from src.ml.feature_store import create_feature_store
 from src.ml.training.optimizer import ModelOptimizer
+from src.ml.meta_labeling import MetaLabeler
 
 logger = logging.getLogger(__name__)
 
@@ -200,11 +202,18 @@ class MLTrainingPipeline:
         logger.info("=" * 70)
 
         try:
+            # 1. Train Primary Model
             # Delegate to ModelOptimizer
             result = self.optimizer.train(df, pair, optimize=optimize)
 
             if result.get("success"):
-                return result.get("model")
+                primary_model = result.get("model")
+                
+                # 2. Train Meta-Model (Phase 3 Integration)
+                logger.info(f"Retraining Meta-Model for {pair}...")
+                self._train_meta_model(df, pair, primary_model)
+                
+                return primary_model
             else:
                 logger.error(f"Training failed for {pair}: {result.get('error')}")
                 return None
@@ -212,6 +221,41 @@ class MLTrainingPipeline:
         except Exception as e:
             logger.error(f"\n❌ Error training {pair}: {e}", exc_info=True)
             return None
+
+    def _train_meta_model(self, df: pd.DataFrame, pair: str, primary_model: Any):
+        """Train a secondary model on primary model's errors."""
+        try:
+            # Engineer features and get primary predictions
+            features = self.optimizer.feature_engineer.prepare_data(df)
+            labels = self.optimizer.labeler.label_with_meta(df)
+            
+            common_idx = features.index.intersection(labels.index)
+            X = features.loc[common_idx]
+            
+            # Get primary signals
+            y_pred = primary_model.predict(X)
+            
+            # Create meta-labels (1 if primary was right, 0 otherwise)
+            meta_df = pd.DataFrame({
+                'return_pct': labels.loc[common_idx, 'return_pct'],
+                'barrier_hit': labels.loc[common_idx, 'barrier_type']
+            }, index=common_idx)
+            
+            y_meta = MetaLabeler.create_meta_labels(meta_df)
+            
+            # Train meta-model (simple XGBoost for filtering)
+            import xgboost as xgb
+            meta_model = xgb.XGBClassifier(n_estimators=100, max_depth=3, learning_rate=0.1)
+            meta_model.fit(X, y_meta)
+            
+            # Save meta-model
+            pair_slug = pair.replace("/", "_")
+            meta_path = self.models_dir / f"{pair_slug}_meta_model.joblib"
+            joblib.dump(meta_model, meta_path)
+            logger.info(f"Meta-model saved to {meta_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to train meta-model for {pair}: {e}")
 
     def run(
         self,

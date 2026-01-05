@@ -1,29 +1,37 @@
-# Changelog
+# Changelog - Stoic Citadel Trading System
 
 All notable changes to the **Stoic Citadel** project will be documented in this file.
 
-## [2.0.0] - 2026-01-03
+## [2.0.0] - 2026-01-05
 
-### 🚀 Added (Hybrid MFT Architecture)
-- **Asynchronous Execution Micro-layer**: New high-performance execution engine using `AsyncIO`.
-- **Smart Order Executor**: Advanced order management with `ChaseLimit` logic to minimize slippage.
-- **Feast Feature Store Integration**: Production-ready feature serving for sub-millisecond ML inference.
-- **Risk Gate System**: Integrated Circuit Breakers and real-time risk validation for every trade.
-- **Unified Configuration**: Centralized management via `src/config/unified_config.py`.
+### 🔥 AI & Machine Learning
+- **Meta-Labeling Integration:** Implemented a secondary ML layer (De Prado's methodology) to filter signals and reduce false positives.
+- **Walk-Forward Optimization (WFO):** Added automated sliding-window optimization to prevent overfitting and adapt to market regimes.
+- **SHAP Feature Selection:** Integrated mathematical feature importance analysis to clean noise from the model.
+- **Probability Calibration:** Added Platt Scaling and Isotonic proxies to make model confidence scores statistically valid.
 
-### 🛡 Security
-- **Hardened Security Rules**: Implementation of strict `.gitignore` patterns to prevent proprietary data leakage.
-- **Alpha Protection**: Removal of proprietary strategies and trained models from public history.
-- **Sanitized Templates**: Provided `config.json.example` and `StrategyTemplate.py` for public use.
+### 🛡️ Risk Management & Stability
+- **Hierarchical Risk Parity (HRP):** Implemented ML-based portfolio allocation for superior diversification.
+- **Fractional Kelly Criterion:** Added dynamic position sizing based on model win-probability.
+- **Drift Analysis:** Implemented automated daily reporting to detect model performance degradation.
+- **Circuit Breakers:** Strengthened multi-level safety guards.
 
-### 📊 Monitoring & Ops
-- **ELK Stack Support**: Structured JSON logging for Elasticsearch, Logstash, and Kibana.
-- **Prometheus/Grafana**: New dashboards for real-time portfolio and execution monitoring.
-- **Health Check System**: Automated diagnostics for environment, data, and exchange connectivity.
+### ⚡ Execution & MFT Layer
+- **Advanced Order Types:** Added support for **Iceberg** and **Post-Only** orders.
+- **Self-Healing Engine:** Automated recovery logic for WebSocket streams and async services.
+- **MFT Latency Tracking:** Full Signal-to-Fill latency logging in the database.
+- **Panic Stop 2.0:** High-speed market liquidation logic triggered via Telegram.
 
-### 🔧 Changed
-- **Directory Restructuring**: Migrated utility tools to a structured `scripts/` hierarchy.
-- **Documentation Overhaul**: Institutional-grade fintech documentation and architectural guides.
+### 🔒 Security & Operations
+- **Secret Encryption:** AES-256 encryption for API keys with master-key management.
+- **Hot Reload:** Configuration updates now applied without stopping the trading bot.
+- **DB Migrations:** Integrated **Alembic** for professional database schema versioning.
+- **CI/CD Pipeline:** Hardened GitHub Actions with security scanning (Bandit) and performance regression tests.
 
-## [1.0.0] - 2025-12-25
-- Initial release with basic ensemble strategies.
+### 📊 Monitoring & Documentation
+- **Real-time Dashboard:** Streamlit-based cockpit with Monte Carlo simulations and execution quality metrics.
+- **Interactive Telegram Bot:** Full system control via mobile (Status, Balance, Reload, Panic Stop).
+- **Auto-generated Docs:** Integrated MkDocs with code-to-docs automation (mkdocstrings).
+
+---
+*Stoic Citadel v2.0 - Institutional Performance, Retail Accessibility.*

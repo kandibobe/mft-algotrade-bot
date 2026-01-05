@@ -44,6 +44,8 @@ class AggregatedTicker:
     vwap: float
     total_volume_24h: float
     timestamp: float
+    is_reliable: bool = True
+    reliability_reason: str | None = None
 
     @property
     def arbitrage_opportunity(self) -> bool:
@@ -199,9 +201,35 @@ class DataAggregator:
     # =========================================================================
 
     async def _process_ticker(self, ticker: TickerData):
-        """Process incoming ticker data."""
+        """Process incoming ticker data with quality checks."""
         symbol = self._normalize_symbol(ticker.symbol)
+        
+        # 📊 Data Quality Guard
+        if not self._is_data_valid(ticker):
+            return
+
         self._tickers[symbol][ticker.exchange] = ticker
+
+    def _is_data_valid(self, ticker: TickerData) -> bool:
+        """Validate incoming ticker for outliers or bad data."""
+        symbol = self._normalize_symbol(ticker.symbol)
+        
+        # 1. Zero/Negative price check
+        if ticker.last <= 0 or ticker.bid <= 0 or ticker.ask <= 0:
+            logger.warning(f"🚩 Data Quality Alert: Non-positive price for {symbol} on {ticker.exchange}")
+            return False
+            
+        # 2. Outlier detection (compared to last known price)
+        if symbol in self._tickers and ticker.exchange in self._tickers[symbol]:
+            last_ticker = self._tickers[symbol][ticker.exchange]
+            price_change_pct = abs(ticker.last - last_ticker.last) / last_ticker.last * 100
+            
+            # If price jumps > 10% in a sub-second interval, it's likely a bad tick or extreme event
+            if price_change_pct > 10.0:
+                logger.error(f"🚩 Data Quality Alert: Extreme price jump ({price_change_pct:.2f}%) for {symbol} on {ticker.exchange}")
+                return False
+                
+        return True
 
     async def _process_trade(self, trade: TradeData):
         """Process incoming trade data."""
@@ -262,11 +290,6 @@ class DataAggregator:
             for handler in self._aggregated_ticker_handlers:
                 await handler(aggregated)
 
-            # Check for arbitrage
-            if aggregated.arbitrage_opportunity:
-                for handler in self._arbitrage_handlers:
-                    await handler(aggregated)
-
     def _aggregate_ticker(
         self, symbol: str, exchange_tickers: dict[str, TickerData]
     ) -> AggregatedTicker:
@@ -295,7 +318,18 @@ class DataAggregator:
         spread = best_ask - best_bid
         spread_pct = (spread / best_bid * 100) if best_bid > 0 else 0
 
-        return AggregatedTicker(
+        # Check reliability (Stale data check)
+        is_reliable = True
+        reason = None
+        now = time.time()
+        
+        # If the latest update in ANY exchange is older than 5 seconds, mark as unreliable
+        latest_update = max(t.timestamp for t in exchange_tickers.values()) if exchange_tickers else 0
+        if now - latest_update > 5.0:
+            is_reliable = False
+            reason = f"Stale data: last update {now - latest_update:.1f}s ago"
+
+        aggregated_ticker = AggregatedTicker(
             symbol=symbol,
             best_bid=best_bid,
             best_bid_exchange=best_bid_exchange,
@@ -306,8 +340,17 @@ class DataAggregator:
             exchanges=exchange_tickers.copy(),
             vwap=vwap,
             total_volume_24h=total_volume,
-            timestamp=time.time(),
+            timestamp=now,
+            is_reliable=is_reliable,
+            reliability_reason=reason
         )
+
+        if aggregated_ticker.arbitrage_opportunity:
+            for handler in self._arbitrage_handlers:
+                asyncio.create_task(handler(aggregated_ticker))
+        
+        return aggregated_ticker
+
 
     async def _volume_cleanup_loop(self):
         """Periodically reset volume windows."""

@@ -8,6 +8,7 @@ Uses Unified Configuration for connection details.
 
 import logging
 import os
+import sys
 from contextlib import contextmanager
 from typing import Any
 
@@ -56,15 +57,28 @@ class DatabaseManager:
 
             logger.info(f"Connecting to DB at: {db_url}")
 
-            cls._engine = create_engine(
-                db_url,
-                poolclass=pool.QueuePool if db_url.startswith("postgresql") else pool.StaticPool,
-                pool_size=10 if db_url.startswith("postgresql") else 1,
-                max_overflow=20 if db_url.startswith("postgresql") else 0,
-                pool_pre_ping=True,
-            )
+            kwargs = {
+                "pool_pre_ping": True,
+            }
+            
+            if db_url.startswith("postgresql"):
+                kwargs["poolclass"] = pool.QueuePool
+                kwargs["pool_size"] = 10
+                kwargs["max_overflow"] = 20
+            else:
+                kwargs["poolclass"] = pool.StaticPool
+
+            cls._engine = create_engine(db_url, **kwargs)
 
         return cls._engine
+
+    @classmethod
+    def get_url(cls) -> str:
+        """Get database URL for Alembic."""
+        # Force initialization to get URL construction logic
+        cls.get_engine()
+        # access protected attribute to get the final URL
+        return str(cls._engine.url)
 
     @classmethod
     def get_session_factory(cls) -> sessionmaker:

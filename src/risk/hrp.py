@@ -1,110 +1,101 @@
 """
-Hierarchical Risk Parity (HRP) Optimization
-===========================================
+Hierarchical Risk Parity (HRP) Utility
+======================================
 
-Implementation of Marcos Lopez de Prado's HRP algorithm.
-Used for dynamic portfolio allocation.
+Implements the HRP algorithm for portfolio weight allocation.
+HRP uses machine learning (clustering) to group correlated assets
+and allocate risk across them equally.
 """
 
-
+import logging
 import numpy as np
 import pandas as pd
-import scipy.cluster.hierarchy as sch
-from scipy.spatial.distance import squareform
+from scipy.cluster.hierarchy import linkage
+from scipy.spatial.distance import pdist, squareform
 
-
-def getIVP(cov, **kargs):
-    """Compute the inverse variance portfolio."""
-    ivp = 1.0 / np.diag(cov)
-    ivp /= ivp.sum()
-    return ivp
-
-
-def getClusterVar(cov, cItems):
-    """Compute cluster variance."""
-    cov_ = cov.loc[cItems, cItems]  # matrix slice
-    w_ = getIVP(cov_).reshape(-1, 1)
-    cVar = np.dot(np.dot(w_.T, cov_), w_)[0, 0]
-    return cVar
-
-
-def getQuasiDiag(link):
-    """Sort clustered items by distance."""
-    link = link.astype(int)
-    sortIx = pd.Series([link[-1, 0], link[-1, 1]])
-    numItems = link[-1, 3]  # number of original items
-    while sortIx.max() >= numItems:
-        sortIx.index = range(0, sortIx.shape[0] * 2, 2)  # make space
-        df0 = sortIx[sortIx >= numItems]  # find clusters
-        i = df0.index
-        j = df0.values - numItems
-        sortIx[i] = link[j, 0]  # item 1
-        df0 = pd.Series(link[j, 1], index=i + 1)
-        sortIx = pd.concat([sortIx, df0])  # reorder
-        sortIx = sortIx.sort_index()  # reindex
-        sortIx.index = range(sortIx.shape[0])  # reindex
-    return sortIx.tolist()
-
-
-def getRecBipart(cov, sortIx):
-    """Compute HRP allocation recursively."""
-    w = pd.Series(1, index=sortIx)
-    cItems = [sortIx]  # initialize all items in one cluster
-    while len(cItems) > 0:
-        cItems = [
-            i[j:k]
-            for i in cItems
-            for j, k in ((0, len(i) // 2), (len(i) // 2, len(i)))
-            if len(i) > 1
-        ]  # bi-section
-        for i in range(0, len(cItems), 2):  # parse in pairs
-            cItems0 = cItems[i]  # cluster 1
-            cItems1 = cItems[i + 1]  # cluster 2
-            cVar0 = getClusterVar(cov, cItems0)
-            cVar1 = getClusterVar(cov, cItems1)
-            alpha = 1 - cVar0 / (cVar0 + cVar1)
-            w[cItems0] *= alpha  # weight 1
-            w[cItems1] *= 1 - alpha  # weight 2
-    return w
-
+logger = logging.getLogger(__name__)
 
 def get_hrp_weights(prices: pd.DataFrame) -> dict[str, float]:
     """
-    Calculate HRP weights for a given dataframe of prices.
-
+    Calculate asset weights using Hierarchical Risk Parity.
+    
     Args:
-        prices: DataFrame where columns are assets and rows are timestamps.
-
+        prices: DataFrame of historical prices for assets (columns are symbols)
+        
     Returns:
-        Dictionary {asset: weight}
+        Dictionary of {symbol: weight}
     """
-    # 1. Calculate returns
+    if prices.empty or prices.shape[1] < 2:
+        return {col: 1.0/max(1, prices.shape[1]) for col in prices.columns}
+        
+    # 1. Calculate Returns and Covariance
     returns = prices.pct_change().dropna()
-
-    if len(returns) < 10 or len(returns.columns) < 2:
-        # Fallback to equal weights
-        n = len(prices.columns)
-        return dict.fromkeys(prices.columns, 1.0 / n)
-
-    # 2. Covariance and Correlation
-    cov = returns.cov()
     corr = returns.corr()
-
-    # 3. Clustering
-    dist = correlation_to_distance(corr)
-    link = sch.linkage(dist, "single")
-
-    # 4. Sorting
-    sortIx = getQuasiDiag(link)
-    sortIx = corr.index[sortIx].tolist()
-
-    # 5. Allocation
-    weights = getRecBipart(cov, sortIx)
-
+    cov = returns.cov()
+    
+    # 2. Cluster assets
+    # Distance metric based on correlation
+    dist = ((1 - corr) / 2.0)**0.5
+    link = linkage(squareform(dist), method='single')
+    
+    # 3. Sort assets by clusters (Quasi-Diagonalization)
+    sort_idx = _get_quasi_diag(link)
+    sorted_items = corr.columns[sort_idx].tolist()
+    
+    # 4. Recursive Bisection to find weights
+    weights = pd.Series(1.0, index=sorted_items)
+    _recursive_bisection(weights, sorted_items, cov)
+    
+    logger.info(f"HRP Weights calculated for {len(sorted_items)} assets.")
     return weights.to_dict()
 
+def _get_quasi_diag(link):
+    """Sort items into hierarchical clusters."""
+    link = link.astype(int)
+    sort_idx = pd.Series([link[-1, 0], link[-1, 1]])
+    num_items = link[-1, 3]
+    while sort_idx.max() >= num_items:
+        sort_idx.index = range(0, sort_idx.shape[0] * 2, 2)
+        df0 = sort_idx[sort_idx >= num_items]
+        i = df0.index
+        j = df0.values - num_items
+        sort_idx[i] = link[j, 0]
+        df0 = pd.Series(link[j, 1], index=i + 1)
+        sort_idx = pd.concat([sort_idx, df0])
+        sort_idx = sort_idx.sort_index()
+        sort_idx.index = range(sort_idx.shape[0])
+    return sort_idx.tolist()
 
-def correlation_to_distance(corr):
-    """Convert correlation matrix to distance matrix."""
-    dist = ((1 - corr) / 2.0) ** 0.5  # distance matrix
-    return squareform(dist)  # convert to vector for linkage
+def _recursive_bisection(weights, items, cov):
+    """Allocate weights based on variance parity."""
+    if len(items) <= 1:
+        return
+        
+    # Split items into two clusters
+    idx = len(items) // 2
+    c1 = items[:idx]
+    c2 = items[idx:]
+    
+    # Calculate cluster variance
+    v1 = _get_cluster_var(c1, cov)
+    v2 = _get_cluster_var(c2, cov)
+    
+    # Calculate allocation factor
+    alpha = 1 - v1 / (v1 + v2)
+    
+    # Assign weights
+    weights[c1] *= alpha
+    weights[c2] *= (1 - alpha)
+    
+    # Recurse
+    _recursive_bisection(weights, c1, cov)
+    _recursive_bisection(weights, c2, cov)
+
+def _get_cluster_var(items, cov):
+    """Calculate variance of a cluster."""
+    cov_c = cov.loc[items, items]
+    # Simplified inverse variance weighting for cluster
+    ivp = 1.0 / np.diag(cov_c)
+    ivp /= ivp.sum()
+    w = ivp.reshape(-1, 1)
+    return np.dot(np.dot(w.T, cov_c), w)[0, 0]

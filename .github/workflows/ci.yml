@@ -72,6 +72,13 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=80
 
+      - name: Run Performance and Hot Reload tests
+        env:
+          DATABASE_URL: sqlite:///user_data/ci_test.db
+        run: |
+          python tests/test_hot_reload.py
+          python tests/mft_performance_test.py
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         if: always()

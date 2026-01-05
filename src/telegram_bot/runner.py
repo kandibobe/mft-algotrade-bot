@@ -32,7 +32,8 @@ from src.telegram_bot.handlers import (
     alert_handler, language_handler, misc_handler,
     news_handler, feedback_handler,
     analytics_chat_handler,
-    portfolio_handler
+    portfolio_handler,
+    mft_control_handler
 )
 from src.telegram_bot import jobs
 from src.telegram_bot.localization.manager import get_user_language, get_text
@@ -126,6 +127,11 @@ def create_bot_application() -> Application:
     application.add_handler(CommandHandler(constants.CMD_ALERTS, alert_handler.alerts_command))
     application.add_handler(CommandHandler(constants.CMD_SETTINGS, settings_handler.settings_command_handler))
     
+    # MFT Control Commands
+    application.add_handler(CommandHandler("status", mft_control_handler.status_command))
+    application.add_handler(CommandHandler("balance", mft_control_handler.balance_command))
+    application.add_handler(CommandHandler("positions", mft_control_handler.positions_command))
+
     # Message Handlers for Menus
     application.add_handler(MessageHandler(filters.Text(get_button_texts("menu_btn_report")), report_handler.report_command_handler))
     application.add_handler(MessageHandler(filters.Text(get_button_texts("menu_btn_watchlist")), watchlist_handler.watchlist_command))
@@ -133,6 +139,7 @@ def create_bot_application() -> Application:
     # Callbacks
     application.add_handler(CallbackQueryHandler(settings_handler.settings_main_menu_callback, pattern=f"^{constants.CB_MAIN_SETTINGS}$"))
     application.add_handler(CallbackQueryHandler(alert_handler.delalert_callback, pattern=f"^{constants.CB_ACTION_DEL_ALERT}{constants.ALERT_ID_REGEX_PART}$"))
+    application.add_handler(CallbackQueryHandler(mft_control_handler.mft_control_callback, pattern="^mft_"))
     for h in alert_handler.application_add_handler_alert_deletion_confirmation:
         application.add_handler(h)
 

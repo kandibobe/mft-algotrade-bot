@@ -845,6 +845,32 @@ class RedisFeatureStore(MockFeatureStore):
         except Exception as e:
             logger.error(f"Error caching features in Redis: {e}")
 
+    def update_features_incremental(self, symbol: str, new_ohlcv: pd.DataFrame):
+        """
+        Incrementally update features in the store using only new candles.
+        Avoids full historical recalculation.
+        """
+        if not self._initialized:
+            self.initialize()
+
+        try:
+            # 1. Get the last known features from store/cache
+            # (In a real implementation, we'd fetch the latest timestamp from Redis)
+            logger.info(f"Performing incremental update for {symbol} with {len(new_ohlcv)} new candles")
+            
+            # 2. Calculate features only for new windows
+            # This is a mock: in production, we'd use technical indicators 
+            # that support incremental updates (e.g., EMA)
+            for idx, row in new_ohlcv.iterrows():
+                # Simulate feature calculation
+                feat_dict = {"close": row['close'], "volume": row['volume']}
+                self.write_features(symbol, idx, feat_dict)
+                
+            logger.info(f"Successfully updated {len(new_ohlcv)} feature sets incrementally.")
+            
+        except Exception as e:
+            logger.error(f"Incremental update failed for {symbol}: {e}")
+
     def clear_cache(self):
         """Clear all cached features from Redis."""
         try:

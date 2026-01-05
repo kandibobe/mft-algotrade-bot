@@ -518,6 +518,19 @@ class HealthCheck:
                 "healthy": False,
             }
 
+    async def _attempt_self_healing(self):
+        """Attempt to recover components that are known to be failing."""
+        # This logic is triggered BEFORE the health check report
+        if self.bot and hasattr(self.bot, 'websocket_aggregator'):
+            ws = self.bot.websocket_aggregator
+            if hasattr(ws, 'is_running') and not ws.is_running():
+                logger.warning("🚑 Self-Healing: WebSocket Aggregator stopped. Attempting restart...")
+                try:
+                    if hasattr(ws, 'restart'):
+                        await ws.restart()
+                except Exception as e:
+                    logger.error(f"Self-healing failed for WS: {e}")
+
     async def run_all_checks(self) -> dict[str, Any]:
         """
         Run all health checks concurrently.
@@ -525,6 +538,9 @@ class HealthCheck:
         Returns:
             Dict with overall status and individual check results
         """
+        # 🚀 Self-Healing: Attempt to recover unhealthy components
+        await self._attempt_self_healing()
+
         # Run checks concurrently
         check_tasks = []
         check_names = []

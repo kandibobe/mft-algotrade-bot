@@ -1,8 +1,10 @@
 {
-  "max_depth": 4,
-  "learning_rate": 0.031036484327574578,
-  "n_estimators": 698,
-  "subsample": 0.7198290944718471,
-  "colsample_bytree": 0.6345199258693126,
-  "gamma": 3.754588181175067
+    "pair": "BTC/USDT",
+    "last_updated": "2026-01-05T19:10:56.382506",
+    "metrics": {
+        "accuracy": 0.4033535165346996,
+        "profit_factor": 0.9308508705874284,
+        "win_rate": 0.49736842105263157
+    },
+    "model_path": "user_data\\models\\walk_forward\\window_53_xgboost.pkl"
 }

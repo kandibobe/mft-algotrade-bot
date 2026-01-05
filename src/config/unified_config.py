@@ -34,8 +34,15 @@ Usage:
 
 import json
 import logging
+import threading
+import time
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
+
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
+
+from src.utils.secret_manager import SecretManager
 
 try:
     from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -97,6 +104,21 @@ class ExchangeConfig(BaseModel):
     api_key: str | None = Field(default=None, description="API key (keep secret!)")
     api_secret: str | None = Field(default=None, description="API secret (keep secret!)")
     rate_limit: bool = Field(default=True, description="Enable rate limiting to avoid bans")
+
+    @model_validator(mode="after")
+    def decrypt_secrets(cls, values: Any) -> Any:
+        """Automatically decrypt secrets if they are encrypted."""
+        if isinstance(values, dict):
+            if values.get("api_key"):
+                values["api_key"] = SecretManager.decrypt(values["api_key"])
+            if values.get("api_secret"):
+                values["api_secret"] = SecretManager.decrypt(values["api_secret"])
+        else:
+            if getattr(values, "api_key", None):
+                values.api_key = SecretManager.decrypt(values.api_key)
+            if getattr(values, "api_secret", None):
+                values.api_secret = SecretManager.decrypt(values.api_secret)
+        return values
     timeout_ms: int = Field(
         default=30000, ge=1000, le=120000, description="Request timeout in milliseconds"
     )
@@ -435,6 +457,36 @@ class TradingConfig(BaseSettings):
             logger.info(f"Config saved to {path}")
         return json_str
 
+    def reload(self, config_path: str | None = None) -> None:
+        """
+        Reload configuration from file.
+        Updates the current instance with new values.
+        """
+        if not config_path:
+            logger.error("Reload failed: config_path is required")
+            return
+
+        # Use a small retry mechanism for file reading to avoid race conditions
+        # when a file is being written while we try to read it.
+        max_retries = 5
+        last_exception = None
+        for i in range(max_retries):
+            try:
+                new_config = load_config(config_path)
+                # Update current fields with new values
+                # In Pydantic V2, we use self.__class__.model_fields to avoid deprecation warning
+                fields = getattr(self.__class__, "model_fields", getattr(self, "model_fields", []))
+                for field in fields:
+                    new_value = getattr(new_config, field)
+                    setattr(self, field, new_value)
+                logger.info(f"Configuration reloaded from {config_path}")
+                return
+            except Exception as e:
+                last_exception = e
+                time.sleep(0.1 * (i + 1))
+
+        logger.error(f"Failed to reload configuration after {max_retries} attempts: {last_exception}")
+
     @classmethod
     def from_json(cls, path: str) -> "TradingConfig":
         """Load from JSON file."""
@@ -533,7 +585,10 @@ def load_config(config_path: str | None = None) -> TradingConfig:
     """
     if config_path:
         path = Path(config_path)
-        if path.suffix.lower() == ".yaml" or path.suffix.lower() == ".yml":
+        if not path.exists():
+            raise FileNotFoundError(f"Config file not found: {config_path}")
+
+        if path.suffix.lower() in [".yaml", ".yml"]:
             return TradingConfig.from_yaml(config_path)
         elif path.suffix.lower() == ".json":
             return TradingConfig.from_json(config_path)
@@ -542,3 +597,55 @@ def load_config(config_path: str | None = None) -> TradingConfig:
     else:
         # Load from environment variables only
         return TradingConfig()
+
+
+class ConfigWatcher:
+    """
+    Watches configuration files for changes and triggers reload.
+    """
+
+    def __init__(self, config: TradingConfig, config_path: str):
+        self.config = config
+        self.config_path = str(Path(config_path).absolute())
+        self.callbacks: list[Callable[[TradingConfig], None]] = []
+        self._observer = Observer()
+        self._handler = self._create_handler()
+        self._last_reload_time = 0
+        self._reload_debounce = 1.0  # seconds
+
+    def _create_handler(self) -> FileSystemEventHandler:
+        outer_self = self
+
+        class ReloadHandler(FileSystemEventHandler):
+            def on_modified(self, event):
+                if not event.is_directory and str(Path(event.src_path).absolute()) == outer_self.config_path:
+                    current_time = time.time()
+                    if current_time - outer_self._last_reload_time > outer_self._reload_debounce:
+                        logger.info(f"Detected change in {outer_self.config_path}, reloading...")
+                        outer_self.config.reload(outer_self.config_path)
+                        outer_self._last_reload_time = current_time
+                        for callback in outer_self.callbacks:
+                            try:
+                                callback(outer_self.config)
+                            except Exception as e:
+                                logger.error(f"Error in config reload callback: {e}")
+
+        return ReloadHandler()
+
+    def add_callback(self, callback: Callable[[TradingConfig], None]) -> None:
+        """Add a callback to be called when config is reloaded."""
+        self.callbacks.append(callback)
+
+    def start(self) -> None:
+        """Start watching the config file."""
+        config_dir = str(Path(self.config_path).parent)
+        self._observer.schedule(self._handler, config_dir, recursive=False)
+        self._observer.start()
+        logger.info(f"Started watching configuration at {self.config_path}")
+
+    def stop(self) -> None:
+        """Stop watching the config file."""
+        if self._observer.is_alive():
+            self._observer.stop()
+            self._observer.join()
+            logger.info("Stopped watching configuration")

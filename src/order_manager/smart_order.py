@@ -18,6 +18,11 @@ class SmartOrder(Order):
     """Base class for smart orders."""
 
     attribution_metadata: dict | None = None
+    
+    # Latency Tracking
+    signal_timestamp: float | None = None
+    submission_timestamp: float | None = None
+    fill_timestamp: float | None = None
 
     def on_ticker_update(self, ticker: dict):
         """Handle ticker update to adjust order parameters."""

@@ -56,6 +56,11 @@ class IExchangeBackend(abc.ABC):
         """Fetch order status."""
         pass
 
+    @abc.abstractmethod
+    async def fetch_positions(self) -> list[dict]:
+        """Fetch all open positions."""
+        pass
+
 
 class CCXTBackend(IExchangeBackend):
     """Live exchange interaction using CCXT."""
@@ -101,6 +106,9 @@ class CCXTBackend(IExchangeBackend):
 
     async def fetch_order(self, order_id: str, symbol: str) -> dict:
         return await self.exchange.fetch_order(order_id, symbol)
+
+    async def fetch_positions(self) -> list[dict]:
+        return await self.exchange.fetch_positions()
 
 
 class MockExchangeBackend(IExchangeBackend):
@@ -160,6 +168,19 @@ class MockExchangeBackend(IExchangeBackend):
             self.orders[order_id]["status"] = "canceled"
             return self.orders[order_id]
         raise ValueError("Order not found")
+
+    async def fetch_positions(self) -> list[dict]:
+        """Return currently open mock positions."""
+        return [
+            {
+                "symbol": o["symbol"],
+                "side": o["side"],
+                "amount": o["amount"],
+                "entry_price": o["price"],
+            }
+            for o in self.orders.values()
+            if o["status"] == "open" # Simplification for mock
+        ]
 
     async def fetch_order(self, order_id: str, symbol: str) -> dict:
         # Simulate fill logic here

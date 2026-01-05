@@ -29,7 +29,9 @@ class HybridConnectorMixin:
     _metrics_cache: dict[str, AggregatedTicker] = {}
     _cache_lock = threading.Lock()
 
-    def initialize_hybrid_connector(self, pairs: list[str], exchange_name: str = "binance"):
+    def initialize_hybrid_connector(
+        self, pairs: list[str], exchange_name: str = "binance", shadow_mode: bool = False
+    ):
         """
         Start the Websocket Aggregator in a background thread.
         Should be called from bot_start().
@@ -65,7 +67,10 @@ class HybridConnectorMixin:
             exchange_config = None
 
         self._executor = SmartOrderExecutor(
-            aggregator=self._aggregator, exchange_config=exchange_config, dry_run=dry_run
+            aggregator=self._aggregator,
+            exchange_config=exchange_config,
+            dry_run=dry_run,
+            shadow_mode=shadow_mode,
         )
 
         # Add exchange

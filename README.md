@@ -1,122 +1,74 @@
-# Stoic Citadel: Hybrid MFT Trading System
+# 🛡️ Stoic Citadel: Hybrid MFT Trading System
 
-[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Status: Active](https://img.shields.io/badge/Status-Active-green)](https://github.com/kandibobe/mft-algotrade-bot)
+Stoic Citadel is an institutional-grade, hybrid Mid-Frequency Trading (MFT) system designed for robustness, speed, and intelligence. It combines the strategic depth of Freqtrade with a custom-built, low-latency execution layer based on Python's AsyncIO.
 
-**Stoic Citadel** is an advanced, hybrid Mid-Frequency Trading (MFT) bot designed for high-performance cryptocurrency trading. It bridges the gap between robust strategy management (Freqtrade) and low-latency execution (AsyncIO/Aiohttp), providing a sophisticated platform for quantitative trading.
+## 🏛 Architecture
 
----
+The system is decoupled into two primary layers to balance statistical depth with execution speed:
+
+- **Macro Layer (Intelligence):** Handles long-term alpha generation, regime detection, and portfolio optimization. Powered by an ensemble of ML models (XGBoost/LightGBM) and Freqtrade.
+- **Micro Layer (Execution):** A high-speed execution loop (<100ms) managing real-time orderbook dynamics, smart limit chasing, and emergency safety guards.
 
 ## 🚀 Key Features
 
-### 🧠 Hybrid Architecture
-*   **Macro Strategy Layer (Freqtrade):** Leveraging the battle-tested Freqtrade framework for strategy definition, backtesting, and signal generation.
-*   **Micro Execution Layer (Custom Async):** A high-performance, asynchronous execution engine (`ChaseLimit`) for optimal entry and exit, minimizing slippage and maximizing fill rates.
+### 🧠 Advanced ML Pipeline
+- **Triple Barrier Labeling:** Statistically sound trade labeling following Marcos Lopez de Prado's methodology.
+- **Meta-Labeling:** A secondary ML layer that predicts the probability of primary signal success, effectively filtering out low-confidence trades.
+- **Walk-Forward Optimization (WFO):** Automated sliding-window training and validation to adapt to changing market regimes.
+- **SHAP Feature Selection:** Mathematical identification of the most predictive indicators to prevent overfitting.
 
-### 🛡️ Institutional-Grade Risk Management
-*   **Circuit Breakers:** Automatic system pauses during extreme volatility or consecutively losing trades.
-*   **Dynamic Position Sizing:** ATR-based volatility sizing to normalize risk across different assets.
-*   **Correlation Protection:** Prevents overexposure to highly correlated assets.
+### 🛡️ Institutional Risk Management
+- **Hierarchical Risk Parity (HRP):** Advanced portfolio allocation that uses clustering to group correlated assets and balance risk.
+- **Fractional Kelly Criterion:** Mathematically optimal position sizing based on model confidence and historical win rates.
+- **Circuit Breakers:** Multi-level safety switches that halt trading during extreme volatility or system anomalies.
+- **Drift Analysis:** Daily automated comparison between backtest expectations and live execution results.
 
-### 🤖 Interactive Telegram Companion
-A full-featured Telegram bot for real-time monitoring and control:
-*   **Smart Alerts:** Set custom price triggers (e.g., `BTC > 100k`, `ETH +5%`).
-*   **Portfolio Tracking:** Monitor your holdings and performance on the go.
-*   **Market Intelligence:** Access real-time news, volatility scanners, and fear/greed indices directly from chat.
+### ⚡ Smart Execution Engine
+- **ChaseLimit Logic:** Dynamically adjusts order prices to stay at the top of the orderbook, maximizing maker-fee rebates.
+- **Iceberg Orders:** Conceals large order sizes by splitting them into visible and hidden portions.
+- **Maker-Fee Optimization:** Enforced `Post-Only` execution to minimize trading costs.
+- **Self-Healing:** Automated recovery of WebSocket streams and critical async tasks.
 
-### 📈 Advanced Strategy: Stoic Ensemble
-*   **Regime Detection:** Automatically adapts trading logic based on market conditions (Trending vs. Ranging).
-*   **Multi-Strategy Ensemble:** Combines signals from multiple sub-strategies for robust decision-making.
+## 🛠 Quick Start
 
----
+### 1. Prerequisites
+- Docker & Docker Compose
+- Python 3.11+ (for local development)
+- Master Key for encryption
 
-## 🛠️ Quick Start
+### 2. Installation
+```bash
+git clone https://github.com/kandibobe/mft-algotrade-bot.git
+cd mft-algotrade-bot
+pip install -r requirements.txt
+pre-commit install
+```
 
-### Prerequisites
-*   Python 3.10 or higher
-*   Docker & Docker Compose (recommended)
-*   Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
+### 3. Setup Secret Keys
+Encrypt your API keys before adding them to configuration files:
+```bash
+$env:STOIC_MASTER_KEY="your-master-password"
+python -m src.utils.secret_manager "your-binance-api-key"
+```
+Copy the output (starting with `ENC:`) to your `config.json`.
 
-### Installation
-
-1.  **Clone the Repository**
-    ```bash
-    git clone https://github.com/kandibobe/mft-algotrade-bot.git
-    cd mft-algotrade-bot
-    ```
-
-2.  **Set Up Environment**
-    Copy the example configuration and fill in your details:
-    ```bash
-    cp .env.example .env
-    ```
-    *Edit `.env` to add your Exchange API Keys and Telegram Token.*
-
-3.  **Install Dependencies** (for local development)
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-### Running the System
-
-**Option A: Full System (Docker)**
+### 4. Running with Docker
 ```bash
 docker-compose up -d
 ```
 
-**Option B: Hybrid Mode (Local)**
-1.  Start the Trading Engine:
-    ```bash
-    freqtrade trade --config config.json --strategy StoicEnsembleStrategyV4
-    ```
-2.  Start the Companion Bot (in a separate terminal):
-    ```bash
-    python -m src.telegram_bot.runner
-    ```
+## 📊 Monitoring & Control
+
+- **Telegram Bot:** Interactive control via `/status`, `/balance`, and the **🚨 Panic Stop** button.
+- **Dashboard:** Real-time analytics on Streamlit (PNL curves, Monte Carlo simulations, execution quality).
+- **Metrics:** Detailed Prometheus metrics available at `:8000/metrics`.
+
+## 📖 Documentation
+Detailed technical guides are available in the `/docs` directory:
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [MFT Implementation Guide](docs/MFT_ARCHITECTURE.md)
+- [Risk Management Specification](docs/RISK_MANAGEMENT_SPEC.md)
+- [Walk-Forward Optimization Guide](docs/WALK_FORWARD_OPTIMIZATION_GUIDE.md)
 
 ---
-
-## 📱 Telegram Bot Guide
-
-The companion bot extends your control beyond standard Freqtrade notifications.
-
-| Feature | Command | Description |
-| :--- | :--- | :--- |
-| **Main Menu** | `/start` | Open the interactive dashboard. |
-| **Add Alert** | `/addalert` | Create a custom price or indicator alert. |
-| **Watchlist** | `/watchlist` | View your tracked assets. |
-| **Market Report** | `/report` | Get a comprehensive market summary. |
-| **Signals** | `/signal` | Check technical indicators for a specific pair. |
-
-**Quick Alerts:**
-Simply type in the chat:
-> `BTC > 95000`
-> `ETH +3%`
-
----
-
-## 📂 Project Structure
-
-```
-mft-algotrade-bot/
-├── config/                 # Configuration templates
-├── docs/                   # Detailed documentation
-├── src/
-│   ├── strategies/         # Freqtrade strategy logic
-│   ├── risk/               # Risk management modules
-│   ├── order_manager/      # Execution engine (AsyncIO)
-│   ├── telegram_bot/       # Interactive Companion Bot
-│   └── ml/                 # Machine Learning pipeline
-├── tests/                  # Unit and integration tests
-└── user_data/              # Local data (logs, db, results)
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+*Stoic Citadel - Built for stability, optimized for speed, driven by data.*

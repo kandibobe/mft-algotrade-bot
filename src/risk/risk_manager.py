@@ -108,7 +108,9 @@ class RiskManager:
 
         # State
         self._account_balance: Decimal = Decimal("0.0")
-        self._positions: dict[str, dict] = {}
+        self._exchange_balances: dict[str, Decimal] = {}  # exchange -> balance
+        self._positions: dict[str, dict] = {}  # symbol -> position_details
+        self._exchange_positions: dict[str, dict[str, dict]] = {}  # exchange -> symbol -> position
         self._trade_history: list[dict] = []
         self._metrics: RiskMetrics = RiskMetrics()
         self._lock = threading.Lock()
@@ -126,18 +128,28 @@ class RiskManager:
         logger.info("Risk Manager initialized")
 
     def initialize(
-        self, account_balance: float | Decimal, existing_positions: dict[str, dict] | None = None
+        self,
+        account_balance: float | Decimal,
+        existing_positions: dict[str, dict] | None = None,
+        exchange: str = "default",
     ) -> None:
         """
-        Initialize risk manager with account state.
-
-        Args:
-            account_balance: Current account balance
-            existing_positions: Dict of symbol -> position details
+        Initialize risk manager with account state for a specific exchange.
         """
         with self._lock:
-            self._account_balance = Decimal(str(account_balance))
-            self._positions = existing_positions or {}
+            d_balance = Decimal(str(account_balance))
+            self._exchange_balances[exchange] = d_balance
+            
+            # Update total balance
+            self._account_balance = sum(self._exchange_balances.values())
+            
+            # Update positions
+            self._exchange_positions[exchange] = existing_positions or {}
+            
+            # Flatten positions for backward compatibility with components that don't know about exchanges
+            self._positions = {}
+            for exch_pos in self._exchange_positions.values():
+                self._positions.update(exch_pos)
 
             # Initialize circuit breaker
             self.circuit_breaker.initialize_session(float(self._account_balance))
@@ -145,13 +157,14 @@ class RiskManager:
             # Update position sizer
             position_values = {s: p.get("value", 0) for s, p in self._positions.items()}
             self.position_sizer.update_positions(position_values)
+            self.position_sizer.last_account_balance = float(self._account_balance)
 
             # Update metrics
             self._update_metrics()
 
         logger.info(
-            f"Risk Manager initialized: Balance=${account_balance:,.2f}, "
-            f"Positions={len(self._positions)}"
+            f"Risk Manager initialized: Balance=${account_balance:,.2f} on {exchange}, "
+            f"Total Balance=${float(self._account_balance):,.2f}"
         )
 
     def evaluate_trade(
@@ -161,6 +174,9 @@ class RiskManager:
         stop_loss_price: float | Decimal,
         side: str = "long",
         sizing_method: str = "optimal",
+        exchange: str = "default",
+        force_allowed: bool = False,
+        adl_score: int = 0,
         **kwargs,
     ) -> dict[str, Any]:
         """
@@ -189,6 +205,12 @@ class RiskManager:
             "rejection_reason": None,
         }
 
+        # Update position values and aggregated balance to ensure sizing is accurate
+        with self._lock:
+            position_values = {s: p.get("value", 0) for s, p in self._positions.items()}
+            self.position_sizer.update_positions(position_values)
+            self.position_sizer.last_account_balance = float(self._account_balance)
+
         # Check circuit breaker
         if not self.circuit_breaker.can_trade():
             result["rejection_reason"] = f"Circuit breaker: {self.circuit_breaker.state.value}"
@@ -207,6 +229,12 @@ class RiskManager:
 
         if not is_safe:
             result["rejection_reason"] = f"Liquidation Risk: {liq_reason}"
+            return result
+
+        # Check ADL Risk
+        is_adl_safe, adl_reason = self.liquidation_guard.check_adl_risk(adl_score)
+        if not is_adl_safe:
+            result["rejection_reason"] = adl_reason
             return result
 
         # Check correlation risk (using cached correlation matrix if available)
@@ -255,7 +283,7 @@ class RiskManager:
             sizing_result, symbol, float(self._account_balance)
         )
 
-        if not allowed:
+        if not allowed and not force_allowed:
             result["rejection_reason"] = reason
             return result
 
@@ -275,30 +303,38 @@ class RiskManager:
         entry_price: float | Decimal,
         position_size: float | Decimal,
         stop_loss_price: float | Decimal,
+        exchange: str = "default",
         **kwargs,
     ) -> None:
-        """Record position entry."""
+        """Record position entry on a specific exchange."""
         d_entry_price = Decimal(str(entry_price))
         d_position_size = Decimal(str(position_size))
         d_stop_loss_price = Decimal(str(stop_loss_price))
 
         with self._lock:
-            self._positions[symbol] = {
-                "entry_price": float(d_entry_price),  # Store as float for compatibility
+            pos_details = {
+                "entry_price": float(d_entry_price),
                 "size": float(d_position_size),
                 "stop_loss": float(d_stop_loss_price),
                 "value": float(d_entry_price * d_position_size),
                 "entry_time": datetime.utcnow(),
+                "exchange": exchange,
                 **kwargs,
             }
+            
+            self._positions[symbol] = pos_details
+            if exchange not in self._exchange_positions:
+                self._exchange_positions[exchange] = {}
+            self._exchange_positions[exchange][symbol] = pos_details
 
             # Update position sizer
             position_values = {s: p.get("value", 0) for s, p in self._positions.items()}
             self.position_sizer.update_positions(position_values)
+            self.position_sizer.last_account_balance = float(self._account_balance)
 
             self._update_metrics()
 
-        logger.info(f"Entry recorded: {symbol} @ {entry_price} x {position_size}")
+        logger.info(f"Entry recorded: {symbol} @ {entry_price} x {position_size} on {exchange}")
 
     def record_exit(self, symbol: str, exit_price: float | Decimal, reason: str = "") -> dict:
         """Record position exit and return trade result."""
@@ -310,6 +346,9 @@ class RiskManager:
                 return {}
 
             position = self._positions.pop(symbol)
+            exchange = position.get("exchange", "default")
+            if exchange in self._exchange_positions and symbol in self._exchange_positions[exchange]:
+                self._exchange_positions[exchange].pop(symbol)
 
             # Calculate P&L using Decimal
             d_entry_price = Decimal(str(position["entry_price"]))
@@ -332,6 +371,7 @@ class RiskManager:
                 "reason": reason,
                 "entry_time": position.get("entry_time"),
                 "exit_time": datetime.utcnow(),
+                "exchange": exchange
             }
 
             # Update trade history
@@ -341,17 +381,21 @@ class RiskManager:
             self.circuit_breaker.record_trade(trade_result, pnl_pct)
 
             # Update balance
-            self._account_balance += d_pnl
+            if exchange in self._exchange_balances:
+                self._exchange_balances[exchange] += d_pnl
+            
+            self._account_balance = sum(self._exchange_balances.values())
             self.circuit_breaker.update_balance(float(self._account_balance))
 
             # Update position sizer
             position_values = {s: p.get("value", 0) for s, p in self._positions.items()}
             self.position_sizer.update_positions(position_values)
+            self.position_sizer.last_account_balance = float(self._account_balance)
 
             self._update_metrics()
 
             logger.info(
-                f"Exit recorded: {symbol} @ {exit_price} | "
+                f"Exit recorded: {symbol} @ {exit_price} on {exchange} | "
                 f"PnL: ${pnl:,.2f} ({pnl_pct:+.2%}) | Reason: {reason}"
             )
 

@@ -1,13 +1,13 @@
 {
-  "state": "open",
+  "state": "half_open",
   "trip_reason": "manual_stop",
   "trip_time": "2026-01-04T10:33:07.554009",
   "recovery_trades": 0,
   "session": {
-    "start_time": "2026-01-04T10:33:29.757821",
+    "start_time": "2026-01-05T09:30:50.126647",
     "initial_balance": 10000.0,
-    "current_balance": 8000.0,
+    "current_balance": 10000.0,
     "peak_balance": 10000.0,
-    "consecutive_losses": 5
+    "consecutive_losses": 0
   }
 }

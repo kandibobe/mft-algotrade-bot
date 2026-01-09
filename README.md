@@ -84,10 +84,10 @@ cp .env.example .env
 ```
 
 #### 2. Deployment (Docker)
-Run the system using the production-ready Docker Compose setup from the `deploy/` directory:
+Run the system using Docker Compose:
 
 ```bash
-docker-compose -f deploy/docker-compose.yml up -d --build
+docker-compose up -d --build
 ```
 
 This will launch:

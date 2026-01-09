@@ -157,8 +157,15 @@ class CircuitBreaker:
             self.session.trades.append(trade)
             if profit_pct < 0:
                 self.session.consecutive_losses += 1
+                if self.state == CircuitState.HALF_OPEN:
+                    self._trip(self.trip_reason or TripReason.CONSECUTIVE_LOSSES)
             else:
                 self.session.consecutive_losses = 0
+                if self.state == CircuitState.HALF_OPEN:
+                    self.recovery_trades += 1
+                    if self.recovery_trades >= self.config.recovery_trades_required:
+                        self._reset()
+
             new_balance = self.session.current_balance * (1 + profit_pct)
             self.update_balance(new_balance)
             self._check_conditions()

@@ -124,6 +124,23 @@ pytest tests/integration/test_v6_logic.py
 
 ---
 
+### **Troubleshooting**
+
+*   **"Permission denied" in Database:**
+    If you see `mkdir: can't create directory` in PostgreSQL logs, the volume permissions might be corrupted.
+    Fix: Run `docker-compose down -v` to reset volumes and restart with `docker-compose up -d`.
+
+*   **"Conflict" errors:**
+    If you see container name conflicts (e.g., `stoic_postgres`), remove old containers manually:
+    ```bash
+    docker rm -f stoic_redis stoic_postgres stoic_freqtrade stoic_frequi
+    ```
+
+*   **Containers not starting:**
+    Ensure you are running the command from the project root where the updated `docker-compose.yml` is located.
+
+---
+
 ### **Documentation**
 *   [Architecture Overview](docs/architecture/overview.md)
 *   [Latest Audit Report](docs/reports/archive/final_audit_fix_report.md)

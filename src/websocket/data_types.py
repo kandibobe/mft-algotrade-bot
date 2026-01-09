@@ -92,3 +92,25 @@ class TradeData:
             "side": self.side,
             "timestamp": self.timestamp,
         }
+
+
+@dataclass
+class OrderbookData:
+    """Normalized L2 orderbook data."""
+
+    exchange: str
+    symbol: str
+    bids: list[list[float]]  # [[price, volume], ...]
+    asks: list[list[float]]  # [[price, volume], ...]
+    timestamp: float
+    imbalance: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "exchange": self.exchange,
+            "symbol": self.symbol,
+            "bids": self.bids,
+            "asks": self.asks,
+            "imbalance": self.imbalance,
+            "timestamp": self.timestamp,
+        }

@@ -1,118 +1,89 @@
 """
-Nightly Optimization Module
-===========================
+Freqtrade Optimization Wrapper
+==============================
 
-Handles automated hyperparameter optimization and model retraining.
+Automates hyperopt and backtesting cycles.
 """
 
 import logging
 import subprocess
-from datetime import datetime
 from pathlib import Path
+from typing import Any
 
-from src.ml.pipeline import MLTrainingPipeline
+from src.config import config
 
 logger = logging.getLogger(__name__)
 
 
-class NightlyOptimizer:
+class StrategyOptimizer:
+    """Wrapper for Freqtrade optimization commands."""
+
     def __init__(
         self,
-        data_dir: str = "user_data/data/binance",
-        results_dir: str = "user_data/hyperopt_results",
+        data_dir: str | None = None,
+        results_dir: str | None = None,
     ):
-        self.data_dir = Path(data_dir)
-        self.results_dir = Path(results_dir)
+        cfg = config()
+        self.data_dir = Path(data_dir or cfg.paths.data_dir / "binance")
+        self.results_dir = Path(results_dir or cfg.paths.user_data_dir / "hyperopt_results")
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
-    def run_hyperopt(
-        self, strategy: str, pairs: list[str], epochs: int = 100, config_path: str = None
+    def run_backtest(
+        self,
+        strategy: str,
+        timeframe: str,
+        timerange: str | None = None,
+        config_path: str | None = None,
     ) -> bool:
-        """Run Freqtrade Hyperopt."""
-        logger.info(f"🚀 Starting Hyperopt for {strategy} ({epochs} epochs)")
+        """Run freqtrade backtesting."""
+        cmd = [
+            "freqtrade",
+            "backtesting",
+            "--strategy",
+            strategy,
+            "--timeframe",
+            timeframe,
+            "--config",
+            config_path or str(config().paths.user_data_dir / "config/config_backtest.json"),
+        ]
 
-        # Build command
+        if timerange:
+            cmd.extend(["--timerange", timerange])
+
+        try:
+            subprocess.run(cmd, check=True)
+            return True
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Backtest failed: {e}")
+            return False
+
+    def run_hyperopt(
+        self,
+        strategy: str,
+        timeframe: str,
+        epochs: int = 100,
+        spaces: list[str] | None = None,
+    ) -> bool:
+        """Run freqtrade hyperopt."""
         cmd = [
             "freqtrade",
             "hyperopt",
             "--strategy",
             strategy,
-            "--hyperopt-loss",
-            "SharpeHyperOptLoss",
-            "--spaces",
-            "buy",
-            "sell",
-            "roi",
-            "stoploss",
-            "-e",
+            "--timeframe",
+            timeframe,
+            "--epochs",
             str(epochs),
             "--config",
-            config_path or "user_data/config/config_backtest.json",
+            str(config().paths.user_data_dir / "config/config_backtest.json"),
         ]
 
-        # Note: We assume config handles pairs, or we patch config.
-        # For simplicity, we assume config is set up.
+        if spaces:
+            cmd.extend(["--spaces"] + spaces)
 
         try:
             subprocess.run(cmd, check=True)
-            logger.info("✅ Hyperopt completed successfully")
             return True
         except subprocess.CalledProcessError as e:
-            logger.error(f"❌ Hyperopt failed: {e}")
+            logger.error(f"Hyperopt failed: {e}")
             return False
-
-    def run_ml_training(self, pairs: list[str], timeframe: str = "5m", n_trials: int = 50) -> bool:
-        """Run ML Model Training."""
-        logger.info(f"🚀 Starting ML Training for {pairs}")
-
-        try:
-            pipeline = MLTrainingPipeline(quick_mode=False)
-            results = pipeline.run(
-                pairs=pairs, timeframe=timeframe, optimize=True, n_trials=n_trials
-            )
-
-            # Check success
-            success = all(r["success"] for r in results.values())
-            if success:
-                logger.info("✅ ML Training completed successfully")
-                return True
-            else:
-                logger.error("❌ Some models failed to train")
-                return False
-
-        except Exception as e:
-            logger.error(f"❌ ML Training crashed: {e}")
-            return False
-
-    def execute_nightly_cycle(
-        self,
-        strategy: str,
-        pairs: list[str],
-        epochs: int = 500,
-        ml_trials: int = 100,
-        config_path: str = None,
-    ):
-        """Execute the full nightly cycle."""
-        start_time = datetime.now()
-        report = []
-
-        report.append(f"# Nightly Optimization Report - {start_time.strftime('%Y-%m-%d')}")
-
-        # 1. Hyperopt
-        if self.run_hyperopt(strategy, pairs, epochs, config_path):
-            report.append(f"- [x] Hyperopt ({epochs} epochs): Success")
-        else:
-            report.append(f"- [ ] Hyperopt ({epochs} epochs): Failed")
-
-        # 2. ML Training
-        if self.run_ml_training(pairs, n_trials=ml_trials):
-            report.append(f"- [x] ML Training ({ml_trials} trials): Success")
-        else:
-            report.append(f"- [ ] ML Training ({ml_trials} trials): Failed")
-
-        # Write Report
-        report_path = self.results_dir / f"nightly_report_{start_time.strftime('%Y%m%d')}.md"
-        with open(report_path, "w") as f:
-            f.write("\n".join(report))
-
-        logger.info(f"Nightly cycle finished. Report saved to {report_path}")

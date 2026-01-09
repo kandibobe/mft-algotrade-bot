@@ -1024,3 +1024,7 @@ def create_labels_for_training(
 
     else:
         raise ValueError(f"Unknown labeling method: {method}")
+
+
+# Alias for backward compatibility
+LabelGenerator = TripleBarrierLabeler

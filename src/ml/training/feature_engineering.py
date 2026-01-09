@@ -14,6 +14,8 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from src.config import config
+
 logger = logging.getLogger(__name__)
 
 
@@ -172,14 +174,14 @@ class FeatureEngineer:
         engineer.save_scaler("models/scaler.joblib")
     """
 
-    def __init__(self, config: FeatureConfig | None = None):
+    def __init__(self, config_obj: FeatureConfig | None = None):
         """
         Initialize feature engineer.
 
         Args:
-            config: Feature engineering configuration
+            config_obj: Feature engineering configuration
         """
-        self.config = config or FeatureConfig()
+        self.config = config_obj or FeatureConfig()
         self.feature_names: list[str] = []
         self.scaler = None
         self._is_fitted = False
@@ -1256,7 +1258,7 @@ class FeatureEngineer:
 
         return df
 
-    def save_scaler(self, path: str) -> None:
+    def save_scaler(self, path: str | None = None) -> None:
         """
         Save fitted scaler to file for production use.
 
@@ -1266,6 +1268,7 @@ class FeatureEngineer:
         if self.scaler is None:
             raise ValueError("Scaler not fitted! Call fit_transform() first.")
 
+        path = path or str(config().paths.models_dir / "scaler.joblib")
         output_path = Path(path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1282,13 +1285,14 @@ class FeatureEngineer:
         joblib.dump(scaler_data, output_path)
         logger.info(f"Scaler saved to {output_path}")
 
-    def load_scaler(self, path: str) -> None:
+    def load_scaler(self, path: str | None = None) -> None:
         """
         Load pre-fitted scaler from file.
 
         Args:
             path: Path to load scaler from
         """
+        path = path or str(config().paths.models_dir / "scaler.joblib")
         input_path = Path(path)
         # Use mmap_mode='r' to share memory across processes (crucial for Hyperopt)
         try:
@@ -1326,7 +1330,7 @@ class FeatureEngineer:
             Dataframe with added indicators (unscaled)
         """
         # Create default config suitable for indicators
-        config = FeatureConfig(
+        config_obj = FeatureConfig(
             include_price_features=True,
             include_volume_features=True,
             include_momentum_features=True,
@@ -1336,5 +1340,5 @@ class FeatureEngineer:
             scale_features=False,  # Indicators should be raw
             remove_correlated=False,  # Keep all
         )
-        engineer = cls(config)
+        engineer = cls(config_obj)
         return engineer.prepare_data(dataframe)

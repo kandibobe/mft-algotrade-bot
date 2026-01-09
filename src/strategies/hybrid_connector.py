@@ -29,6 +29,18 @@ class HybridConnectorMixin:
     _metrics_cache: dict[str, AggregatedTicker] = {}
     _cache_lock = threading.Lock()
 
+    def __getstate__(self):
+        """Custom pickling to avoid unpicklable objects."""
+        state = self.__dict__.copy()
+        for key in ('_loop', '_thread', '_cache_lock', '_aggregator', '_executor'):
+            if key in state:
+                del state[key]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._cache_lock = threading.Lock()
+
     def initialize_hybrid_connector(
         self, 
         pairs: list[str], 
@@ -65,10 +77,7 @@ class HybridConnectorMixin:
                 "secret": config.exchange.api_secret,
             }
             dry_run = config.dry_run
-            
-            # Use exchange name from config if not provided
             target_exchange = exchange_name or config.exchange.name
-            
         except Exception as e:
             logger.critical(f"Failed to load configuration for Hybrid Connector: {e}")
             raise
@@ -81,8 +90,6 @@ class HybridConnectorMixin:
             risk_manager=risk_manager
         )
 
-        # Add exchange
-        # Map string name to Enum
         try:
             exch_enum = Exchange(target_exchange.lower())
             self._aggregator.add_exchange(exch_enum, pairs)
@@ -112,40 +119,33 @@ class HybridConnectorMixin:
         self._loop.run_until_complete(asyncio.gather(*tasks))
 
     def get_realtime_metrics(self, pair: str) -> AggregatedTicker | None:
-        """
-        Non-blocking access to the latest websocket data.
-        """
-        # Normalize pair (BTC/USDT -> BTC/USDT) - Aggregator handles normalization internally
-        # but let's be safe
+        """Non-blocking access to the latest websocket data."""
         normalized_pair = pair.upper().replace("_", "/")
         with self._cache_lock:
             return self._metrics_cache.get(normalized_pair)
 
     def check_market_safety(self, pair: str, side: str) -> bool:
-        """
-        MFT Safety Check.
-        Returns True if safe to trade, False otherwise.
-        """
-        # In backtest, we assume safety (or rely on backtest data)
+        """MFT Safety Check."""
         if self.dp.runmode.value in ("backtest", "hyperopt"):
             return True
 
         ticker = self.get_realtime_metrics(pair)
         if not ticker:
-            # If no data yet, maybe allow? Or be safe and deny?
-            # Let's log warning and allow for now, to avoid blocking startup trades
-            logger.warning(f"No real-time data for {pair} yet.")
             return True
 
-        # 1. Spread Check
-        if ticker.spread_pct > 0.5:  # 0.5% spread is huge for MFT
-            logger.info(f"🚫 trade rejected: Spread too high ({ticker.spread_pct:.2f}%)")
+        if not ticker.is_reliable:
+            logger.warning(f"🚫 Trade rejected: Data unreliable for {pair}.")
             return False
 
-        # 2. Arbitrage/Cross-Exchange Integrity (Optional)
-        if ticker.arbitrage_opportunity:
-            logger.info(
-                f"⚡ Arbitrage opportunity detected for {pair}! Profit: {ticker.arbitrage_profit_pct:.2f}%"
-            )
+        if ticker.spread_pct > 0.5:
+            return False
 
         return True
+
+    def get_orderbook_imbalance(self, pair: str) -> float:
+        """Calculate simple orderbook imbalance from aggregated ticker."""
+        ticker = self.get_realtime_metrics(pair)
+        if not ticker:
+            return 0.0
+        return getattr(ticker, 'imbalance', 0.0)
+            # Let's log warning and allow for now, to avoid blocking startup trades

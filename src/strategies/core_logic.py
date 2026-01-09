@@ -11,9 +11,10 @@ Refactored V6: Regime-Permission Matrix + Signal Persistence
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Dict, Optional
 
 import pandas as pd
+import numpy as np
 
 # Import indicators and regime
 from src.utils.indicators import (
@@ -21,6 +22,7 @@ from src.utils.indicators import (
     calculate_ema,
     calculate_macd,
     calculate_rsi,
+    calculate_atr,
 )
 from src.utils.logger import log_strategy_signal
 from src.utils.regime_detection import MarketRegime, calculate_regime
@@ -62,31 +64,46 @@ class StoicLogic:
     @staticmethod
     def populate_indicators(dataframe: pd.DataFrame) -> pd.DataFrame:
         """
-        Calculate technical indicators required for the strategy.
+        Comprehensive technical indicator calculation.
+        Includes technical indicators, column aliasing, and safety fallbacks.
         """
-        # Basic needed for logic
-        dataframe["ema_50"] = calculate_ema(dataframe["close"], 50)
-        dataframe["ema_200"] = calculate_ema(dataframe["close"], 200)
-        dataframe["rsi"] = calculate_rsi(dataframe["close"], 14)
+        df = dataframe.copy()
+        
+        # 1. Core Technicals
+        df["ema_50"] = calculate_ema(df["close"], 50)
+        df["ema_100"] = calculate_ema(df["close"], 100)
+        df["ema_200"] = calculate_ema(df["close"], 200)
+        df["rsi"] = calculate_rsi(df["close"], 14)
+        df["atr"] = calculate_atr(df["high"], df["low"], df["close"], 14)
 
-        macd = calculate_macd(dataframe["close"])
-        dataframe["macd"] = macd["macd"]
-        dataframe["macd_signal"] = macd["signal"]
-        dataframe["macd_hist"] = macd["histogram"]
+        macd = calculate_macd(df["close"])
+        df["macd"] = macd["macd"]
+        df["macd_signal"] = macd["signal"]
+        df["macd_hist"] = macd["histogram"]
 
-        bb = calculate_bollinger_bands(dataframe["close"], 20, 2.0)
-        dataframe["bb_lower"] = bb["lower"]
-        dataframe["bb_middle"] = bb["middle"]
-        dataframe["bb_upper"] = bb["upper"]
-        dataframe["bb_width"] = bb["width"]
+        bb = calculate_bollinger_bands(df["close"], 20, 2.0)
+        df["bb_lower"] = bb["lower"]
+        df["bb_middle"] = bb["middle"]
+        df["bb_upper"] = bb["upper"]
+        df["bb_width"] = bb["width"]
+        
+        # Stochastic (Legacy/Robustness)
+        low_min = df['low'].rolling(window=14).min()
+        high_max = df['high'].rolling(window=14).max()
+        df['slowk'] = 100 * (df['close'] - low_min) / (high_max - low_min)
+        df['slowd'] = df['slowk'].rolling(window=3).mean()
+        
+        # Volume
+        df['volume_mean'] = df['volume'].rolling(window=20).mean()
 
-        # Calculate Regime Indicators (if not already done by strategy)
-        # We need ATR for Regime Detection
-        # regime_detection.calculate_regime handles indicators internally
-        # but we might need to merge results back if strategy doesn't do it.
-        # For simplicity, we assume strategy calls calculate_regime and merges.
+        # 2. Aliases for backward compatibility and tests
+        df['bb_lowerband'] = df['bb_lower']
+        df['bb_upperband'] = df['bb_upper']
+        df['bb_middleband'] = df['bb_middle']
+        df['macdsignal'] = df['macd_signal']
+        df['macdhist'] = df['macd_hist']
 
-        return dataframe
+        return df
 
     @staticmethod
     def populate_entry_exit_signals(
@@ -117,7 +134,7 @@ class StoicLogic:
 
         # 1. Trend Signal (Breakout/Momentum)
         # Condition: Price > EMA200 AND ML > Threshold
-        raw_trend_signal = (df["close"] > df["ema_200"]) & (df["ml_prediction"] > buy_threshold)
+        raw_trend_signal = (df["close"] > df["ema_200"]) & (df.get("ml_prediction", 0.5) > buy_threshold)
 
         # 2. Mean Reversion Signal (Dip Buy)
         # Condition: RSI < mean_rev_rsi AND Price < BB Lower
@@ -125,9 +142,6 @@ class StoicLogic:
 
         # --- Signal Persistence (Glitch Filter) ---
         # Signal must be true for N periods to be valid
-        # We use rolling min() on boolean (converted to int)
-        # If min is 1, then it was true for all N periods.
-        # FIX: Use threshold > 0.99 instead of == 1 to avoid float comparison issues
         trend_persistent = raw_trend_signal.astype(int).rolling(persistence_window).min() > 0.99
         mean_rev_persistent = (
             raw_mean_rev_signal.astype(int).rolling(persistence_window).min() > 0.99
@@ -141,7 +155,6 @@ class StoicLogic:
 
         # 2. GRIND (Low Vol + Trend) -> ALLOW TREND (Accumulate), BAN MEAN REV
         mask_grind = df["regime"] == MarketRegime.GRIND.value
-        # In grind, we might be less strict on persistence or require smaller size
         df.loc[mask_grind & trend_persistent, "enter_long"] = 1
 
         # 3. VIOLENT_CHOP (High Vol + Range) -> ALLOW MEAN REV, BAN TREND
@@ -153,7 +166,6 @@ class StoicLogic:
 
         # --- Exit Logic ---
         # Standard RSI Overbought Exit
-        # In High Vol, we might want to exit earlier or trail tighter
         exit_cond = df["rsi"] > sell_rsi
         df.loc[exit_cond, "exit_long"] = 1
 

@@ -28,7 +28,7 @@ from typing import Any
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from .data_types import IWebSocketClient, TickerData, TradeData
+from .data_types import IWebSocketClient, TickerData, TradeData, OrderbookData
 from .exchange_handlers import ExchangeHandler, create_exchange_handler
 from .exchange_types import Exchange
 
@@ -63,33 +63,11 @@ class StreamConfig:
 class WebSocketDataStream:
     """
     Real-time market data streaming via WebSocket.
-
-    Usage:
-        # Using context manager (recommended):
-        async with WebSocketDataStream(config) as stream:
-            @stream.on_ticker
-            async def handle_ticker(ticker: TickerData):
-                logger.info(f"{ticker.symbol}: {ticker.last}")
-
-            await stream.start()
-            await asyncio.sleep(60)  # Run for 60 seconds
-
-        # Or manually:
-        stream = WebSocketDataStream(config)
-        try:
-            await stream.start()
-            # ... do work ...
-        finally:
-            await stream.stop()
     """
 
     def __init__(self, config: StreamConfig, websocket_client: IWebSocketClient | None = None):
         """
-        Initialize WebSocket data stream with dependency injection.
-
-        Args:
-            config: Stream configuration
-            websocket_client: WebSocket client instance (implements IWebSocketClient)
+        Initialize WebSocket data stream.
         """
         self.config = config
         self._ws: IWebSocketClient | None = None
@@ -97,12 +75,13 @@ class WebSocketDataStream:
         self._running = False
         self._reconnect_delay = config.reconnect_delay
 
-        # Exchange handler (Strategy pattern)
+        # Exchange handler
         self._exchange_handler: ExchangeHandler = create_exchange_handler(config.exchange)
 
         # Callback handlers
         self._ticker_handlers: list[Callable[[TickerData], Any]] = []
         self._trade_handlers: list[Callable[[TradeData], Any]] = []
+        self._orderbook_handlers: list[Callable[[OrderbookData], Any]] = []
         self._error_handlers: list[Callable[[Exception], Any]] = []
 
         # Message queue for buffering
@@ -121,10 +100,6 @@ class WebSocketDataStream:
         # Subscribed symbols tracking
         self._subscribed: set[str] = set()
 
-        # Validate websocket_client implements interface
-        if self._websocket_client and not isinstance(self._websocket_client, IWebSocketClient):
-            logger.warning("websocket_client does not implement IWebSocketClient interface")
-
     # =========================================================================
     # Decorator Methods for Event Handlers
     # =========================================================================
@@ -137,6 +112,11 @@ class WebSocketDataStream:
     def on_trade(self, handler: Callable):
         """Decorator to register trade handler."""
         self._trade_handlers.append(handler)
+        return handler
+
+    def on_orderbook(self, handler: Callable):
+        """Decorator to register orderbook handler."""
+        self._orderbook_handlers.append(handler)
         return handler
 
     def on_error(self, handler: Callable):
@@ -166,29 +146,24 @@ class WebSocketDataStream:
                 await self._handle_reconnect()
 
     async def __aenter__(self):
-        """Async context manager entry."""
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit - ensures cleanup."""
         await self.stop()
-        return False  # Don't suppress exceptions
+        return False
 
     async def stop(self):
         """Stop the WebSocket stream and clean up resources."""
         self._running = False
 
-        # Close WebSocket connection if it exists
         if self._ws:
             try:
                 await self._ws.close()
-                logger.debug("WebSocket connection closed")
             except Exception as e:
                 logger.warning(f"Error closing WebSocket: {e}")
             finally:
                 self._ws = None
 
-        # Clear message queue to prevent memory leaks
         while not self._message_queue.empty():
             try:
                 self._message_queue.get_nowait()
@@ -196,9 +171,9 @@ class WebSocketDataStream:
             except asyncio.QueueEmpty:
                 break
 
-        # Clear handlers to prevent reference cycles
         self._ticker_handlers.clear()
         self._trade_handlers.clear()
+        self._orderbook_handlers.clear()
         self._error_handlers.clear()
 
         logger.info("WebSocket stream stopped and cleaned up")
@@ -208,9 +183,7 @@ class WebSocketDataStream:
         url = self.config.ws_url
         logger.info(f"Connecting to {url}")
 
-        # Use provided websocket client or create default
         if self._websocket_client:
-            # If client implements connect method, use it
             if hasattr(self._websocket_client, "connect"):
                 self._ws = await self._websocket_client.connect(
                     uri=url,
@@ -219,37 +192,27 @@ class WebSocketDataStream:
                     close_timeout=10,
                 )
             else:
-                # Assume client is already a connected WebSocket
                 self._ws = self._websocket_client
-            logger.info(f"Using provided WebSocket client for {self.config.exchange.value}")
         else:
-            # Create default websockets client
             self._ws = await websockets.connect(
                 url,
                 ping_interval=self.config.ping_interval,
                 ping_timeout=self.config.ping_timeout,
                 close_timeout=10,
             )
-            logger.info(f"Created default WebSocket connection to {self.config.exchange.value}")
 
         self._reconnect_delay = self.config.reconnect_delay
-        logger.info(f"Connected to {self.config.exchange.value}")
-
-        # Subscribe to channels
         await self._subscribe()
-
-        # Listen for messages
         await self._listen()
 
     async def _subscribe(self):
-        """Subscribe to configured channels and symbols using exchange handler."""
+        """Subscribe to configured channels and symbols."""
         await self._exchange_handler.subscribe(self._ws, self.config.symbols, self.config.channels)
         self._subscribed = set(self.config.symbols)
 
     async def _listen(self):
         """Listen for incoming messages."""
         try:
-            # Use async iteration if available, otherwise use recv()
             if hasattr(self._ws, "__aiter__"):
                 async for message in self._ws:
                     await self._handle_incoming_message(message)
@@ -302,11 +265,11 @@ class WebSocketDataStream:
                 logger.error(f"Message processing error: {e}")
 
     async def _handle_message(self, raw_message: str):
-        """Parse and route message to handlers using exchange handler."""
+        """Parse and route message to handlers."""
         try:
             data = json.loads(raw_message)
             await self._exchange_handler.handle_message(
-                data, self._ticker_handlers, self._trade_handlers
+                data, self._ticker_handlers, self._trade_handlers, self._orderbook_handlers
             )
         except json.JSONDecodeError as e:
             logger.error(f"JSON decode error: {e}")
@@ -320,37 +283,26 @@ class WebSocketDataStream:
     # =========================================================================
 
     async def subscribe_symbol(self, symbol: str):
-        """Add symbol to subscription using exchange handler."""
         if symbol in self._subscribed:
             return
-
         if self._ws is None:
-            logger.error("Cannot subscribe symbol: WebSocket not connected")
             return
-
         await self._exchange_handler.subscribe_symbol(self._ws, symbol, self.config.channels)
         self._subscribed.add(symbol)
-        logger.info(f"Subscribed to {symbol}")
 
     async def unsubscribe_symbol(self, symbol: str):
-        """Remove symbol from subscription using exchange handler."""
         if symbol not in self._subscribed:
             return
-
         if self._ws is None:
-            logger.error("Cannot unsubscribe symbol: WebSocket not connected")
             return
-
         await self._exchange_handler.unsubscribe_symbol(self._ws, symbol, self.config.channels)
         self._subscribed.discard(symbol)
-        logger.info(f"Unsubscribed from {symbol}")
 
     # =========================================================================
     # Health & Statistics
     # =========================================================================
 
     def get_stats(self) -> dict[str, Any]:
-        """Get stream statistics."""
         uptime = time.time() - self._stats["uptime_start"] if self._stats["uptime_start"] else 0
         return {
             **self._stats,
@@ -362,9 +314,7 @@ class WebSocketDataStream:
         }
 
     async def health_check(self) -> dict[str, Any]:
-        """Perform health check."""
         last_msg_age = time.time() - self._stats["last_message_time"]
-
         return {
             "service": "websocket_stream",
             "status": "healthy" if last_msg_age < 30 else "degraded",
@@ -373,3 +323,4 @@ class WebSocketDataStream:
             "last_message_age_seconds": last_msg_age,
             "stats": self.get_stats(),
         }
+

@@ -15,7 +15,6 @@ Strategies use the utilities from src/utils for:
 - Regime detection
 """
 
-from .base_strategy import BaseStrategy
-from .strategy_config import StrategyConfig
+from .base_strategy import BaseStoicStrategy
 
-__all__ = ["BaseStrategy", "StrategyConfig"]
+__all__ = ["BaseStoicStrategy"]

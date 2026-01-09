@@ -10,6 +10,7 @@
 ```
 
 **Institutional-Grade Mid-Frequency Trading (MFT) System**
+*Soft Launch Ready - V6 Strategy Enabled*
 
 ---
 
@@ -17,6 +18,7 @@
   <img src="https://img.shields.io/badge/Architecture-Hybrid%20Async-blueviolet" alt="Architecture">
   <img src="https://img.shields.io/badge/Risk-Institutional-red" alt="Risk Management">
   <img src="https://img.shields.io/badge/Execution-MFT-blue" alt="Execution">
+  <img src="https://img.shields.io/badge/Status-Soft%20Launch-success" alt="Status">
 </p>
 
 </div>
@@ -30,6 +32,12 @@ Stoic Citadel is a next-generation crypto trading framework designed to bridge t
 It utilizes a **Hybrid Architecture**:
 1.  **Macro Layer (Strategy):** Freqtrade-based synchronous logic for trend analysis and regime detection.
 2.  **Micro Layer (Execution):** AsyncIO-based WebSocket Aggregator and Smart Order Executor for low-latency market interaction.
+
+### **Current Status: Soft Launch**
+The system is currently running on the **V6 Strategy (`StoicEnsembleStrategyV6`)**, which features:
+*   **Fully Integrated HRP:** Hierarchical Risk Parity for dynamic portfolio rebalancing.
+*   **ML Integration:** In-process ML confidence scoring.
+*   **Safety Gates:** Comprehensive pre-trade checks via `RiskManager`.
 
 ### **Key Features**
 
@@ -68,26 +76,37 @@ graph TD
 
 #### 1. Configuration
 The system uses a **Unified Configuration** system (`src/config/manager.py`).
-Copy `.env.example` to `.env` and set your credentials:
+To start with the recommended Soft Launch configuration:
 
 ```bash
 cp .env.example .env
 # Edit .env with your API Keys and Settings
 ```
 
-#### 2. Deployment
-Run with Docker Compose (includes Redis for Feature Store):
+#### 2. Deployment (Docker)
+Run the system using the production-ready Docker Compose setup from the `deploy/` directory:
 
 ```bash
-docker-compose up -d --build
+docker-compose -f deploy/docker-compose.yml up -d --build
 ```
 
-#### 3. Development
+This will launch:
+*   **Stoic Bot:** The main trading application.
+*   **Redis:** For the Feature Store and Async messaging.
+*   **PostgreSQL:** For persistent storage (trades, signals).
+
+#### 3. Development & Testing
 Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 pre-commit install
+```
+
+Run the validation suite:
+```bash
+python scripts/maintenance/validate_config.py
+pytest tests/integration/test_v6_logic.py
 ```
 
 ---
@@ -100,8 +119,15 @@ pre-commit install
 *   `src/risk/`: Centralized risk management.
 *   `src/ml/`: Machine Learning pipeline and Feature Store.
 *   `src/config/`: Unified configuration system.
+*   `scripts/`: Maintenance, analysis, and setup scripts.
+*   `docs/`: Detailed documentation and architecture guides.
 
 ---
+
+### **Documentation**
+*   [Architecture Overview](docs/architecture/overview.md)
+*   [Latest Audit Report](docs/reports/archive/final_audit_fix_report.md)
+*   [Installation Guide](docs/getting_started/installation.md)
 
 ### **License**
 

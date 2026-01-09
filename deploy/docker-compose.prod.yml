@@ -1,0 +1,71 @@
+services:
+  freqtrade:
+    image: stoic_citadel:latest
+    container_name: stoic_freqtrade_prod
+    restart: unless-stopped
+    # No volume mount for src in production
+    volumes:
+      - ./user_data:/freqtrade/user_data
+    ports:
+      - "127.0.0.1:8080:8080"
+    command: >
+      freqtrade trade 
+      --logfile /freqtrade/user_data/logs/freqtrade.log 
+      --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite 
+      --config /freqtrade/user_data/config/config_production.json 
+      --strategy StoicEnsembleStrategyV6
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stoic_network
+    env_file:
+      - .env
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: stoic_postgres_prod
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-stoic_trader}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD not set in .env}
+      - POSTGRES_DB=${POSTGRES_DB:-trading_analytics}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    networks:
+      - stoic_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: stoic_redis_prod
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - stoic_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+networks:
+  stoic_network:
+    driver: bridge
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:

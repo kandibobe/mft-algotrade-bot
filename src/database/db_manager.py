@@ -44,7 +44,7 @@ class DatabaseManager:
                     db_name = os.getenv("POSTGRES_DB", "stoic_citadel")
                     db_url = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
                 else:
-                    db_url = "sqlite:///user_data/stoic_citadel.db"
+                    db_url = cfg.paths.db_url
                     logger.info(f"Using SQLite database: {db_url}")
 
             logger.info(

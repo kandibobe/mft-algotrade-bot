@@ -11,6 +11,7 @@ import pickle
 from pathlib import Path
 from typing import Any
 
+from src.config import config
 from src.ml.training.feature_engineering import FeatureEngineer
 from src.ml.training.model_registry import ModelRegistry
 
@@ -20,8 +21,8 @@ logger = logging.getLogger(__name__)
 class ModelLoader:
     """Loads production ML models and associated artifacts."""
 
-    def __init__(self, registry_dir: str = "user_data/models/registry"):
-        self.registry = ModelRegistry(registry_dir)
+    def __init__(self, registry_dir: str | None = None):
+        self.registry = ModelRegistry(registry_dir or str(config().paths.models_dir / "registry"))
         self.models_cache = {}
 
     def load_model_for_pair(

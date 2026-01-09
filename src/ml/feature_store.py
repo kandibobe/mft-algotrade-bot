@@ -771,6 +771,7 @@ class RedisFeatureStore(MockFeatureStore):
         host: str = "localhost",
         port: int = 6379,
         db: int = 0,
+        password: str | None = None,
         config_path: str | None = None,
         redis_url: str | None = None,
         enable_caching: bool = True,
@@ -783,6 +784,7 @@ class RedisFeatureStore(MockFeatureStore):
             host: Redis host
             port: Redis port
             db: Redis database number
+            password: Redis password
             config_path: Path to feature repository configuration (unused, for compatibility)
             redis_url: Redis URL (alternative to host/port/db)
             enable_caching: Enable feature caching for faster access
@@ -797,7 +799,7 @@ class RedisFeatureStore(MockFeatureStore):
             raise ImportError("Redis is not available. Please install with: pip install redis")
 
         # Initialize Redis connection
-        self.redis = redis.Redis(host=host, port=port, db=db, decode_responses=False)
+        self.redis = redis.Redis(host=host, port=port, db=db, password=password, decode_responses=False)
         self.pickle = pickle
         self.ttl = cache_ttl_hours * 3600  # Convert hours to seconds
 

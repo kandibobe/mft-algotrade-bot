@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
+from src.config import config
 from src.utils.logger import log
 from src.ml.training.model_registry import ModelRegistry
 from src.ml.online_learner import OnlineLearner, OnlineLearningConfig
@@ -38,15 +39,15 @@ class OrchestratorConfig:
     cooldown_minutes: int = 360 # Minimum time between retraining
     
     # Model Registry
-    model_registry_dir: str = "user_data/models/registry"
+    model_registry_dir: str | None = None
 
 class AutomatedRetrainingOrchestrator:
     """
     Orchestrates the ML lifecycle.
     """
     
-    def __init__(self, config: OrchestratorConfig | None = None, online_learning_enabled: bool = False):
-        self.config = config or OrchestratorConfig()
+    def __init__(self, config_obj: OrchestratorConfig | None = None, online_learning_enabled: bool = False):
+        self.config = config_obj or OrchestratorConfig()
         
         # State
         self.last_retrain_time = datetime.min
@@ -58,7 +59,8 @@ class AutomatedRetrainingOrchestrator:
         self.rolling_profit = 0.0
         
         # Dependencies
-        self.registry = ModelRegistry(self.config.model_registry_dir)
+        registry_dir = self.config.model_registry_dir or str(config().paths.models_dir / "registry")
+        self.registry = ModelRegistry(registry_dir)
         
         # Online Learning
         self.online_learner = None
@@ -70,7 +72,7 @@ class AutomatedRetrainingOrchestrator:
     def _init_online_learner(self):
         """Initialize the online learner."""
         try:
-            prod_model_path = "user_data/models/production_model.pkl"
+            prod_model_path = str(config().paths.models_dir / "production_model.pkl")
             self.online_learner = OnlineLearner(prod_model_path)
             logger.info("Online Learner integrated into Orchestrator")
         except Exception as e:

@@ -70,6 +70,11 @@ services:
       - ../deploy/scripts/init-db/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql
     ports:
       - "127.0.0.1:5434:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
     networks:
       - stoic_network
     healthcheck:
@@ -83,15 +88,20 @@ services:
     image: redis:7-alpine
     container_name: stoic_redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --appendfsync everysec --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes --appendfsync everysec --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     ports:
       - "127.0.0.1:6379:6379"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
     networks:
       - stoic_network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping"]
       interval: 10s
       timeout: 3s
       retries: 5

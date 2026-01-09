@@ -27,6 +27,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.model_selection import train_test_split
 
+from src.config import config
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +40,7 @@ class MetaLearningConfig:
     val_size: float = 0.15
     test_size: float = 0.15
     random_state: int = 42
-    meta_model_path: str = "user_data/models/meta_ensemble.pkl"
+    meta_model_path: str | None = None
     retrain_interval: int = 1000  # Number of predictions before retraining
     min_samples_for_training: int = 100
     use_probabilities: bool = True  # Use predict_proba instead of predict
@@ -60,16 +62,19 @@ class MetaLearningEnsemble:
         predictions, confidence = ensemble.predict_with_confidence(X_new)
     """
 
-    def __init__(self, base_models: list[Any], config: MetaLearningConfig | None = None):
+    def __init__(self, base_models: list[Any], config_obj: MetaLearningConfig | None = None):
         """
         Initialize meta-learning ensemble.
 
         Args:
             base_models: List of base model instances with predict_proba method
-            config: Configuration for meta-learning
+            config_obj: Configuration for meta-learning
         """
         self.base_models = base_models
-        self.config = config or MetaLearningConfig()
+        self.config = config_obj or MetaLearningConfig()
+        if self.config.meta_model_path is None:
+            self.config.meta_model_path = str(config().paths.models_dir / "meta_ensemble.pkl")
+            
         self.meta_model = LogisticRegression(
             random_state=self.config.random_state, max_iter=1000, class_weight="balanced"
         )

@@ -1,233 +1,125 @@
 """
-Stoic Citadel - Base Strategy Template
-=======================================
+Stoic Citadel - Base Strategy Logic
+===================================
 
-Provides common functionality for all strategies:
-- Standard indicator set
-- Risk management integration
-- Regime-aware behavior
-- Logging and debugging
+Provides a common foundation for all Stoic Citadel strategies.
+Centralizes indicators, ML, and risk management.
 """
 
 import logging
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any
-
+from typing import Optional, Dict, Any, Tuple, List
+from datetime import datetime
 import pandas as pd
+import numpy as np
+from pandas import DataFrame
+
+from freqtrade.strategy import IStrategy, IntParameter, DecimalParameter, merge_informative_pair
+from freqtrade.persistence import Trade
+
+# Internal Imports
+from src.utils.regime_detection import calculate_regime
+from src.strategies.risk_mixin import StoicRiskMixin
+from src.strategies.core_logic import StoicLogic
+from src.strategies.hybrid_connector import HybridConnectorMixin
+from src.strategies.ml_adapter import StrategyMLAdapter
+from src.utils.logger import log as stoic_log
 
 logger = logging.getLogger(__name__)
 
+class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
+    INTERFACE_VERSION = 3
+    timeframe = '5m'
+    startup_candle_count = 500
+    
+    # Common Parameters (Hyperoptable)
+    buy_rsi = IntParameter(10, 60, default=30, space="buy")
+    sell_rsi = IntParameter(60, 95, default=75, space="sell")
+    regime_vol_threshold = DecimalParameter(0.5, 3.0, default=0.5, space="buy")
+    regime_adx_threshold = IntParameter(10, 40, default=25, space="buy")
+    regime_hurst_threshold = DecimalParameter(0.40, 0.60, default=0.55, space="buy")
+    risk_per_trade = DecimalParameter(0.005, 0.02, default=0.01, space="sell")
+    max_equity_drawdown = DecimalParameter(0.05, 0.20, default=0.10, space="sell")
 
-@dataclass
-class StrategyConfig:
-    """Strategy configuration parameters."""
+    def __init__(self, config: dict) -> None:
+        super().__init__(config)
+        self._correlation_manager = None
+        self._alt_data_fetcher = None
+        self.last_alt_data = {}
+        self._ml_adapters = {}
 
-    # Risk parameters
-    risk_per_trade: float = 0.02  # 2% risk per trade
-    max_positions: int = 3
-    max_drawdown: float = 0.15  # 15% max drawdown
+    def informative_pairs(self):
+        return [("BTC/USDT:USDT", "1h"), ("ETH/USDT:USDT", "1h")]
 
-    # Entry parameters
-    rsi_oversold: float = 30.0
-    rsi_overbought: float = 70.0
-    min_adx: float = 20.0
-    min_volume_ratio: float = 0.8
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        dataframe.columns = dataframe.columns.str.lower()
+        try:
+            # 1. Technical Indicators
+            dataframe = StoicLogic.populate_indicators(dataframe)
+            
+            # 2. Regime Detection
+            regime_df = calculate_regime(
+                dataframe['high'], dataframe['low'], dataframe['close'], dataframe['volume'],
+                vol_threshold=float(self.regime_vol_threshold.value),
+                adx_threshold=float(self.regime_adx_threshold.value),
+                hurst_threshold=float(self.regime_hurst_threshold.value)
+            )
+            dataframe['regime'] = regime_df['regime']
+            dataframe['hurst'] = regime_df['hurst']
+            dataframe['adx'] = regime_df['adx']
+            dataframe['vol_zscore'] = regime_df['vol_zscore']
+            
+            # 3. Broad Market Trend (Informative BTC)
+            if self.dp:
+                inf_btc = self.dp.get_pair_dataframe("BTC/USDT:USDT", "1h")
+                if not inf_btc.empty:
+                    inf_btc['ema_200'] = StoicLogic.calculate_ema(inf_btc['close'], 200)
+                    dataframe = merge_informative_pair(dataframe, inf_btc, self.timeframe, "1h")
 
-    # Exit parameters
-    stoploss: float = -0.05  # -5%
-    trailing_stop_positive: float = 0.01
-    trailing_stop_offset: float = 0.015
+            # 4. ML Predictions
+            # Skip ML in hyperopt to avoid pickling issues
+            if self.config.get('runmode') != 'hyperopt':
+                dataframe = self._calculate_ml_predictions(dataframe, metadata)
+            else:
+                dataframe['ml_prediction'] = 0.5
 
-    # ROI targets
-    roi_immediate: float = 0.15  # 15%
-    roi_30min: float = 0.08
-    roi_60min: float = 0.05
-    roi_120min: float = 0.03
+        except Exception as e:
+            if 'ml_prediction' not in dataframe.columns:
+                dataframe['ml_prediction'] = 0.5
+        return dataframe
 
-    # Regime adjustment
-    regime_aware: bool = True
-    aggressive_mode_threshold: float = 70.0
-    defensive_mode_threshold: float = 40.0
+    def _calculate_ml_predictions(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        try:
+            pair = metadata['pair']
+            if pair not in self._ml_adapters:
+                self._ml_adapters[pair] = StrategyMLAdapter(pair)
+            dataframe['ml_prediction'] = self._ml_adapters[pair].get_predictions(dataframe)
+        except Exception:
+            dataframe['ml_prediction'] = 0.5
+        return dataframe
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
-        return {
-            "risk_per_trade": self.risk_per_trade,
-            "max_positions": self.max_positions,
-            "max_drawdown": self.max_drawdown,
-            "rsi_oversold": self.rsi_oversold,
-            "rsi_overbought": self.rsi_overbought,
-            "min_adx": self.min_adx,
-            "min_volume_ratio": self.min_volume_ratio,
-            "stoploss": self.stoploss,
-            "trailing_stop_positive": self.trailing_stop_positive,
-            "trailing_stop_offset": self.trailing_stop_offset,
-            "regime_aware": self.regime_aware,
-        }
-
-
-class BaseStrategy(ABC):
-    """
-    Base class for all Stoic Citadel strategies.
-
-    Provides:
-    - Standard indicator calculation
-    - Risk management
-    - Regime detection
-    - Logging
-    """
-
-    def __init__(self, config: StrategyConfig | None = None):
-        self.config = config or StrategyConfig()
-        self._current_regime = None
-        self._regime_params = {}
-
-    def calculate_indicators(self, df: pd.DataFrame, include_advanced: bool = True) -> pd.DataFrame:
-        """
-        Calculate standard indicators.
-
-        Args:
-            df: OHLCV DataFrame
-            include_advanced: Include regime detection
-
-        Returns:
-            DataFrame with indicators
-        """
-        from src.utils.indicators import calculate_all_indicators
-
-        result = calculate_all_indicators(df, include_advanced)
-
-        if include_advanced and self.config.regime_aware:
-            self._update_regime(result)
-
-        return result
-
-    def _update_regime(self, df: pd.DataFrame) -> None:
-        """
-        Update current market regime.
-        """
-        from src.utils.regime_detection import calculate_regime_score, get_regime_parameters
-
-        if len(df) < 200:  # Need enough data
-            return
-
-        # Calculate regime score
-        regime_data = calculate_regime_score(df["high"], df["low"], df["close"], df["volume"])
-
-        current_score = regime_data["regime_score"].iloc[-1]
-
-        # Get adjusted parameters
-        self._regime_params = get_regime_parameters(
-            current_score, base_risk=self.config.risk_per_trade
-        )
-
-        self._current_regime = self._regime_params.get("mode", "normal")
-
-        logger.info(f"Regime: {self._current_regime} (score: {current_score:.1f})")
-
-    def get_adjusted_risk(self) -> float:
-        """
-        Get risk adjusted for current regime.
-        """
-        if not self._regime_params:
-            return self.config.risk_per_trade
-        return self._regime_params.get("risk_per_trade", self.config.risk_per_trade)
-
-    def get_adjusted_rsi_threshold(self) -> float:
-        """
-        Get RSI entry threshold adjusted for regime.
-        """
-        if not self._regime_params:
-            return self.config.rsi_oversold
-        return self._regime_params.get("min_rsi_entry", self.config.rsi_oversold)
-
-    @abstractmethod
-    def populate_entry_signal(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Define entry signals. Must be implemented by subclass.
-
-        Args:
-            df: DataFrame with indicators
-
-        Returns:
-            DataFrame with 'enter_long' column
-        """
-        pass
-
-    @abstractmethod
-    def populate_exit_signal(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Define exit signals. Must be implemented by subclass.
-
-        Args:
-            df: DataFrame with indicators
-
-        Returns:
-            DataFrame with 'exit_long' column
-        """
-        pass
-
-    def validate_entry(self, df: pd.DataFrame, idx: int) -> bool:
-        """
-        Additional validation before entry.
-
-        Override in subclass for custom validation.
-        """
-        row = df.iloc[idx]
-
-        # Volume check
-        if row.get("volume", 0) < row.get("volume_sma", 1) * self.config.min_volume_ratio:
-            logger.debug("Entry rejected: Low volume")
+    def confirm_trade_entry(self, pair: str, order_type: str, amount: float, rate: float, 
+                           time_in_force: str, current_time: datetime, entry_tag: Optional[str], 
+                           side: str, **kwargs) -> bool:
+        if not self.check_market_safety(pair, side):
             return False
+        return super().confirm_trade_entry(pair, order_type, amount, rate, time_in_force, 
+                                         current_time, entry_tag, side, **kwargs)
 
-        # Volatility check (BB width)
-        if row.get("bb_width", 0) < 0.02 or row.get("bb_width", 0) > 0.20:
-            logger.debug("Entry rejected: Volatility filter")
-            return False
+    def bot_start(self, **kwargs) -> None:
+        runmode = self.config.get('runmode')
+        if runmode in ('live', 'dry_run'):
+            from src.config.manager import ConfigurationManager
+            ConfigurationManager.initialize()
+            super().bot_start(**kwargs)
+            config_obj = ConfigurationManager.get_config()
+            pairs = config_obj.pairs if hasattr(config_obj, 'pairs') else []
+            self.initialize_hybrid_connector(pairs=pairs, risk_manager=self.risk_manager)
+            stoic_log.info("base_strategy_initialized", runmode=runmode)
 
-        return True
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        """Placeholder - Override in Strategy."""
+        return dataframe
 
-    def calculate_position_size(
-        self, account_balance: float, entry_price: float, stop_price: float
-    ) -> float:
-        """
-        Calculate position size using fixed risk.
-        """
-        from src.utils.risk import calculate_position_size_fixed_risk
-
-        return calculate_position_size_fixed_risk(
-            account_balance=account_balance,
-            risk_per_trade=self.get_adjusted_risk(),
-            entry_price=entry_price,
-            stop_loss_price=stop_price,
-        )
-
-    def get_roi_table(self) -> dict[str, float]:
-        """
-        Get ROI table for Freqtrade.
-        """
-        return {
-            "0": self.config.roi_immediate,
-            "30": self.config.roi_30min,
-            "60": self.config.roi_60min,
-            "120": self.config.roi_120min,
-        }
-
-    def get_stoploss(self) -> float:
-        """Get stoploss value."""
-        return self.config.stoploss
-
-    def log_trade_entry(self, pair: str, price: float, amount: float, reason: str = "") -> None:
-        """Log trade entry for debugging."""
-        logger.info(
-            f"ENTRY: {pair} @ {price:.2f} | Amount: {amount:.4f} | "
-            f"Regime: {self._current_regime} | Reason: {reason}"
-        )
-
-    def log_trade_exit(self, pair: str, price: float, profit_pct: float, reason: str = "") -> None:
-        """Log trade exit for debugging."""
-        emoji = "✅" if profit_pct > 0 else "❌"
-        logger.info(
-            f"{emoji} EXIT: {pair} @ {price:.2f} | Profit: {profit_pct:.2f}% | Reason: {reason}"
-        )
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        """Placeholder - Override in Strategy."""
+        return dataframe

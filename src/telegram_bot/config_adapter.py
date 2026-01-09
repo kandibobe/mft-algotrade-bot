@@ -15,7 +15,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # --- API Keys (kept from env for now as they are not in UnifiedConfig yet) ---
 FRED_API_KEY = os.getenv("FRED_API_KEY")
-ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
+ALPHA_VANTage_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 ETHERSCAN_API_KEY = os.getenv("ETHERSCAN_API_KEY")
 CRYPTO_PANIC_API_KEY = os.getenv("CRYPTO_PANIC_API_KEY")
 NEWS_API_ORG_KEY = os.getenv("NEWS_API_ORG_KEY")
@@ -50,7 +50,10 @@ DEFAULT_LANGUAGE = "ru"
 SUPPORTED_LANGUAGES = ["ru", "en"]
 
 # --- Database ---
-DATABASE_URL = "user_data/bot_database.db"  # Moved to user_data
+from src.config import config
+
+DATABASE_URL = config().paths.db_url
+
 
 PROXY_URL = os.getenv("PROXY_URL")
 CRYPTOCOMPARE_API_KEY = os.getenv("CRYPTOCOMPARE_API_KEY")

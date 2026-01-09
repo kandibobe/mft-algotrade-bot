@@ -275,7 +275,7 @@ class ConfigValidator:
             # Проверка синтаксиса Python
             try:
                 result = subprocess.run(
-                    ["python3", "-m", "py_compile", str(strategy_file)],
+                    [sys.executable, "-m", "py_compile", str(strategy_file)],
                     capture_output=True,
                     text=True,
                     timeout=5,

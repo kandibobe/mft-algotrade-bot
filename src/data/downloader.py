@@ -1,140 +1,79 @@
 """
-Stoic Citadel - Data Downloader
-================================
+Market Data Downloader
+======================
 
-Wrapper around Freqtrade's data download functionality.
-Provides programmatic access to download historical data.
+Downloads historical OHLCV data from exchanges.
 """
 
 import logging
 import subprocess
-from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+from src.config import config
 
 logger = logging.getLogger(__name__)
 
 
-def download_data(
+def download_historical_data(
     pairs: list[str],
-    timeframes: list[str] = ["5m", "1h"],
+    timeframe: str,
+    days: int = 30,
     exchange: str = "binance",
-    start_date: str | None = None,
-    end_date: str | None = None,
-    config_path: str = "user_data/config/config_backtest.json",
-    data_dir: str = "user_data/data",
+    data_dir: str | None = None,
+    config_path: str | None = None,
 ) -> bool:
     """
-    Download historical OHLCV data using Freqtrade.
+    Download data using Freqtrade CLI.
 
     Args:
-        pairs: List of trading pairs (e.g., ['BTC/USDT', 'ETH/USDT'])
-        timeframes: List of timeframes (e.g., ['5m', '1h', '1d'])
+        pairs: List of pairs
+        timeframe: Candle timeframe
+        days: Number of days to download
         exchange: Exchange name
-        start_date: Start date in YYYYMMDD format
-        end_date: End date in YYYYMMDD format
-        config_path: Path to config file
-        data_dir: Output directory for data
+        data_dir: Output directory
+        config_path: Path to freqtrade config
 
     Returns:
-        True if download successful, False otherwise
+        True if successful
     """
-    # Build timerange
-    if start_date and end_date:
-        timerange = f"{start_date}-{end_date}"
-    elif start_date:
-        timerange = f"{start_date}-"
-    else:
-        # Default: last 90 days
-        end = datetime.now()
-        start = end - timedelta(days=90)
-        timerange = f"{start.strftime('%Y%m%d')}-{end.strftime('%Y%m%d')}"
+    cfg = config()
+    actual_data_dir = Path(data_dir or cfg.paths.data_dir)
+    actual_config_path = config_path or str(cfg.paths.user_data_dir / "config/config_backtest.json")
 
-    # Build command
     cmd = [
         "freqtrade",
         "download-data",
-        "--config",
-        config_path,
-        "--pairs",
-        *pairs,
-        "--timeframes",
-        *timeframes,
-        "--timerange",
-        timerange,
         "--exchange",
         exchange,
-        "--datadir",
-        data_dir,
+        "--pairs",
     ]
+    cmd.extend(pairs)
+    cmd.extend(
+        [
+            "--timeframes",
+            timeframe,
+            "--days",
+            str(days),
+            "--datadir",
+            str(actual_data_dir),
+            "--config",
+            actual_config_path,
+        ]
+    )
 
-    logger.info(f"Downloading data: {' '.join(cmd)}")
-
+    logger.info(f"Downloading data for {len(pairs)} pairs...")
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=300,  # 5 minute timeout to prevent infinite hangs
-        )
-        logger.info("Download completed successfully")
-        logger.debug(result.stdout)
+        subprocess.run(cmd, check=True)
         return True
-    except subprocess.TimeoutExpired:
-        logger.error("Download timed out after 300 seconds")
-        return False
     except subprocess.CalledProcessError as e:
-        logger.error(f"Download failed: {e.stderr}")
-        return False
-    except FileNotFoundError:
-        logger.error("Freqtrade not found. Install it or use Docker.")
+        logger.error(f"Download failed: {e}")
         return False
 
 
-def download_data_docker(
-    pairs: list[str],
-    timeframes: list[str] = ["5m", "1h"],
-    timerange: str = "20240101-20240301",
-    exchange: str = "binance",
-) -> bool:
-    """
-    Download data using Docker Compose.
+# Alias for backward compatibility
+download_data = download_historical_data
 
-    This is the recommended method as it doesn't require local Freqtrade installation.
-    """
-    pairs_str = " ".join(pairs)
-    timeframes_str = " ".join(timeframes)
 
-    cmd = [
-        "docker-compose",
-        "-f",
-        "docker-compose.backtest.yml",
-        "run",
-        "--rm",
-        "-e",
-        f"PAIRS={pairs_str}",
-        "-e",
-        f"TIMERANGE={timerange}",
-        "data-downloader",
-    ]
-
-    logger.info(f"Downloading data via Docker: {' '.join(cmd)}")
-
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=600,  # 10 minute timeout for Docker (slower startup)
-        )
-        logger.info("Download completed successfully")
-        return True
-    except subprocess.TimeoutExpired:
-        logger.error("Docker download timed out after 600 seconds")
-        return False
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Download failed: {e.stderr}")
-        return False
-    except FileNotFoundError:
-        logger.error("Docker Compose not found. Install Docker.")
-        return False
+# Alias for backward compatibility
+download_data = download_historical_data

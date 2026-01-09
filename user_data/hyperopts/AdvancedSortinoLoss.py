@@ -1,6 +1,6 @@
 """
-AdvancedSortinoHyperOptLoss - Improved Loss Function for Stoic Citadel
-=====================================================================
+AdvancedSortinoLoss - Improved Loss Function for Stoic Citadel
+==============================================================
 
 Optimizes for Sortino Ratio with a heavy penalty for Max Drawdown.
 Ideal for MFT systems where capital preservation is paramount.
@@ -15,7 +15,7 @@ import numpy as np
 from freqtrade.optimize.hyperopt import IHyperOptLoss
 
 
-class AdvancedSortinoHyperOptLoss(IHyperOptLoss):
+class AdvancedSortinoLoss(IHyperOptLoss):
     """
     Advanced loss function for Hyperopt.
     """

@@ -1,5 +1,6 @@
 import logging
-
+import asyncio
+import aiohttp
 import requests
 
 from src.config.unified_config import load_config
@@ -10,6 +11,7 @@ logger = logging.getLogger(__name__)
 class TelegramBot:
     """
     Telegram bot for sending notifications about trades and errors.
+    Supports both sync and async operations.
     """
 
     def __init__(self, token: str | None = None, chat_id: str | None = None):
@@ -24,7 +26,8 @@ class TelegramBot:
 
     def send_message(self, message: str):
         """
-        Send a message to the configured Telegram chat.
+        Send a message to the configured Telegram chat (Synchronous).
+        WARNING: Blocks the thread. Use only in Sync layers.
         """
         if not self.enabled:
             return
@@ -39,3 +42,21 @@ class TelegramBot:
             logger.error(f"Failed to send Telegram message: {e}")
         except Exception as e:
             logger.error(f"Unexpected error sending Telegram message: {e}")
+
+    async def send_message_async(self, message: str):
+        """
+        Send a message to the configured Telegram chat (Asynchronous).
+        Use this in AsyncIO loops to avoid blocking.
+        """
+        if not self.enabled:
+            return
+
+        url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+        payload = {"chat_id": self.chat_id, "text": message, "parse_mode": "HTML"}
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=10) as response:
+                    response.raise_for_status()
+        except Exception as e:
+            logger.error(f"Failed to send async Telegram message: {e}")

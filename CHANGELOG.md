@@ -2,6 +2,14 @@
 
 All notable changes to the **Stoic Citadel** project will be documented in this file.
 
+## [2.0.1] - 2026-01-09
+
+### 🔧 Critical Fixes & Stability
+- **V6 ML Integration:** Fixed Feature Store connectivity; Strategy now uses `StrategyMLAdapter` with robust fallback to `ml_confidence` derivation.
+- **Hierarchical Risk Parity (HRP):** Fully activated HRP sizing with hourly weight updates and safety clamps (`hrp_min_weight`, `hrp_max_weight`).
+- **Config Hardening:** Fixed schema validation errors and added missing `stoploss` parameter for Paper Trading stability.
+- **Test Coverage:** Added `tests/integration/test_v6_logic.py` to verify HRP and ML flows before launch.
+
 ## [2.0.0] - 2026-01-05
 
 ### 🔥 AI & Machine Learning

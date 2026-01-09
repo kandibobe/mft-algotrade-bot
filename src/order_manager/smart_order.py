@@ -49,44 +49,51 @@ class ChaseLimitOrder(LimitOrder, SmartOrder):
             self.max_chase_price = self.price  # Default to initial price as limit
 
     def on_ticker_update(self, ticker: dict):
-        """Adjust price based on new ticker."""
+        """
+        Adjust price based on new ticker and L2 imbalance.
+        
+        MFT Optimization:
+        - If Buy + Positive Imbalance: stay at Best Bid (passive).
+        - If Buy + Negative Imbalance: move closer to Best Ask or increase offset (aggressive).
+        """
         if not self.is_active:
             return
 
         best_bid = ticker.get("best_bid")
         best_ask = ticker.get("best_ask")
+        imbalance = ticker.get("imbalance", 0.0)
 
         if not best_bid or not best_ask:
             return
 
         new_price = self.price
-
+        
+        # Adaptive offset based on imbalance
+        # imbalance > 0 means more bids (buying pressure)
+        # imbalance < 0 means more asks (selling pressure)
+        dynamic_offset = self.chase_offset
+        
         if self.is_buy:
-            # Target: Best Bid (plus offset to be ahead?)
-            # For simplicity, match Best Bid
-            target_price = best_bid + self.chase_offset
+            if imbalance < -0.3: # Selling pressure, price might drop or we might get front-run
+                dynamic_offset += 0.00001 # Micro-increase to be first in line
+            
+            target_price = best_bid + dynamic_offset
+            new_price = min(target_price, self.max_chase_price)
 
-            # Don't exceed max price
-            if target_price <= self.max_chase_price:
-                new_price = target_price
-            else:
-                new_price = self.max_chase_price
-
-        else:  # Sell
-            # Target: Best Ask
-            target_price = best_ask - self.chase_offset
-
-            # Don't go below min price (which is stored in max_chase_price for simplicity logic here)
-            if target_price >= self.max_chase_price:
-                new_price = target_price
-            else:
-                new_price = self.max_chase_price
+        else: # Sell
+            if imbalance > 0.3: # Buying pressure, price might rise
+                dynamic_offset += 0.00001
+                
+            target_price = best_ask - dynamic_offset
+            new_price = max(target_price, self.max_chase_price)
 
         # If price changed significantly, update
         if abs(new_price - self.price) > 0.0000001:
-            logger.info(f"SmartOrder {self.order_id}: Adjusting price {self.price} -> {new_price}")
+            logger.info(
+                f"SmartOrder {self.order_id}: Adjusting price {self.price} -> {new_price} "
+                f"(Imbalance: {imbalance:.2f})"
+            )
             self.price = new_price
-            # In real system, this would trigger a replace_order call
 
 
 @dataclass

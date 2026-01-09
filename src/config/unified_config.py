@@ -307,6 +307,49 @@ class TelegramConfig(BaseModel):
     enabled: bool = Field(default=False, description="Enable Telegram notifications")
 
 
+class PathConfig(BaseModel):
+    """Centralized path management for portability."""
+
+    user_data_dir: Path = Field(default=Path("user_data"), description="User data directory")
+    data_dir: Path = Field(default=Path("user_data/data"), description="Feather/Parquet data directory")
+    models_dir: Path = Field(default=Path("user_data/models"), description="ML models directory")
+    logs_dir: Path = Field(default=Path("user_data/logs"), description="Logs directory")
+    db_url: str = Field(default="sqlite:///user_data/stoic_citadel.db", description="Database connection URL")
+
+    @model_validator(mode="before")
+    def resolve_paths(cls, values: dict[str, Any]) -> dict[str, Any]:
+        """Ensure all paths are resolved relative to the project root."""
+        # This assumes the script is run from the project root.
+        # A more robust solution might use a known file as an anchor.
+        project_root = Path().absolute()
+
+        # Resolve paths if they are provided, otherwise use defaults
+        for key, value in values.items():
+            if isinstance(value, str) and "dir" in key:
+                values[key] = (project_root / value).resolve()
+
+        # Handle db_url separately
+        if "db_url" in values and values["db_url"].startswith("sqlite:///"):
+            db_path_str = values["db_url"].replace("sqlite:///", "")
+            db_path = (project_root / db_path_str).resolve()
+            values["db_url"] = f"sqlite:///{db_path}"
+
+        return values
+
+class SystemConfig(BaseModel):
+    """System-level configuration."""
+
+    log_level: str = Field(default="INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR)")
+    db_url: str = Field(default="sqlite:///user_data/stoic_citadel.db", description="Database URL")
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        supported = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        if v.upper() not in supported:
+            raise ValueError(f"Invalid log level: {v}. Supported: {supported}")
+        return v.upper()
+
 class FeatureStoreConfig(BaseModel):
     """Feature Store configuration."""
     
@@ -356,7 +399,9 @@ class TradingConfig(BaseSettings):
     feature_store: FeatureStoreConfig = Field(default_factory=FeatureStoreConfig)
     training: TrainingConfig = Field(default_factory=TrainingConfig)
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
-    strategy: StrategyConfig | None = Field(default=None, description="Strategy configuration")
+    paths: PathConfig = Field(default_factory=PathConfig)
+    system: SystemConfig = Field(default_factory=SystemConfig)
+    strategy: StrategyConfig | str | None = Field(default=None, description="Strategy configuration")
 
     # Strategy settings
     strategy_name: str = Field(default="StoicCitadel", description="Strategy class name")
@@ -374,6 +419,11 @@ class TradingConfig(BaseSettings):
     # Telegram environment variables
     telegram_token: str | None = Field(default=None, validation_alias="TELEGRAM_TOKEN")
     telegram_chat_id: str | None = Field(default=None, validation_alias="TELEGRAM_CHAT_ID")
+
+    # Alternative Data Sources (Optional)
+    fng_enabled: bool = Field(default=True, description="Enable Fear & Greed Index")
+    coingecko_enabled: bool = Field(default=True, description="Enable CoinGecko Data")
+    defillama_enabled: bool = Field(default=True, description="Enable DefiLlama Data")
 
     @field_validator("pairs")
     @classmethod
@@ -404,6 +454,11 @@ class TradingConfig(BaseSettings):
     @model_validator(mode="after")
     def validate_live_trading(self) -> "TradingConfig":
         """Validate configuration for live trading safety."""
+        # Handle case where strategy is a string (legacy Freqtrade config)
+        if isinstance(self.strategy, str):
+            self.strategy_name = self.strategy
+            self.strategy = None
+
         # Sync environment variables to telegram config if provided
         if self.telegram:
             if self.telegram_token and not self.telegram.token:

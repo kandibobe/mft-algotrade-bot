@@ -14,6 +14,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from src.config import config
+
 logger = logging.getLogger(__name__)
 
 
@@ -114,14 +116,14 @@ class ModelRegistry:
             registry.promote_to_production("trend_classifier", "v1.0")
     """
 
-    def __init__(self, registry_dir: str = "user_data/models/registry"):
+    def __init__(self, registry_dir: str | None = None):
         """
         Initialize model registry.
 
         Args:
-            registry_dir: Directory to store registry metadata
+            registry_dir: Directory to store model registry files
         """
-        self.registry_dir = Path(registry_dir)
+        self.registry_dir = Path(registry_dir or config().paths.models_dir / "registry")
         self.registry_dir.mkdir(parents=True, exist_ok=True)
 
         self.registry_file = self.registry_dir / "registry.json"

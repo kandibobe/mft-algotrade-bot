@@ -204,7 +204,7 @@ class SmartOrderExecutor:
             elif self._dry_run:
                 mode_str = "[DRY RUN] "
 
-            self.telegram.send_message(
+            await self.telegram.send_message_async(
                 f"<b>{mode_str}Order Submitted</b>\n"
                 f"Symbol: {order.symbol}\n"
                 f"Side: {'BUY' if order.is_buy else 'SELL'}\n"
@@ -265,7 +265,7 @@ class SmartOrderExecutor:
             logger.error(f"Error managing order {order.order_id}: {e}")
             order.update_status(OrderStatus.FAILED, error=str(e))
             mode_str = "[DRY RUN] " if self._dry_run else ""
-            self.telegram.send_message(
+            await self.telegram.send_message_async(
                 f"<b>❌ {mode_str}Order Failed</b>\n"
                 f"Order ID: {order.order_id}\n"
                 f"Symbol: {order.symbol}\n"
@@ -573,10 +573,10 @@ class SmartOrderExecutor:
         Uses market orders for fastest possible liquidation.
         """
         log.critical("🚨 EMERGENCY LIQUIDATION INITIATED!")
-        self.telegram.send_message("🚨 <b>EMERGENCY LIQUIDATION INITIATED!</b> 🚨")
+        await self.telegram.send_message_async("🚨 <b>EMERGENCY LIQUIDATION INITIATED!</b> 🚨")
         
         # 1. Activate Circuit Breaker
-        self.risk_manager.circuit_breaker.trigger("Manual Emergency Stop")
+        self.risk_manager.circuit_breaker.manual_stop()
         
         # 2. Cancel all pending smart orders
         async with self._lock:
@@ -588,23 +588,23 @@ class SmartOrderExecutor:
         try:
             # Note: CCXTBackend needs a method to fetch positions if not already present
             # For now, we use RiskManager's tracked positions as a source
-            positions = self.risk_manager.get_active_positions()
+            positions = self.risk_manager._positions
             for symbol, pos in positions.items():
                 log.info(f"Closing position for {symbol} via Market Order")
-                side = "sell" if pos['amount'] > 0 else "buy"
-                await self.backend.create_market_order(symbol, side, abs(pos['amount']))
+                side = "sell" if pos['size'] > 0 else "buy"
+                await self.backend.create_market_order(symbol, side, abs(pos['size']))
                 
             log.info("✅ All positions liquidated.")
-            self.telegram.send_message("✅ <b>All positions liquidated successfully.</b>")
+            await self.telegram.send_message_async("✅ <b>All positions liquidated successfully.</b>")
         except Exception as e:
             log.error(f"Emergency liquidation failed: {e}")
-            self.telegram.send_message(f"❌ <b>Emergency liquidation failed:</b> {e}")
+            await self.telegram.send_message_async(f"❌ <b>Emergency liquidation failed:</b> {e}")
 
     async def _log_execution(self, order: SmartOrder):
         """Log a completed trade in live mode to the database."""
         try:
             from src.database.db_manager import DatabaseManager
-            from src.database.models import ExecutionRecord, TradeRecord
+            from src.database.models import ExecutionRecord
             
             # Calculate metrics
             target_price = order.price

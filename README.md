@@ -96,18 +96,29 @@ This will launch:
 *   **PostgreSQL:** For persistent storage (trades, signals).
 
 #### 3. Development & Testing
-Install dependencies:
+Stoic Citadel provides a robust management system via `Makefile` (Linux/macOS) or `manage.ps1` (Windows).
 
+**Initial Setup:**
 ```bash
-pip install -r requirements.txt
-pre-commit install
+# Linux/macOS
+make dev-install
+
+# Windows (PowerShell)
+.\manage.ps1 dev-install
 ```
 
-Run the validation suite:
-```bash
-python scripts/maintenance/validate_config.py
-pytest tests/integration/test_v6_logic.py
-```
+**Common Commands:**
+
+| Task | Makefile (Unix) | PowerShell (Windows) |
+| :--- | :--- | :--- |
+| **Linting** | `make lint` | `.\manage.ps1 lint` |
+| **Formatting** | `make format` | `.\manage.ps1 format` |
+| **Run Tests** | `make test` | `.\manage.ps1 test` |
+| **Coverage** | `make test-cov` | `.\manage.ps1 test-cov` |
+| **Backtest** | `make backtest` | `.\manage.ps1 backtest` |
+| **Clean** | `make clean` | `.\manage.ps1 clean` |
+
+For a full list of commands, run `make help` or `.\manage.ps1 help`.
 
 ---
 
@@ -138,6 +149,17 @@ pytest tests/integration/test_v6_logic.py
 
 *   **Containers not starting:**
     Ensure you are running the command from the project root where the updated `docker-compose.yml` is located.
+
+---
+
+### **Contributing**
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on how to submit pull requests, report issues, and request features.
+
+### **Security**
+For security vulnerabilities, please refer to our [Security Policy](SECURITY.md).
+
+### **Support**
+For support, please open an issue on GitHub or join our community channels (links coming soon).
 
 ---
 

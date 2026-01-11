@@ -114,38 +114,104 @@ class RiskManager:
         logger.info("Risk Manager initialized")
 
     def initialize(
-        self, account_balance: float | Decimal, existing_positions: dict[str, dict] | None = None, exchange: str = "default"
+        self,
+        account_balance: float | Decimal,
+        existing_positions: dict[str, dict] | None = None,
+        exchange: str = "default"
     ) -> None:
+        """
+        Initialize the risk manager session with account details.
+        
+        Args:
+            account_balance: Total available balance in base currency.
+            existing_positions: Dictionary of current open positions.
+            exchange: Exchange identifier for multi-exchange support.
+        """
         with self._lock:
             d_balance = Decimal(str(account_balance))
             self._exchange_balances[exchange] = d_balance
             self._account_balance = sum(self._exchange_balances.values())
             self._exchange_positions[exchange] = existing_positions or {}
+            
+            # Rebuild flattened position map
             self._positions = {}
             for exch_pos in self._exchange_positions.values():
                 self._positions.update(exch_pos)
+            
             self.circuit_breaker.initialize_session(float(self._account_balance))
             self._update_metrics()
-        logger.info(f"Risk Manager initialized on {exchange}")
+        logger.info(f"Risk Manager initialized on {exchange} with balance: {self._account_balance}")
 
-    def evaluate_trade(self, symbol: str, entry_price: float, stop_loss_price: float, side: str = "long", **kwargs) -> dict:
-        d_entry = Decimal(str(entry_price))
-        d_sl = Decimal(str(stop_loss_price))
-        res = {"allowed": False, "symbol": symbol, "rejection_reason": None}
+    def evaluate_trade(
+        self,
+        symbol: str,
+        entry_price: float,
+        stop_loss_price: float,
+        side: str = "long",
+        **kwargs
+    ) -> dict[str, Any]:
+        """
+        Evaluate if a new trade complies with risk rules.
+        
+        Args:
+            symbol: Trading pair symbol (e.g. BTC/USDT).
+            entry_price: Planned entry price.
+            stop_loss_price: Planned stop loss price.
+            side: 'long' or 'short'.
+            **kwargs: Additional parameters for sizing (e.g. volatility).
+        
+        Returns:
+            dict: {
+                "allowed": bool,
+                "symbol": str,
+                "rejection_reason": str | None,
+                "position_size": Decimal (if allowed),
+                "position_value": Decimal (if allowed)
+            }
+        """
+        res: dict[str, Any] = {"allowed": False, "symbol": symbol, "rejection_reason": None}
 
-        if not self.circuit_breaker.can_trade():
-            res["rejection_reason"] = "Circuit breaker open"
+        # 1. Check Emergency Stop (Priority)
+        if self.emergency_exit:
+            res["rejection_reason"] = "Emergency Stop Active"
+            logger.warning(f"Trade rejected for {symbol}: {res['rejection_reason']}")
             return res
 
-        sizing = self.position_sizer.calculate_position_size(
-            account_balance=float(self._account_balance), entry_price=entry_price, stop_loss_price=stop_loss_price, **kwargs
-        )
+        # 2. Check Circuit Breaker
+        if not self.circuit_breaker.can_trade():
+            res["rejection_reason"] = "Circuit breaker is OPEN (trading halted)"
+            logger.warning(f"Trade rejected for {symbol}: {res['rejection_reason']}")
+            return res
+
+        # 3. Calculate Position Sizing
+        try:
+            sizing = self.position_sizer.calculate_position_size(
+                account_balance=float(self._account_balance),
+                entry_price=entry_price,
+                stop_loss_price=stop_loss_price,
+                **kwargs
+            )
+        except Exception as e:
+            res["rejection_reason"] = f"Sizing calculation failed: {str(e)}"
+            logger.error(f"Sizing error for {symbol}: {e}")
+            return res
         
-        # Apply circuit breaker multiplier
+        # 4. Apply Circuit Breaker Multiplier (Risk Dampening)
         mult = Decimal(str(self.circuit_breaker.get_position_multiplier()))
+        
+        position_size = Decimal(str(sizing["position_size"])) * mult
+        position_value = Decimal(str(sizing["position_value"])) * mult
+
+        # 5. Final Sanity Check
+        if position_value <= 0:
+             res["rejection_reason"] = "Calculated position value is zero or negative"
+             return res
+
         res["allowed"] = True
-        res["position_size"] = Decimal(str(sizing["position_size"])) * mult
-        res["position_value"] = Decimal(str(sizing["position_value"])) * mult
+        res["position_size"] = position_size
+        res["position_value"] = position_value
+        
+        logger.info(f"Trade approved for {symbol}. Size: {position_size}, Value: {position_value} (Mult: {mult})")
         return res
 
     def record_entry(self, symbol: str, entry_price: float, position_size: float, stop_loss_price: float, exchange: str = "default", **kwargs) -> None:

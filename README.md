@@ -10,95 +10,117 @@
 ```
 
 **Institutional-Grade Mid-Frequency Trading (MFT) System**
-*Soft Launch Ready - V6 Strategy Enabled*
-
----
+*Engineered for Reliability, Speed, and Risk Management.*
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Architecture-Hybrid%20Async-blueviolet" alt="Architecture">
-  <img src="https://img.shields.io/badge/Risk-Institutional-red" alt="Risk Management">
-  <img src="https://img.shields.io/badge/Execution-MFT-blue" alt="Execution">
-  <img src="https://img.shields.io/badge/Status-Soft%20Launch-success" alt="Status">
+  <img src="https://img.shields.io/badge/Architecture-Hybrid%20Async-blueviolet?style=for-the-badge" alt="Architecture">
+  <img src="https://img.shields.io/badge/Risk-Institutional-red?style=for-the-badge" alt="Risk Management">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
+  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
 </p>
+
+[**Documentation**](docs/index.md) | [**Architecture**](docs/architecture/overview.md) | [**Report Bug**](https://github.com/kandibobe/mft-algotrade-bot/issues)
 
 </div>
 
 ---
 
-### **Overview**
+## **Introduction**
 
-Stoic Citadel is a next-generation crypto trading framework designed to bridge the gap between traditional Algo-Trading bots (like Freqtrade) and HFT/MFT institutional systems.
+**Stoic Citadel** is a high-performance, hybrid trading framework designed to bridge the gap between retail algorithmic bots and institutional HFT systems. 
 
-It utilizes a **Hybrid Architecture**:
-1.  **Macro Layer (Strategy):** Freqtrade-based synchronous logic for trend analysis and regime detection.
-2.  **Micro Layer (Execution):** AsyncIO-based WebSocket Aggregator and Smart Order Executor for low-latency market interaction.
+Unlike traditional bots that run on a single synchronous loop, Stoic Citadel employs a **Dual-Layer Architecture**:
+1.  **Macro Layer (Strategy):** Uses Freqtrade for robust trend analysis, regime detection, and signal generation.
+2.  **Micro Layer (Execution):** Uses a custom `AsyncIO` engine for millisecond-latency order management, smart execution algorithms (Iceberg, Chase), and real-time risk checks.
 
-### **Current Status: Soft Launch**
-The system is currently running on the **V6 Strategy (`StoicEnsembleStrategyV6`)**, which features:
-*   **Fully Integrated HRP:** Hierarchical Risk Parity for dynamic portfolio rebalancing.
-*   **ML Integration:** In-process ML confidence scoring.
-*   **Safety Gates:** Comprehensive pre-trade checks via `RiskManager`.
-
-### **Key Features**
-
-| Feature | Description |
-| :--- | :--- |
-| **🚀 Hybrid Connector** | Seamless bridge between Strategy loop and real-time Websocket data. |
-| **🧠 Feature Store** | Production-grade Feature Store (Feast/Redis) for online/offline consistency. |
-| **🛡️ Unified Risk Engine** | Centralized `RiskManager` implementing Circuit Breakers, Drawdown protection, and HRP sizing. |
-| **⚡ Smart Execution** | `ChaseLimit`, `Pegged`, and `Iceberg` orders to minimize slippage and impact. |
-| **📊 Regime Detection** | Dynamic strategy adaptation based on Hurst Exponent and Volatility Z-Score. |
+> **Status:** Soft Launch (Running V6 Strategy)
 
 ---
 
-### **Architecture**
+## **🚀 Quick Start**
 
-```mermaid
-graph TD
-    A[Market Data (WS)] -->|Async| B(Data Aggregator)
-    B -->|Real-time Ticker| C{Smart Executor}
-    B -->|Metrics| D[Hybrid Connector]
-    
-    E[Freqtrade Strategy] -->|Signal| D
-    D -->|Order Request| C
-    
-    C -->|Order Placement| F[Exchange API]
-    
-    subgraph Risk Gate
-    G[Risk Manager] -->|Check| C
-    G -->|Check| D
-    end
-```
+Get up and running in less than 5 minutes.
 
----
-
-### **Getting Started**
-
-#### 1. Configuration
-The system uses a **Unified Configuration** system (`src/config/manager.py`).
-To start with the recommended Soft Launch configuration:
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) and [Git](https://git-scm.com/downloads).
 
 ```bash
+# 1. Clone the repository
+git clone https://github.com/kandibobe/mft-algotrade-bot.git
+cd mft-algotrade-bot
+
+# 2. Configure environment (Copy default settings)
+# Windows (PowerShell):
+copy .env.example .env
+# Mac/Linux:
 cp .env.example .env
-# Edit .env with your API Keys and Settings
-```
 
-#### 2. Deployment (Docker)
-Run the system using Docker Compose:
-
-```bash
+# 3. Launch the system
 docker-compose up -d --build
 ```
 
-This will launch:
-*   **Stoic Bot:** The main trading application.
-*   **Redis:** For the Feature Store and Async messaging.
-*   **PostgreSQL:** For persistent storage (trades, signals).
+**Access Points:**
+*   📊 **Dashboard:** [http://localhost:3000](http://localhost:3000)
+*   ⚙️ **API:** [http://localhost:8080](http://localhost:8080)
+*   🔐 **Credentials:** Default user is `stoic_admin`. See `.env` file for the generated password.
 
-#### 3. Development & Testing
-Stoic Citadel provides a robust management system via `Makefile` (Linux/macOS) or `manage.ps1` (Windows).
+---
 
-**Initial Setup:**
+## **🌟 Key Differentiators**
+
+### **1. Hybrid "Sync-Async" Core**
+Most bots are slow because they process everything in one loop. Stoic Citadel decouples **Thinking** (Strategy) from **Acting** (Execution).
+*   *Strategy* runs every 1m/5m/1h to find setups.
+*   *Execution* runs in microseconds to fill orders at the best price.
+
+### **2. Institutional Risk Engine**
+We don't just use Stop Loss. We use:
+*   **HRP (Hierarchical Risk Parity):** Mathematically optimal portfolio rebalancing.
+*   **Volatility Targeting:** Adjusts size based on market turbulence.
+*   **Circuit Breakers:** Hard stops that trigger if daily drawdown exceeds limits.
+
+### **3. Smart Execution Router**
+Never market buy blindly. The `SmartOrderExecutor` uses:
+*   **ChaseLimit:** Places limit orders and updates them dynamically to avoid spread costs.
+*   **Iceberg:** Splits large orders to hide intent.
+*   **Pegged:** Floats orders relative to the spread.
+
+---
+
+## **🏗 Architecture**
+
+The system is built on a modular Event-Driven Architecture.
+
+```mermaid
+graph TD
+    subgraph "Micro Layer (AsyncIO / Fast)"
+    WS[WebSocket Aggregator] -->|Real-time Ticks| EX{Smart Executor}
+    EX -->|Orders| API[Exchange API]
+    end
+
+    subgraph "Macro Layer (Sync / Robust)"
+    FT[Freqtrade Strategy] -->|Signals| HC[Hybrid Connector]
+    ML[Feature Store] -->|Predicitons| FT
+    end
+
+    subgraph "Safety & Governance"
+    RM[Risk Manager] -->|Pre-Trade Check| EX
+    RM -->|Portfolio Check| HC
+    end
+
+    HC <-->|Bridge| WS
+    HC -->|Order Request| EX
+```
+
+---
+
+## **🛠 Development & Management**
+
+The project includes a robust CLI for management.
+
+**Requirements:** Python 3.10+, Docker.
+
+### **Initial Setup (Dev)**
 ```bash
 # Linux/macOS
 make dev-install
@@ -107,69 +129,56 @@ make dev-install
 .\manage.ps1 dev-install
 ```
 
-**Common Commands:**
+### **Common Commands**
 
-| Task | Makefile (Unix) | PowerShell (Windows) |
-| :--- | :--- | :--- |
-| **Linting** | `make lint` | `.\manage.ps1 lint` |
-| **Formatting** | `make format` | `.\manage.ps1 format` |
-| **Run Tests** | `make test` | `.\manage.ps1 test` |
-| **Run Integration Tests** | `pytest tests/integration` | `pytest tests/integration` |
-| **Run Risk Tests** | `pytest tests/test_risk` | `pytest tests/test_risk` |
-| **Coverage** | `make test-cov` | `.\manage.ps1 test-cov` |
-| **Backtest** | `make backtest` | `.\manage.ps1 backtest` |
-| **Clean** | `make clean` | `.\manage.ps1 clean` |
-
-For a full list of commands, run `make help` or `.\manage.ps1 help`.
+| Task | Command (Unix) | Command (Windows) | Description |
+| :--- | :--- | :--- | :--- |
+| **Run Tests** | `make test` | `.\manage.ps1 test` | Run unit tests |
+| **Lint Code** | `make lint` | `.\manage.ps1 lint` | Check code quality |
+| **Backtest** | `make backtest` | `.\manage.ps1 backtest` | Run strategy simulation |
+| **Update Ops** | `make update` | `.\manage.ps1 update` | Pull latest updates |
 
 ---
 
-### **Project Structure**
+## **📂 Project Structure**
 
-*   `src/strategies/`: Trading strategies and Hybrid Connector.
-*   `src/order_manager/`: Async Smart Order Execution logic.
-*   `src/websocket/`: Real-time data aggregation.
-*   `src/risk/`: Centralized risk management.
-*   `src/ml/`: Machine Learning pipeline and Feature Store.
-*   `src/config/`: Unified configuration system.
-*   `scripts/`: Maintenance, analysis, and setup scripts.
-*   `docs/`: Detailed documentation and architecture guides.
+*   `src/strategies/` - Hybrid Strategies & Connector Logic.
+*   `src/order_manager/` - Async Execution Engine.
+*   `src/risk/` - HRP, Circuit Breakers, and Sizing.
+*   `src/ml/` - Feature Store & Model Registry.
+*   `src/websocket/` - Real-time Data Streamers.
+*   `deploy/` - Docker & Kubernetes configurations.
 
 ---
 
-### **Troubleshooting**
+## **🤝 Contributing**
 
-*   **"Permission denied" in Database:**
-    If you see `mkdir: can't create directory` in PostgreSQL logs, the volume permissions might be corrupted.
-    Fix: Run `docker-compose down -v` to reset volumes and restart with `docker-compose up -d`.
+We welcome contributions from the community!
+1.  Fork the Project
+2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3.  Commit your Changes (`git commit -m 'feat: Add some AmazingFeature'`)
+4.  Push to the Branch (`git push origin feature/AmazingFeature`)
+5.  Open a Pull Request
 
-*   **"Conflict" errors:**
-    If you see container name conflicts (e.g., `stoic_postgres`), remove old containers manually:
-    ```bash
-    docker rm -f stoic_redis stoic_postgres stoic_freqtrade stoic_frequi
-    ```
-
-*   **Containers not starting:**
-    Ensure you are running the command from the project root where the updated `docker-compose.yml` is located.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ---
 
-### **Contributing**
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on how to submit pull requests, report issues, and request features.
+## **🛡 Security**
 
-### **Security**
-For security vulnerabilities, please refer to our [Security Policy](SECURITY.md).
-
-### **Support**
-For support, please open an issue on GitHub or join our community channels (links coming soon).
+Security is paramount.
+*   API Keys are managed via `.env` (never committed).
+*   No external calls are made without explicit configuration.
+*   See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
 ---
 
-### **Documentation**
-*   [Architecture Overview](docs/architecture/overview.md)
-*   [Latest Audit Report](docs/reports/archive/final_audit_fix_report.md)
-*   [Installation Guide](docs/getting_started/installation.md)
+## **📜 License**
 
-### **License**
+Distributed under the MIT License. See `LICENSE` for more information.
 
-MIT License. See [LICENSE](LICENSE) for details.
+---
+
+<div align="center">
+  <sub>Built with ❤️ by the Stoic Citadel Team</sub>
+</div>

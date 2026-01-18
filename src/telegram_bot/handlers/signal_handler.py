@@ -1,18 +1,19 @@
 # handlers/signal_handler.py
 import asyncio
-import aiohttp
-from typing import Optional, Dict, Any, List, Tuple
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
-from telegram.constants import ParseMode
 import html
-from src.telegram_bot.services import data_fetcher, analysis, user_manager, graph_generator
-from src.utils.logger import get_logger
-from src.telegram_bot import constants
 from datetime import datetime, timedelta
+
+import aiohttp
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+from telegram.ext import ContextTypes
+
+from src.telegram_bot import constants
 from src.telegram_bot.config_adapter import DEFAULT_ANALYSIS_PERIOD, SIGNAL_DATA_CACHE_AGE
-from src.telegram_bot.localization.manager import get_user_language, get_text
 from src.telegram_bot.handlers.misc_handler import _get_cached_or_fetch
+from src.telegram_bot.localization.manager import get_text, get_user_language
+from src.telegram_bot.services import analysis, data_fetcher, graph_generator, user_manager
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -26,20 +27,20 @@ async def signal_command_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     loading_msg = await effective_message.reply_text(get_text(constants.MSG_LOADING, lang_code))
 
-    session: Optional[aiohttp.ClientSession] = context.bot_data.get('aiohttp_session')
+    session: aiohttp.ClientSession | None = context.bot_data.get('aiohttp_session')
     if not session or session.closed:
         await loading_msg.edit_text(get_text(constants.MSG_ERROR_GENERAL, lang_code))
         return
 
     user_settings = user_manager.get_settings(user_id)
     analysis_period = user_settings.get('analysis_period', DEFAULT_ANALYSIS_PERIOD)
-    
+
     # Запросы данных
     btc_hist_data = await _get_cached_or_fetch("signal_btc_hist", data_fetcher.fetch_historical_crypto_data, context, update, lang_code, fetch_args=[constants.CG_BTC, analysis_period + 10], max_cache_age=SIGNAL_DATA_CACHE_AGE)
     dxy_hist_data = await _get_cached_or_fetch("signal_dxy_hist", data_fetcher.fetch_fred_series, context, update, lang_code, fetch_args=[constants.FRED_DXY, (datetime.now() - timedelta(days=analysis_period + 30)).strftime('%Y-%m-%d')], max_cache_age=SIGNAL_DATA_CACHE_AGE)
     cpi_hist_data_full = await _get_cached_or_fetch("signal_cpi_hist", data_fetcher.fetch_fred_series, context, update, lang_code, fetch_args=[constants.FRED_CPI, (datetime.now() - timedelta(days=max(analysis_period * 2, 180))).strftime('%Y-%m-%d')], max_cache_age=SIGNAL_DATA_CACHE_AGE)
     fng_data = await _get_cached_or_fetch("fng", data_fetcher.fetch_fear_greed_index, context, update, lang_code)
-    
+
     await loading_msg.delete()
 
     try:
@@ -61,8 +62,8 @@ async def signal_command_handler(update: Update, context: ContextTypes.DEFAULT_T
 
         # Сохраняем данные для генерации графиков по запросу
         context.user_data['signal_graph_data'] = {
-            'btc': list(zip(common_dates, btc_val_aligned)),
-            'dxy': list(zip(common_dates, dxy_val_aligned)),
+            'btc': list(zip(common_dates, btc_val_aligned, strict=False)),
+            'dxy': list(zip(common_dates, dxy_val_aligned, strict=False)),
             'cpi': cpi_for_analysis
         }
 
@@ -77,17 +78,17 @@ async def signal_command_handler(update: Update, context: ContextTypes.DEFAULT_T
         parts = [get_text(constants.MSG_SIGNAL_HEADER, lang_code, period=final_analysis_days)]
         signal_desc = get_text(signal_result["signal_key"], lang_code)
         parts.append(f"{get_text(constants.SIGNAL_FINAL_SIGNAL, lang_code)}: <b>{signal_desc}</b> (Покупка: {signal_result['buy_score']} | Продажа: {signal_result['sell_score']})\n")
-        
+
         parts.append(f"\n<b>{get_text(constants.SIGNAL_DETAILS_HEADER, lang_code)}:</b>")
-        
+
         keyboard = []
         for key, data in signal_result["details"].items():
             name = get_text(key, lang_code, default=key)
             reason = get_text(data["reason_key"], lang_code, default=data["reason_key"])
             score_viz = analysis.get_factor_arrow_score(data.get('score_val', 0))
-            
+
             button_text = f"{name}: {reason} → {score_viz}"
-            
+
             # Добавляем кнопку только если для фактора можно построить график
             if key in [constants.SIGNAL_FACTOR_BTC_TREND, constants.SIGNAL_FACTOR_DXY_TREND, constants.SIGNAL_FACTOR_CPI_TREND]:
                 keyboard.append([InlineKeyboardButton(button_text, callback_data=f"{constants.CB_PREFIX_SIGNAL_DETAIL}{key}")])
@@ -111,14 +112,14 @@ async def signal_detail_callback(update: Update, context: ContextTypes.DEFAULT_T
 
     user_id = update.effective_user.id
     lang_code = await get_user_language(user_id)
-    
+
     graph_data = context.user_data.get('signal_graph_data')
     if not graph_data:
         await query.message.reply_text(get_text(constants.MSG_REPORT_DATA_EXPIRED, lang_code, default="Данные для графика устарели. Пожалуйста, запросите новый /signal."))
         return
 
     factor_key = query.data[len(constants.CB_PREFIX_SIGNAL_DETAIL):]
-    
+
     data_to_plot = None
     title = ""
     y_label = ""
@@ -143,7 +144,7 @@ async def signal_detail_callback(update: Update, context: ContextTypes.DEFAULT_T
     loading_msg = await query.message.reply_text(get_text(constants.MSG_GRAPH_LOADING, lang_code, symbol=title))
 
     graph_bytes = await asyncio.to_thread(graph_generator.generate_trend_graph, data_to_plot, title, y_label)
-    
+
     await loading_msg.delete()
 
     if graph_bytes:

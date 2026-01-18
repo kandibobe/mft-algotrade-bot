@@ -15,12 +15,12 @@ Tests cover:
 5. No information from test set leaks into training
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
 
-from src.ml.training.feature_engineering import FeatureEngineer, FeatureConfig
+import numpy as np
+import pandas as pd
+import pytest
+
+from src.ml.training.feature_engineering import FeatureConfig, FeatureEngineer
 
 
 @pytest.fixture
@@ -224,7 +224,7 @@ class TestScalerLeakage:
                 # Call original but with raise_on_error=False
                 return original_validate(df, fix_issues=False, raise_on_error=False, drop_low_variance=drop_low_variance)
             return original_validate(df, fix_issues, raise_on_error, drop_low_variance)
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         # Fit on train
@@ -278,7 +278,7 @@ class TestScalerLeakage:
                 # Call original but with raise_on_error=False
                 return original_validate(df, fix_issues=False, raise_on_error=False, drop_low_variance=drop_low_variance)
             return original_validate(df, fix_issues, raise_on_error, drop_low_variance)
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         # Fit on train
@@ -336,7 +336,7 @@ class TestWalkForwardValidation:
                 # Call original but with raise_on_error=False
                 return original_validate(df, fix_issues=False, raise_on_error=False, drop_low_variance=drop_low_variance)
             return original_validate(df, fix_issues, raise_on_error, drop_low_variance)
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         # First fold
@@ -397,7 +397,7 @@ class TestLabelingLeakage:
 
     def test_triple_barrier_limited_lookahead(self):
         """Test that triple barrier only looks forward max_holding_period."""
-        from src.ml.training.labeling import TripleBarrierLabeler, TripleBarrierConfig
+        from src.ml.training.labeling import TripleBarrierConfig, TripleBarrierLabeler
 
         # Create timestamps
         dates = pd.date_range(start='2024-01-01', periods=20, freq='5min')
@@ -461,7 +461,7 @@ class TestFeatureCorrelationFilter:
                 # Call original but with raise_on_error=False
                 return original_validate(df, fix_issues=False, raise_on_error=False, drop_low_variance=drop_low_variance)
             return original_validate(df, fix_issues, raise_on_error, drop_low_variance)
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         # Fit on train (computes correlation on train only)

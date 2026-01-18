@@ -7,7 +7,6 @@ Orchestrates multiple backtesting cycles over different time windows.
 
 import logging
 from pathlib import Path
-from typing import Any
 
 from src.config import config
 

@@ -1,19 +1,20 @@
 # handlers/report_handler.py
 import asyncio
-import aiohttp
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, CallbackQueryHandler
-from telegram.constants import ParseMode
-from telegram.error import TelegramError, BadRequest
 import html
-import time
-from typing import Optional, List, Dict, Any, Tuple
-from src.telegram_bot.services import data_fetcher, graph_generator, user_manager, analysis
-from src.utils.logger import get_logger
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+import aiohttp
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+from telegram.error import BadRequest
+from telegram.ext import ContextTypes
+
 from src.telegram_bot import constants
-from datetime import datetime, timedelta, date, timezone
-from src.telegram_bot.config_adapter import API_COOLDOWN, DEFAULT_ANALYSIS_PERIOD
-from src.telegram_bot.localization.manager import get_user_language, get_text
+from src.telegram_bot.config_adapter import DEFAULT_ANALYSIS_PERIOD
+from src.telegram_bot.localization.manager import get_text, get_user_language
+from src.telegram_bot.services import analysis, data_fetcher, graph_generator, user_manager
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -27,7 +28,7 @@ def _format_status_for_user(status: str, lang_code: str) -> str:
     localized_status = get_text(status_localization_key, lang_code, default=None)
     return f"({localized_status})" if localized_status else f"({status.replace('✅', '').replace('ℹ️', '').replace('❌', '').strip()})"
 
-def _format_macro_value(key: str, value: Optional[float]) -> str:
+def _format_macro_value(key: str, value: float | None) -> str:
     if value is None: return "N/A"
     try:
         if key == "M2": return f"${value / 1000:.2f} трлн"
@@ -43,7 +44,7 @@ def _get_macro_explanation(key: str, lang_code: str) -> str:
     explanation = get_text(explain_collection_key, lang_code, default="")
     return f"<i>({explanation})</i>" if explanation else ""
 
-def _format_asset_line(ticker: str, price_data: Tuple[Optional[float], Optional[float], str], lang_code: str, is_watchlist: bool = False, asset_type_override: Optional[str] = None, ta_results: Optional[Dict[str, Any]] = None) -> str:
+def _format_asset_line(ticker: str, price_data: tuple[float | None, float | None, str], lang_code: str, is_watchlist: bool = False, asset_type_override: str | None = None, ta_results: dict[str, Any] | None = None) -> str:
     price, _, status = price_data
     asset_type = asset_type_override or (constants.SUPPORTED_ASSETS.get(ticker, (None,))[0])
 
@@ -71,7 +72,7 @@ def _format_asset_line(ticker: str, price_data: Tuple[Optional[float], Optional[
             position_text = get_text(ta_results['position_key'], lang_code, **ta_results.get('position_args', {}))
             ta_lines.append(get_text(constants.MSG_REPORT_TA_SMA_POSITION, lang_code, position_text=position_text))
         base_line += "\n" + "\n".join(ta_lines)
-    
+
     return base_line
 
 # --- Функции для формирования разделов отчета ---
@@ -98,10 +99,10 @@ async def _display_main_dashboard(update: Update, context: ContextTypes.DEFAULT_
     user_id = update.effective_user.id
     lang_code = await get_user_language(user_id)
     report_data = context.user_data.get('report_data', {})
-    
+
     period_days = report_data.get('period_days', DEFAULT_ANALYSIS_PERIOD)
     update_time_str = report_data.get('update_time', datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"))
-    
+
     fng_data = report_data.get('fng_data', {})
     fng_line = ""
     if fng_data and fng_data.get('status') == data_fetcher.STATUS_OK:
@@ -109,7 +110,7 @@ async def _display_main_dashboard(update: Update, context: ContextTypes.DEFAULT_
 
     header = get_text(constants.MSG_REPORT_DASHBOARD_HEADER, lang_code, period=period_days, update_time=update_time_str)
     text = f"{header}\n\n{fng_line}"
-    
+
     reply_markup = _get_main_dashboard_keyboard(lang_code)
 
     if message_to_edit:
@@ -132,7 +133,7 @@ async def report_command_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     loading_msg = await effective_message.reply_text(get_text(constants.MSG_LOADING, lang_code))
 
-    session: Optional[aiohttp.ClientSession] = context.bot_data.get('aiohttp_session')
+    session: aiohttp.ClientSession | None = context.bot_data.get('aiohttp_session')
     if not session or session.closed:
         await loading_msg.edit_text(get_text(constants.MSG_ERROR_GENERAL, lang_code))
         return
@@ -140,14 +141,14 @@ async def report_command_handler(update: Update, context: ContextTypes.DEFAULT_T
     # --- Сбор данных ---
     user_settings = user_manager.get_settings(user_id)
     period_days = user_settings.get('analysis_period', DEFAULT_ANALYSIS_PERIOD)
-    
+
     watchlist = user_manager.get_user_watchlist(user_id)
     crypto_in_watchlist_ids = {item['asset_id'] for item in watchlist if item['asset_type'] == constants.ASSET_CRYPTO}
     forex_in_watchlist_pairs = {item['asset_id'] for item in watchlist if item['asset_type'] == constants.ASSET_FOREX}
 
     crypto_to_fetch_ids = crypto_in_watchlist_ids.union({constants.CG_BTC, constants.CG_ETH})
     forex_to_fetch_pairs = forex_in_watchlist_pairs.union(constants.FOREX_PAIRS[:2])
-    
+
     tasks = {}
     # Цены
     if crypto_to_fetch_ids: tasks["crypto_prices"] = data_fetcher.fetch_current_crypto_data(session, list(crypto_to_fetch_ids))
@@ -165,7 +166,7 @@ async def report_command_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     logger.debug(f"Запуск {len(tasks)} задач для сбора данных отчета...")
     all_task_results = await asyncio.gather(*tasks.values(), return_exceptions=True)
-    data_map = dict(zip(tasks.keys(), all_task_results))
+    data_map = dict(zip(tasks.keys(), all_task_results, strict=False))
 
     # Сохраняем все собранные данные в user_data для последующего использования
     context.user_data['report_data'] = {
@@ -176,7 +177,7 @@ async def report_command_handler(update: Update, context: ContextTypes.DEFAULT_T
         'watchlist_forex_pairs': forex_in_watchlist_pairs,
         'all_crypto_ids': crypto_to_fetch_ids
     }
-    
+
     await _display_main_dashboard(update, context, message_to_edit=loading_msg)
 
 async def report_navigation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -186,7 +187,7 @@ async def report_navigation_callback(update: Update, context: ContextTypes.DEFAU
 
     user_id = update.effective_user.id
     lang_code = await get_user_language(user_id)
-    
+
     report_data = context.user_data.get('report_data')
     if not report_data:
         await query.edit_message_text(get_text(constants.MSG_REPORT_DATA_EXPIRED, lang_code), reply_markup=None)
@@ -196,7 +197,7 @@ async def report_navigation_callback(update: Update, context: ContextTypes.DEFAU
     data_map = report_data['data_map']
     period_days = report_data['period_days']
     update_time = report_data['update_time']
-    
+
     header = get_text(constants.MSG_REPORT_DASHBOARD_HEADER, lang_code, period=period_days, update_time=update_time)
     lines = [header]
     reply_markup = _get_back_to_dashboard_keyboard(lang_code)
@@ -238,7 +239,7 @@ async def report_navigation_callback(update: Update, context: ContextTypes.DEFAU
             elif status == data_fetcher.STATUS_NO_DATA:
                 value_str = get_text(constants.MSG_NO_DATA_SHORT, lang_code)
             lines.append(f" • {key}{date_str}: <code>{html.escape(value_str)}</code> {_format_status_for_user(status, lang_code)} {_get_macro_explanation(key, lang_code)}".strip())
-        
+
         lines.append(f"\n<b>{get_text(constants.MSG_INDEX_HEADER, lang_code)}</b>")
         index_prices = data_map.get("index_prices", {})
         for ticker, name in constants.MARKET_INDEX_SYMBOLS.items():
@@ -261,12 +262,12 @@ async def report_navigation_callback(update: Update, context: ContextTypes.DEFAU
     elif action == constants.CB_REPORT_NAV_GRAPHS:
         lines.append(f"\n<b>{get_text(constants.MSG_REPORT_BTN_GRAPHS, lang_code)}</b>")
         lines.append(get_text(constants.MSG_REPORT_GRAPH_PROMPT, lang_code))
-        
+
         graph_buttons = []
         for asset_id in report_data['all_crypto_ids']:
             ticker = constants.REVERSE_ASSET_MAP.get(asset_id, asset_id)
             graph_buttons.append(InlineKeyboardButton(f"📊 {ticker}", callback_data=f"{constants.CB_ACTION_REPORT_GRAPH}{ticker}"))
-        
+
         keyboard = [graph_buttons[i:i + 2] for i in range(0, len(graph_buttons), 2)]
         keyboard.append([InlineKeyboardButton(f"⬅️ {get_text(constants.MSG_REPORT_BTN_BACK, lang_code)}", callback_data=constants.CB_REPORT_NAV_MAIN)])
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -282,10 +283,10 @@ async def report_graph_callback(update: Update, context: ContextTypes.DEFAULT_TY
     """Отправляет график для выбранного актива из отчета."""
     query = update.callback_query
     await query.answer()
-    
+
     user_id = update.effective_user.id
     lang_code = await get_user_language(user_id)
-    
+
     report_data = context.user_data.get('report_data')
     if not report_data:
         await context.bot.send_message(user_id, get_text(constants.MSG_REPORT_DATA_EXPIRED, lang_code))
@@ -295,11 +296,11 @@ async def report_graph_callback(update: Update, context: ContextTypes.DEFAULT_TY
         ticker = query.data[len(constants.CB_ACTION_REPORT_GRAPH):]
         asset_id = constants.SUPPORTED_ASSETS[ticker][1]
         period_days = report_data['period_days']
-        
+
         loading_msg = await context.bot.send_message(user_id, get_text(constants.MSG_GRAPH_LOADING, lang_code, symbol=ticker))
-        
+
         hist_data, status = report_data['data_map'].get(f"hist_{asset_id}", (None, data_fetcher.STATUS_UNKNOWN_ERROR))
-        
+
         if status == data_fetcher.STATUS_OK and hist_data:
             hist_for_graph = hist_data[-(period_days + 5):] # Берем с запасом
             graph_bytes = graph_generator.generate_candlestick_graph(hist_for_graph, ticker, period_days)
@@ -309,7 +310,7 @@ async def report_graph_callback(update: Update, context: ContextTypes.DEFAULT_TY
                 await context.bot.send_message(user_id, get_text(constants.MSG_GRAPH_ERROR_GENERAL, lang_code, symbol=ticker))
         else:
             await context.bot.send_message(user_id, get_text(constants.MSG_TA_DATA_ERROR, lang_code, ticker=ticker))
-            
+
         await loading_msg.delete()
 
     except (KeyError, IndexError) as e:

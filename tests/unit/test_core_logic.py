@@ -1,10 +1,12 @@
 """
 Tests for StoicLogic
 """
-import pytest
-import pandas as pd
 import numpy as np
-from src.strategies.core_logic import StoicLogic, TradeDecision, MarketRegime
+import pandas as pd
+import pytest
+
+from src.strategies.core_logic import MarketRegime, StoicLogic
+
 
 @pytest.fixture
 def sample_dataframe():
@@ -26,7 +28,7 @@ class TestStoicLogic:
     def test_populate_indicators(self, sample_dataframe):
         """Test if indicators are populated correctly."""
         df = StoicLogic.populate_indicators(sample_dataframe)
-        
+
         # Check if new columns exist
         assert 'ema_50' in df.columns
         assert 'ema_200' in df.columns
@@ -34,7 +36,7 @@ class TestStoicLogic:
         assert 'bb_lower' in df.columns
         assert 'bb_upper' in df.columns
         assert 'bb_width' in df.columns
-        
+
         # Check values are not all NaN (after warm-up period)
         assert not df['ema_50'].iloc[-1:].isna().all()
         assert not df['rsi'].iloc[-1:].isna().all()
@@ -52,12 +54,12 @@ class TestStoicLogic:
             'regime': [MarketRegime.PUMP_DUMP.value] * 5,
             'vol_zscore': [2.0] * 5
         })
-        
+
         result_df = StoicLogic.populate_entry_exit_signals(df, persistence_window=3)
-        
+
         # Last candle should have entry signal
         assert result_df['enter_long'].iloc[-1] == 1
-        
+
     def test_populate_entry_exit_signals_persistence(self):
         """Test that signal requires persistence."""
         # Condition met only for last 1 candle (persistence=3)
@@ -70,19 +72,19 @@ class TestStoicLogic:
             'bb_lower': [80] * 5,
              'vol_zscore': [2.0] * 5
         })
-        
+
         result_df = StoicLogic.populate_entry_exit_signals(df, persistence_window=3)
-        
+
         # Should NOT enter because persistence requirement not met
         assert result_df['enter_long'].iloc[-1] == 0
 
     def test_get_entry_decision_scalar(self):
         """Test scalar decision logic."""
-        
+
         # 1. Quiet Chop -> Stay Flat
         decision = StoicLogic.get_entry_decision({}, MarketRegime.QUIET_CHOP)
         assert decision.should_enter_long is False
-        
+
         # 2. Pump Dump -> Trend Entry
         candle = {
             'close': 100,

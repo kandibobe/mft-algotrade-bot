@@ -1,18 +1,24 @@
 # services/data_fetcher.py
-import aiohttp
 import asyncio
-from datetime import datetime, timedelta, date, timezone
-from typing import List, Tuple, Optional, Dict, Any, Union
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, Union
+
+import aiohttp
+from newsapi import NewsApiClient
+
+from src.telegram_bot import constants
 from src.telegram_bot.config_adapter import (
-    FRED_API_KEY, ALPHA_VANTAGE_API_KEY, ETHERSCAN_API_KEY,
-    CRYPTO_PANIC_API_KEY, NEWS_API_ORG_KEY, GLASSNODE_API_KEY,
-    DEFAULT_REQUEST_TIMEOUT, API_COOLDOWN, PROXY_URL
+    ALPHA_VANTAGE_API_KEY,
+    API_COOLDOWN,
+    CRYPTO_PANIC_API_KEY,
+    DEFAULT_REQUEST_TIMEOUT,
+    ETHERSCAN_API_KEY,
+    FRED_API_KEY,
+    GLASSNODE_API_KEY,
+    NEWS_API_ORG_KEY,
+    PROXY_URL,
 )
 from src.utils.logger import get_logger
-from src.telegram_bot import constants
-import time
-from newsapi import NewsApiClient
-from src.telegram_bot.services import analysis as analysis_utils
 
 logger = get_logger(__name__)
 DateType = Union[datetime, date]
@@ -31,7 +37,7 @@ STATUS_CONFIG_ERROR = "❌ Config Error"
 STATUS_FORMAT_ERROR = "❌ Format Error"
 STATUS_UNKNOWN_ERROR = "❌ Unknown Error"
 
-newsapi_client: Optional[NewsApiClient] = None
+newsapi_client: NewsApiClient | None = None
 if NEWS_API_ORG_KEY:
     try:
         newsapi_client = NewsApiClient(api_key=NEWS_API_ORG_KEY)
@@ -42,13 +48,13 @@ if NEWS_API_ORG_KEY:
 async def _fetch_with_retry(
     session: aiohttp.ClientSession,
     url: str,
-    params: Optional[Dict] = None,
-    headers: Optional[Dict] = None,
+    params: dict | None = None,
+    headers: dict | None = None,
     retries: int = 2,
     base_wait: float = API_COOLDOWN,
     source_name: str = "API"
-) -> Tuple[Any, str]:
-    last_exception: Optional[Exception] = None
+) -> tuple[Any, str]:
+    last_exception: Exception | None = None
     final_status: str = STATUS_UNKNOWN_ERROR
 
     safe_params = params.copy() if params else {}
@@ -190,9 +196,9 @@ async def _fetch_with_retry(
 async def fetch_fred_series(
     session: aiohttp.ClientSession,
     series_id: str,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None
-) -> Tuple[Optional[List[Tuple[date, float]]], str]:
+    start_date: str | None = None,
+    end_date: str | None = None
+) -> tuple[list[tuple[date, float]] | None, str]:
     if not FRED_API_KEY:
         logger.warning(f"[FRED] Запрос ({series_id}) не выполнен: ключ FRED_API_KEY отсутствует.")
         return None, STATUS_CONFIG_ERROR
@@ -219,7 +225,7 @@ async def fetch_fred_series(
         observations = data.get("observations")
         if not isinstance(observations, list): raise TypeError("Поле 'observations' в ответе FRED не является списком")
 
-        result: List[Tuple[date, float]] = []
+        result: list[tuple[date, float]] = []
         for item in observations:
             value_str = item.get('value')
             date_str = item.get('date')
@@ -245,10 +251,10 @@ async def fetch_fred_series(
 
 async def fetch_current_crypto_data(
     session: aiohttp.ClientSession,
-    crypto_ids: List[str],
+    crypto_ids: list[str],
     include_change: bool = False
-) -> Dict[str, Tuple[Optional[float], Optional[float], str]]:
-    results: Dict[str, Tuple[Optional[float], Optional[float], str]] = {cid: (None, None, STATUS_UNKNOWN_ERROR) for cid in crypto_ids}
+) -> dict[str, tuple[float | None, float | None, str]]:
+    results: dict[str, tuple[float | None, float | None, str]] = dict.fromkeys(crypto_ids, (None, None, STATUS_UNKNOWN_ERROR))
     if not crypto_ids: return results
 
     ids_param = ",".join(crypto_ids)
@@ -267,7 +273,7 @@ async def fetch_current_crypto_data(
         data, status = await _fetch_with_retry(session, url, params, source_name=source_name)
 
         if status != STATUS_OK:
-            return {cid: (None, None, status) for cid in crypto_ids}
+            return dict.fromkeys(crypto_ids, (None, None, status))
 
         if isinstance(data, list):
             data_dict = {item['id']: item for item in data if isinstance(item, dict) and 'id' in item}
@@ -287,14 +293,14 @@ async def fetch_current_crypto_data(
                     results[crypto_id] = (None, None, STATUS_NOT_FOUND)
         else:
             logger.error(f"[{source_name}] Неожиданный формат ответа: {type(data)}. Ожидался list.")
-            return {cid: (None, None, STATUS_FORMAT_ERROR) for cid in crypto_ids}
+            return dict.fromkeys(crypto_ids, (None, None, STATUS_FORMAT_ERROR))
 
     else:
         params = {"ids": ids_param, "vs_currencies": vs_currency}
         data, status = await _fetch_with_retry(session, url, params, source_name=source_name)
 
         if status != STATUS_OK:
-            return {cid: (None, None, status) for cid in crypto_ids}
+            return dict.fromkeys(crypto_ids, (None, None, status))
 
         if isinstance(data, dict):
             for crypto_id in crypto_ids:
@@ -310,7 +316,7 @@ async def fetch_current_crypto_data(
                     results[crypto_id] = (None, None, STATUS_NOT_FOUND)
         else:
              logger.error(f"[{source_name}] Неожиданный формат ответа: {type(data)}. Ожидался dict.")
-             return {cid: (None, None, STATUS_FORMAT_ERROR) for cid in crypto_ids}
+             return dict.fromkeys(crypto_ids, (None, None, STATUS_FORMAT_ERROR))
     return results
 
 
@@ -320,7 +326,7 @@ async def fetch_historical_crypto_data(
     days_to_fetch: int,
     vs_currency: str = "usd",
     data_type: str = "prices"
-) -> Tuple[Optional[List[Tuple[date, float]]], str]:
+) -> tuple[list[tuple[date, float]] | None, str]:
     api_request_days = days_to_fetch + 5
     url = f"https://api.coingecko.com/api/v3/coins/{crypto_id}/market_chart"
     params = {"vs_currency": vs_currency, "days": str(api_request_days), "interval": "daily"}
@@ -339,7 +345,7 @@ async def fetch_historical_crypto_data(
         if not isinstance(raw_data_list, list): raise TypeError(f"Поле '{data_type}' не является списком")
         if not raw_data_list: raise ValueError(f"Список '{data_type}' пуст")
 
-        daily_values: Dict[date, float] = {}
+        daily_values: dict[date, float] = {}
         for item in raw_data_list:
              if not isinstance(item, list) or len(item) != 2:
                  logger.warning(f"[{source_name}] Некорректный формат элемента в '{data_type}': {item}")
@@ -383,8 +389,8 @@ async def fetch_top_crypto_volatility(
     session: aiohttp.ClientSession,
     limit: int = 5,
     vs_currency: str = "usd"
-) -> Tuple[Optional[Dict[str, List[Dict[str, Any]]]], str]:
-    url = f"https://api.coingecko.com/api/v3/coins/markets"
+) -> tuple[dict[str, list[dict[str, Any]]] | None, str]:
+    url = "https://api.coingecko.com/api/v3/coins/markets"
     params = {
         "vs_currency": vs_currency, "order": "market_cap_desc", "per_page": 100,
         "page": 1, "sparkline": "false", "price_change_percentage": "24h"
@@ -415,7 +421,7 @@ async def fetch_top_crypto_volatility(
         gainers = sorted(valid_coins, key=lambda x: x['price_change_percentage_24h'], reverse=True)
         losers = sorted(valid_coins, key=lambda x: x['price_change_percentage_24h'])
 
-        def format_coin_data(coin_dict: Dict) -> Optional[Dict[str, Any]]:
+        def format_coin_data(coin_dict: dict) -> dict[str, Any] | None:
             try:
                 return {
                     "symbol": str(coin_dict["symbol"]).upper(),
@@ -440,9 +446,9 @@ async def fetch_top_crypto_volatility(
 
 async def fetch_current_forex_rates(
     session: aiohttp.ClientSession,
-    pairs: List[str] = constants.FOREX_PAIRS
-) -> Dict[str, Tuple[Optional[float], str]]:
-    results: Dict[str, Tuple[Optional[float], str]] = {p: (None, STATUS_UNKNOWN_ERROR) for p in pairs}
+    pairs: list[str] = constants.FOREX_PAIRS
+) -> dict[str, tuple[float | None, str]]:
+    results: dict[str, tuple[float | None, str]] = dict.fromkeys(pairs, (None, STATUS_UNKNOWN_ERROR))
     if not pairs: return results
     successful_pairs = set()
     source_name_av = "AlphaVantage-Forex"
@@ -464,7 +470,7 @@ async def fetch_current_forex_rates(
 
         if av_tasks:
             av_results_list = await asyncio.gather(*av_tasks.values(), return_exceptions=True)
-            av_data_map = dict(zip(av_tasks.keys(), av_results_list))
+            av_data_map = dict(zip(av_tasks.keys(), av_results_list, strict=False))
             for pair, result_or_exc in av_data_map.items():
                 if isinstance(result_or_exc, Exception):
                     logger.error(f"[{source_name_av}] Исключение при запросе {pair}: {result_or_exc}")
@@ -497,7 +503,7 @@ async def fetch_current_forex_rates(
         return results
 
     logger.debug(f"[{source_name_er}] Попытка получить курсы для: {', '.join(pairs_for_fallback)} через ExchangeRate-API")
-    url_er_public = f"https://api.exchangerate-api.com/v4/latest/USD"
+    url_er_public = "https://api.exchangerate-api.com/v4/latest/USD"
 
     data_er, status_er = await _fetch_with_retry(session, url_er_public, source_name=source_name_er)
 
@@ -548,7 +554,7 @@ async def fetch_current_forex_rates(
                 results[pair] = (None, STATUS_FORMAT_ERROR)
     return results
 
-async def fetch_fear_greed_index(session: aiohttp.ClientSession) -> Tuple[Optional[Dict[str, Any]], str]:
+async def fetch_fear_greed_index(session: aiohttp.ClientSession) -> tuple[dict[str, Any] | None, str]:
     url = "https://api.alternative.me/fng/?limit=1&format=json"
     source_name = "AlternativeMe-FNG"
     data, status = await _fetch_with_retry(session, url, source_name=source_name)
@@ -565,7 +571,7 @@ async def fetch_fear_greed_index(session: aiohttp.ClientSession) -> Tuple[Option
         logger.error(f"[{source_name}] Ошибка обработки данных F&G: {e}. Ответ: {data}", exc_info=True)
         return None, STATUS_FORMAT_ERROR
 
-async def fetch_eth_gas_price(session: aiohttp.ClientSession) -> Tuple[Optional[Dict[str, Union[int, float]]], str]:
+async def fetch_eth_gas_price(session: aiohttp.ClientSession) -> tuple[dict[str, int | float] | None, str]:
     if not ETHERSCAN_API_KEY: return None, STATUS_CONFIG_ERROR
     url = "https://api.etherscan.io/api"
     params = {"module": "gastracker", "action": "gasoracle", "apikey": ETHERSCAN_API_KEY}
@@ -597,7 +603,7 @@ async def fetch_eth_gas_price(session: aiohttp.ClientSession) -> Tuple[Optional[
         logger.error(f"[{source_name}] Ошибка обработки данных ETH Gas: {e}. Ответ: {data}", exc_info=True)
         return None, STATUS_FORMAT_ERROR
 
-async def fetch_coingecko_trending(session: aiohttp.ClientSession) -> Tuple[Optional[List[Dict[str, Any]]], str]:
+async def fetch_coingecko_trending(session: aiohttp.ClientSession) -> tuple[list[dict[str, Any]] | None, str]:
     url = "https://api.coingecko.com/api/v3/search/trending"
     source_name = "CoinGecko-Trending"
     data, status = await _fetch_with_retry(session, url, source_name=source_name)
@@ -622,7 +628,7 @@ async def fetch_crypto_news(
     session: aiohttp.ClientSession,
     news_filter: str = "important",
     limit: int = 5
-) -> Tuple[Optional[List[Dict[str, Any]]], str]:
+) -> tuple[list[dict[str, Any]] | None, str]:
     if not CRYPTO_PANIC_API_KEY:
         return None, STATUS_CONFIG_ERROR
 
@@ -680,7 +686,7 @@ async def fetch_crypto_news(
         return None, STATUS_FORMAT_ERROR
 
 
-def fetch_general_news(query: str, language: str = 'en', page_size: int = 5, sort_by: str = 'relevancy') -> Tuple[Optional[List[Dict[str, Any]]], str]:
+def fetch_general_news(query: str, language: str = 'en', page_size: int = 5, sort_by: str = 'relevancy') -> tuple[list[dict[str, Any]] | None, str]:
     if not newsapi_client: return None, STATUS_CONFIG_ERROR
     if not query: return None, STATUS_BAD_REQUEST
     source_name = "NewsAPI.org"
@@ -719,12 +725,12 @@ def fetch_general_news(query: str, language: str = 'en', page_size: int = 5, sor
         if "timed out" in str(e).lower(): return None, STATUS_TIMEOUT
         return None, STATUS_UNKNOWN_ERROR
 
-async def fetch_index_prices(session: aiohttp.ClientSession, symbols: List[str]) -> Dict[str, Tuple[Optional[float], str]]:
-    results: Dict[str, Tuple[Optional[float], str]] = {s: (None, STATUS_UNKNOWN_ERROR) for s in symbols}
+async def fetch_index_prices(session: aiohttp.ClientSession, symbols: list[str]) -> dict[str, tuple[float | None, str]]:
+    results: dict[str, tuple[float | None, str]] = dict.fromkeys(symbols, (None, STATUS_UNKNOWN_ERROR))
     if not symbols: return results
     if not ALPHA_VANTAGE_API_KEY:
         logger.warning("[AlphaVantage-Index] Запрос не выполнен: ключ ALPHA_VANTAGE_API_KEY отсутствует.")
-        return {s: (None, STATUS_CONFIG_ERROR) for s in symbols}
+        return dict.fromkeys(symbols, (None, STATUS_CONFIG_ERROR))
 
     source_name = "AlphaVantage-Index"
     logger.debug(f"[{source_name}] Запрос цен для: {', '.join(symbols)}")
@@ -768,7 +774,7 @@ async def fetch_index_prices(session: aiohttp.ClientSession, symbols: List[str])
     return results
 
 
-async def fetch_current_global_market_data(session: aiohttp.ClientSession) -> Tuple[Optional[Dict[str, Any]], str]:
+async def fetch_current_global_market_data(session: aiohttp.ClientSession) -> tuple[dict[str, Any] | None, str]:
     url = "https://api.coingecko.com/api/v3/global"
     source_name = "CoinGecko-Global"
     data, status = await _fetch_with_retry(session, url, source_name=source_name)
@@ -809,17 +815,17 @@ async def fetch_historical_btc_dominance_data(
     session: aiohttp.ClientSession,
     days_to_fetch: int,
     vs_currency: str = "usd"
-) -> Tuple[Optional[List[Tuple[date, float]]], str]:
-    logger.warning(f"[Derived-BTCDominanceHist] Historical BTC Dominance data fetching is currently disabled due to API limitations for free tiers.")
+) -> tuple[list[tuple[date, float]] | None, str]:
+    logger.warning("[Derived-BTCDominanceHist] Historical BTC Dominance data fetching is currently disabled due to API limitations for free tiers.")
     return None, STATUS_NO_DATA
 
 async def fetch_funding_rates(
     session: aiohttp.ClientSession
-) -> Tuple[Optional[List[Dict[str, Any]]], str]:
+) -> tuple[list[dict[str, Any]] | None, str]:
     """Fetches all derivative tickers to find funding rates for perpetuals."""
     url = "https://api.coingecko.com/api/v3/derivatives"
     source_name = "CoinGecko-FundingRates"
-    
+
     data, status = await _fetch_with_retry(session, url, source_name=source_name)
 
     if status != STATUS_OK:
@@ -831,10 +837,10 @@ async def fetch_funding_rates(
 
         funding_rates = []
         for item in data:
-            if (isinstance(item, dict) and 
-                item.get('contract_type') == 'perpetual' and 
+            if (isinstance(item, dict) and
+                item.get('contract_type') == 'perpetual' and
                 isinstance(item.get('funding_rate'), (int, float))):
-                
+
                 funding_rates.append({
                     'market': item.get('market', 'N/A'),
                     'symbol': item.get('symbol', 'N/A'),
@@ -855,7 +861,7 @@ async def fetch_funding_rates(
 async def fetch_tvl(
     session: aiohttp.ClientSession,
     protocol_name: str
-) -> Tuple[Optional[float], str]:
+) -> tuple[float | None, str]:
     """Fetches the Total Value Locked (TVL) for a given DeFi protocol."""
     protocol_slug = protocol_name.lower().replace(" ", "-")
     url = f"https://api.llama.fi/tvl/{protocol_slug}"
@@ -895,18 +901,18 @@ async def fetch_tvl(
 async def fetch_economic_events(
     session: aiohttp.ClientSession,
     period: str = "week"
-) -> Tuple[Optional[List[Dict[str, Any]]], str]:
+) -> tuple[list[dict[str, Any]] | None, str]:
     """
     Симулятор запроса экономических событий. Возвращает предопределенный список.
     """
     source_name = "Events-Simulator"
     logger.debug(f"[{source_name}] Запрос событий для периода: {period}")
-    
-    await asyncio.sleep(0.2) 
-    
+
+    await asyncio.sleep(0.2)
+
     now = datetime.now(timezone.utc)
     today = now.date()
-    
+
     all_simulated_events = [
         {'time': now.replace(hour=12, minute=30, second=0, microsecond=0), 'country': 'US', 'title': 'Initial Jobless Claims', 'impact': 'high', 'forecast': '215K', 'previous': '212K'},
         {'time': now.replace(hour=14, minute=0, second=0, microsecond=0), 'country': 'US', 'title': 'Existing Home Sales', 'impact': 'low', 'forecast': '4.20M', 'previous': '4.19M'},
@@ -927,7 +933,7 @@ async def fetch_economic_events(
     elif period == "week":
         end_of_week = today + timedelta(days=6 - today.weekday() + 1)
         filtered_events = [e for e in all_simulated_events if today <= e['time'].date() < end_of_week]
-    
+
     result_list = []
     for event in sorted(filtered_events, key=lambda x: x['time']):
         event_copy = event.copy()
@@ -937,7 +943,7 @@ async def fetch_economic_events(
     if not result_list:
         logger.info(f"[{source_name}] Не найдено событий для периода '{period}'.")
         return None, STATUS_NO_DATA
-        
+
     logger.debug(f"[{source_name}] Возвращено {len(result_list)} событий для периода '{period}'.")
     return result_list, STATUS_OK
 
@@ -946,8 +952,8 @@ async def fetch_glassnode_metric(
     endpoint: str,
     asset: str = 'BTC',
     resolution: str = '24h',
-    since: Optional[int] = None
-) -> Tuple[Optional[List[Dict[str, Any]]], str]:
+    since: int | None = None
+) -> tuple[list[dict[str, Any]] | None, str]:
     """
     Fetches a specific metric from the Glassnode API v1.
     """
@@ -974,13 +980,13 @@ async def fetch_glassnode_metric(
     try:
         if not isinstance(data, list):
             raise TypeError("Ответ Glassnode не является списком")
-        
+
         formatted_data = [{'t': item['t'], 'v': item['v']} for item in data if 't' in item and 'v' in item]
 
         if not formatted_data:
             logger.warning(f"[{source_name}] Получен пустой список данных после форматирования.")
             return None, STATUS_NO_DATA
-        
+
         logger.debug(f"[{source_name}] Успешно получено {len(formatted_data)} точек данных.")
         return formatted_data, STATUS_OK
 

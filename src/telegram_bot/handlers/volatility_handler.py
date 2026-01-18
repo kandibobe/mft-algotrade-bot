@@ -1,13 +1,15 @@
 # handlers/volatility_handler.py
-from telegram import Update
-from telegram.ext import ContextTypes
-from telegram.constants import ParseMode
 import html
-from src.telegram_bot.services import data_fetcher
-from src.telegram_bot.localization.manager import get_user_language, get_text
+
+from telegram import Update
+from telegram.constants import ParseMode
+from telegram.ext import ContextTypes
+
 from src.telegram_bot import constants
-from src.utils.logger import get_logger
 from src.telegram_bot.handlers.misc_handler import _get_cached_or_fetch
+from src.telegram_bot.localization.manager import get_text, get_user_language
+from src.telegram_bot.services import data_fetcher
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -48,7 +50,7 @@ async def volatility_command_handler(update: Update, context: ContextTypes.DEFAU
                     change_str = f"+{change_val:.2f}%" if isinstance(change_val, (float, int)) and change_val > 0 else f"{change_val:.2f}%" if isinstance(change_val, (float, int)) else "N/A"
                     price_str = f"${price_val:,.2f}" if isinstance(price_val, (float, int)) else "N/A"
                     lines.append(get_text(constants.MSG_VOLATILITY_GAINER, lang_code, rank=i, symbol=symbol, change=change_str, price=price_str))
-            
+
             if losers:
                 lines.append(get_text(constants.MSG_VOLATILITY_SEPARATOR, lang_code))
                 for i, coin in enumerate(losers, 1):

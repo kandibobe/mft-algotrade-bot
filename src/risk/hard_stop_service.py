@@ -8,9 +8,6 @@ if hard stop loss conditions are met, independent of the main strategy loop.
 
 import asyncio
 import logging
-import time
-from decimal import Decimal
-from typing import Any
 
 from src.order_manager.exchange_backend import IExchangeBackend
 from src.utils.logger import log
@@ -39,7 +36,7 @@ class HardStopLossService:
         """Start the monitoring task."""
         if self._running:
             return
-        
+
         self._running = True
         self._task = asyncio.create_task(self._monitor_loop())
         log.info("🛡️ Hard Stop Loss Service started")
@@ -76,18 +73,18 @@ class HardStopLossService:
                 entry_price = float(pos["entry_price"])
                 side = pos["side"]
                 amount = float(pos["amount"])
-                
+
                 # In a real system, we'd fetch current market price
                 # For this service, let's assume we might need another way to get it
                 # or the position data includes current price/pnl.
                 # For now, let's just implement the logic that COULD trigger a close.
-                
+
                 if "current_price" in pos:
                     current_price = float(pos["current_price"])
                     pnl_pct = (current_price - entry_price) / entry_price
                     if side.lower() == "sell":
                         pnl_pct = -pnl_pct
-                    
+
                     if pnl_pct < -self.max_drawdown_per_trade:
                         log.critical(f"HARD STOP TRIGGERED for {symbol}: PnL {pnl_pct:.2%}")
                         await self.force_close_position(symbol, amount, side)
@@ -102,7 +99,7 @@ class HardStopLossService:
                 await self.backend.create_limit_sell_order(symbol, size, 0, params={"reduceOnly": True, "type": "market"})
             else:
                 await self.backend.create_limit_buy_order(symbol, size, 0, params={"reduceOnly": True, "type": "market"})
-            
+
             log.info(f"✅ Emergency close order sent for {symbol}")
         except Exception as e:
             log.error(f"❌ FAILED TO EMERGENCY CLOSE {symbol}", error=str(e))

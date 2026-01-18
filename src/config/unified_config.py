@@ -173,6 +173,12 @@ class RiskConfig(BaseModel):
     max_correlation: float = Field(
         default=0.70, ge=0.0, le=1.0, description="Max allowed correlation between assets"
     )
+    correlation_pairs_block: list[str] = Field(
+        default=["BTC", "ETH"], description="Pairs to check for directional correlation blocking"
+    )
+    correlation_threshold_block: float = Field(
+        default=0.80, ge=0.0, le=1.0, description="Correlation threshold for blocking same-side trades"
+    )
 
     @model_validator(mode="after")
     def validate_risk_reward(self) -> "RiskConfig":
@@ -208,6 +214,9 @@ class StrategyConfig(BaseModel):
 
     # Entry Parameters
     min_adx: float = Field(default=20.0, ge=0.0, le=100.0, description="Minimum ADX")
+    ml_confidence_base: float = Field(default=0.60, ge=0.1, le=0.95, description="Base ML confidence threshold")
+    ml_confidence_max: float = Field(default=0.90, ge=0.1, le=0.95, description="Max ML confidence threshold in high volatility")
+    hurst_trending_threshold: float = Field(default=0.50, ge=0.0, le=1.0, description="Hurst threshold for trending regime")
     rsi_oversold: float = Field(default=30.0, ge=0.0, le=100.0, description="RSI oversold")
     rsi_overbought: float = Field(default=70.0, ge=0.0, le=100.0, description="RSI overbought")
     stoch_oversold: float = Field(default=30.0, ge=0.0, le=100.0, description="Stoch oversold")
@@ -243,6 +252,7 @@ class StrategyConfig(BaseModel):
 
     # Protections
     protection_stoploss_guard: bool = Field(default=True, description="Enable stop loss guard")
+    max_slippage_pct: float = Field(default=0.5, ge=0.0, le=5.0, description="Max allowed slippage percentage")
     protection_stoploss_lookback: int = Field(default=60, ge=1, description="Stop loss lookback")
     protection_stoploss_limit: int = Field(default=3, ge=1, description="Stop loss limit")
     protection_cooldown: int = Field(default=24, ge=1, description="Cooldown period")
@@ -342,6 +352,8 @@ class SystemConfig(BaseModel):
 
     log_level: str = Field(default="INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR)")
     db_url: str = Field(default="sqlite:///user_data/stoic_citadel.db", description="Database URL")
+    sentry_dsn: str | None = Field(default=None, description="Sentry DSN for error tracking")
+    ws_watchdog_timeout: float = Field(default=5.0, ge=1.0, le=60.0, description="WebSocket watchdog timeout in seconds")
 
     @field_validator("log_level")
     @classmethod
@@ -394,7 +406,7 @@ class TradingConfig(BaseSettings):
     )
 
     # Sub-configs
-    exchange: ExchangeConfig = Field(default_factory=ExchangeConfig)
+    exchange: ExchangeConfig = Field(default_factory=lambda: ExchangeConfig(rate_limit=True))
     additional_exchanges: list[ExchangeConfig] = Field(default_factory=list, description="Secondary exchanges for arbitrage")
     risk: RiskConfig = Field(default_factory=RiskConfig)
     ml: MLConfig = Field(default_factory=MLConfig)
@@ -610,9 +622,14 @@ class TradingConfig(BaseSettings):
         return issues
 
 
+# Global cache for the configuration instance
+_CONFIG_CACHE: dict[str, Any] = {}
+_CONFIG_LOCK = threading.Lock()
+
 def load_config(config_path: str | None = None) -> TradingConfig:
     """
     Load configuration from file or environment.
+    Uses a Singleton pattern with caching for high performance in MFT loops.
 
     Args:
         config_path: Path to YAML or JSON config file (optional)
@@ -620,20 +637,34 @@ def load_config(config_path: str | None = None) -> TradingConfig:
     Returns:
         TradingConfig instance
     """
-    if config_path:
-        path = Path(config_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Config file not found: {config_path}")
+    cache_key = config_path or "DEFAULT_ENV"
+    
+    # <Î Fast path: check cache without lock first
+    if cache_key in _CONFIG_CACHE:
+        return _CONFIG_CACHE[cache_key]
+        
+    with _CONFIG_LOCK:
+        # Double-check cache inside lock
+        if cache_key in _CONFIG_CACHE:
+            return _CONFIG_CACHE[cache_key]
+            
+        if config_path:
+            path = Path(config_path)
+            if not path.exists():
+                raise FileNotFoundError(f"Config file not found: {config_path}")
 
-        if path.suffix.lower() in [".yaml", ".yml"]:
-            return TradingConfig.from_yaml(config_path)
-        elif path.suffix.lower() == ".json":
-            return TradingConfig.from_json(config_path)
+            if path.suffix.lower() in [".yaml", ".yml"]:
+                cfg = TradingConfig.from_yaml(config_path)
+            elif path.suffix.lower() == ".json":
+                cfg = TradingConfig.from_json(config_path)
+            else:
+                raise ValueError(f"Unsupported config file format: {path.suffix}")
         else:
-            raise ValueError(f"Unsupported config file format: {path.suffix}")
-    else:
-        # Load from environment variables only
-        return TradingConfig()
+            # Load from environment variables only
+            cfg = TradingConfig()
+            
+        _CONFIG_CACHE[cache_key] = cfg
+        return cfg
 
 
 class ConfigWatcher:

@@ -1,12 +1,14 @@
 # handlers/portfolio_handler.py
 import asyncio
 import html
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+
+from telegram import Update
 from telegram.constants import ParseMode
-from src.telegram_bot.services import user_manager, data_fetcher
-from src.telegram_bot.localization.manager import get_user_language, get_text
+from telegram.ext import ContextTypes
+
 from src.telegram_bot import constants
+from src.telegram_bot.localization.manager import get_text, get_user_language
+from src.telegram_bot.services import data_fetcher, user_manager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -46,7 +48,7 @@ async def portfolio_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tasks['forex'] = data_fetcher.fetch_current_forex_rates(session, forex_pairs_to_fetch)
 
     results = await asyncio.gather(*tasks.values(), return_exceptions=True)
-    results_map = dict(zip(tasks.keys(), results))
+    results_map = dict(zip(tasks.keys(), results, strict=False))
 
     # Обработка результатов
     if 'crypto' in results_map and not isinstance(results_map['crypto'], Exception):
@@ -68,7 +70,7 @@ async def portfolio_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         quantity = item['quantity']
         avg_buy_price = item['avg_buy_price']
         ticker = constants.REVERSE_ASSET_MAP.get(asset_id, asset_id)
-        
+
         current_price = current_prices.get(asset_id)
         if current_price is None:
             line = get_text(constants.MSG_PORTFOLIO_ITEM_NO_PRICE, lang_code, ticker=ticker, quantity=f"{quantity:,.6f}".rstrip('0').rstrip('.'))
@@ -82,9 +84,9 @@ async def portfolio_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         total_portfolio_value += current_value
         total_pl += pl_value
-        
+
         pl_sign = "+" if pl_value >= 0 else ""
-        
+
         line = get_text(
             constants.MSG_PORTFOLIO_ITEM, lang_code,
             ticker=html.escape(ticker),
@@ -103,7 +105,7 @@ async def portfolio_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                           total_pl=f"{total_pl:,.2f}")
 
     final_text = f"{header}\n\n" + "\n".join(portfolio_lines) + f"\n\n<b>{total_line}</b>"
-    
+
     await loading_msg.edit_text(final_text, parse_mode=ParseMode.HTML)
 
 

@@ -23,7 +23,6 @@ import time
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
 
 from .data_stream import Exchange, StreamConfig, TickerData, TradeData, WebSocketDataStream
 from .data_types import OrderbookData
@@ -47,6 +46,7 @@ class AggregatedTicker:
     total_volume_24h: float
     timestamp: float
     imbalance: float = 0.0  # L2 Imbalance metric
+    trade_flow_imbalance: float = 0.0 # Trade flow (buy vol - sell vol)
     is_reliable: bool = True
     reliability_reason: str | None = None
 
@@ -110,6 +110,9 @@ class DataAggregator:
         # Configuration
         self._volume_window_seconds = 60
         self._max_recent_trades = 1000
+        
+        # Background tasks
+        self._background_tasks = set()
 
     def add_exchange(
         self, exchange: Exchange, symbols: list[str], channels: list[str] | None = None
@@ -132,7 +135,7 @@ class DataAggregator:
         @stream.on_orderbook
         async def handle_orderbook(orderbook: OrderbookData):
             await self._process_orderbook(orderbook)
-            
+
         self._streams[exchange] = stream
         logger.info(f"Added {exchange.value} with {len(symbols)} symbols")
 
@@ -144,8 +147,15 @@ class DataAggregator:
     async def start(self):
         """Start all streams and aggregation."""
         self._running = True
-        asyncio.create_task(self._aggregation_loop())
-        asyncio.create_task(self._volume_cleanup_loop())
+        
+        task = asyncio.create_task(self._aggregation_loop())
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        
+        task2 = asyncio.create_task(self._volume_cleanup_loop())
+        self._background_tasks.add(task2)
+        task2.add_done_callback(self._background_tasks.discard)
+        
         tasks = [asyncio.create_task(stream.start()) for stream in self._streams.values()]
         logger.info(f"Started aggregator with {len(self._streams)} exchanges")
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -166,7 +176,7 @@ class DataAggregator:
                 if abs(ticker.last - exchange_data.last) / exchange_data.last > 0.4:  # 40% jump
                     logger.warning(f"Rejected outlier ticker for {symbol} on {ticker.exchange}: {ticker.last} vs {exchange_data.last}")
                     return
-            
+
             self._tickers[symbol][ticker.exchange] = ticker
 
     async def _process_trade(self, trade: TradeData):
@@ -232,13 +242,13 @@ class DataAggregator:
         # Outlier Detection (Median-based)
         import statistics
         reliability_issues = []
-        
+
         valid_bids = []
         valid_asks = []
-        
+
         all_bids = [t.bid for t in exchange_tickers.values() if t.bid > 0]
         all_asks = [t.ask for t in exchange_tickers.values() if t.ask > 0]
-        
+
         if len(all_bids) >= 3:
             median_bid = statistics.median(all_bids)
             valid_bids = [b for b in all_bids if abs(b - median_bid) / median_bid < 0.05]
@@ -246,7 +256,7 @@ class DataAggregator:
                 reliability_issues.append("Outlier bids detected")
         else:
             valid_bids = all_bids
-            
+
         if len(all_asks) >= 3:
             median_ask = statistics.median(all_asks)
             valid_asks = [a for a in all_asks if abs(a - median_ask) / median_ask < 0.05]
@@ -273,7 +283,7 @@ class DataAggregator:
             weighted_price += ticker.last * ticker.volume_24h
 
         vwap = weighted_price / total_volume if total_volume > 0 else 0
-        
+
         if best_bid == 0 or best_ask == float("inf"):
             # Fallback if everything was filtered or empty
             spread = 0.0
@@ -283,15 +293,23 @@ class DataAggregator:
         else:
             spread = best_ask - best_bid
             spread_pct = (spread / best_bid * 100) if best_bid > 0 else 0
-            
+
         now = time.time()
-        
+
         latest_update = max(t.timestamp for t in exchange_tickers.values()) if exchange_tickers else 0
         if now - latest_update >= 5.0:
             reliability_issues.append("Stale data")
-            
+
         is_reliable = len(reliability_issues) == 0
         reliability_reason = "; ".join(reliability_issues) if reliability_issues else ""
+
+        # Calculate trade flow imbalance if available
+        trade_flow = 0.0
+        if symbol in self._trade_volumes:
+            vol = self._trade_volumes[symbol]
+            total = vol.buy_volume + vol.sell_volume
+            if total > 0:
+                trade_flow = (vol.buy_volume - vol.sell_volume) / total
 
         return AggregatedTicker(
             symbol=symbol,
@@ -306,6 +324,7 @@ class DataAggregator:
             total_volume_24h=total_volume,
             timestamp=now,
             imbalance=avg_imbalance,
+            trade_flow_imbalance=trade_flow,
             is_reliable=is_reliable,
             reliability_reason=reliability_reason
         )

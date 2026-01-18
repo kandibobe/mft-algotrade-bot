@@ -74,7 +74,7 @@ class MetaLearningEnsemble:
         self.config = config_obj or MetaLearningConfig()
         if self.config.meta_model_path is None:
             self.config.meta_model_path = str(config().paths.models_dir / "meta_ensemble.pkl")
-            
+
         self.meta_model = LogisticRegression(
             random_state=self.config.random_state, max_iter=1000, class_weight="balanced"
         )
@@ -187,7 +187,7 @@ class MetaLearningEnsemble:
 
         # Evaluate on test set
         if len(X_test) > 0:
-            test_preds, test_conf = self.predict_with_confidence(X_test)
+            test_preds, _test_conf = self.predict_with_confidence(X_test)
             test_accuracy = accuracy_score(y_test, test_preds > 0.5)
             test_auc = roc_auc_score(y_test, test_preds) if len(np.unique(y_test)) > 1 else 0.5
 

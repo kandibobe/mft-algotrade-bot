@@ -32,7 +32,7 @@ class TripleBarrierConfig:
     stop_loss: float = 0.0075
 
     # Maximum bars to hold position
-    max_holding_period: int = 24  # 48 bars = 4 hours for 5m timeframe
+    max_holding_period: int = 24  # 24 bars = 2 hours for 5m timeframe
 
     # Minimum price movement to consider (filters noise)
     # Reduced from 0.001 to 0.0005 to capture smaller MFT scalps
@@ -43,6 +43,9 @@ class TripleBarrierConfig:
 
     # Account for trading fees in barriers
     fee_adjustment: float = 0.001  # 0.1% round-trip fees
+
+    # Meta-Labeling Logic
+    use_meta_labeling: bool = True
 
 
 class TripleBarrierLabeler:

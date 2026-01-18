@@ -388,7 +388,7 @@ class CorrelationAnalyzer:
             return False, f"Clustering failed: {e}"
 
         # Map symbols to cluster IDs
-        symbol_to_cluster = dict(zip(available_symbols, clusters))
+        symbol_to_cluster = dict(zip(available_symbols, clusters, strict=False))
 
         # Calculate total portfolio value
         total_value = 0.0

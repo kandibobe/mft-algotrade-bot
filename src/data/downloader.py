@@ -8,7 +8,6 @@ Downloads historical OHLCV data from exchanges.
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from src.config import config
 

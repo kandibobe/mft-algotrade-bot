@@ -2,16 +2,16 @@
 Tests for order types and state machine.
 """
 
+
 import pytest
-from datetime import datetime
 
 from src.order_manager.order_types import (
-    Order,
-    OrderType,
-    OrderStatus,
-    OrderSide,
-    MarketOrder,
     LimitOrder,
+    MarketOrder,
+    Order,
+    OrderSide,
+    OrderStatus,
+    OrderType,
     StopLossOrder,
     TrailingStopOrder,
 )

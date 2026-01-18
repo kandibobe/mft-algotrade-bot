@@ -2,11 +2,12 @@
 Pytest configuration and fixtures for Stoic Citadel tests.
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -26,21 +27,21 @@ def sample_ohlcv():
     """
     np.random.seed(42)
     n = 200
-    
+
     # Generate realistic price data with trend
     base_price = 100
     returns = np.random.randn(n) * 0.02  # 2% daily volatility
     close = base_price * np.exp(np.cumsum(returns))
-    
+
     # Generate OHLC
     high = close * (1 + np.abs(np.random.randn(n) * 0.01))
     low = close * (1 - np.abs(np.random.randn(n) * 0.01))
     open_ = close * (1 + np.random.randn(n) * 0.005)
     volume = np.random.randint(1000, 10000, n).astype(float)
-    
+
     # Create timestamps
     dates = pd.date_range('2024-01-01', periods=n, freq='5min')
-    
+
     df = pd.DataFrame({
         'date': dates,
         'timestamp': dates, # Add timestamp column for labeling
@@ -61,9 +62,9 @@ def sample_ohlcv_short():
     """
     np.random.seed(42)
     n = 50
-    
+
     close = pd.Series(100 + np.random.randn(n).cumsum())
-    
+
     return pd.DataFrame({
         'open': close + np.random.randn(n) * 0.5,
         'high': close + abs(np.random.randn(n)),
@@ -80,11 +81,11 @@ def sample_equity_curve():
     """
     np.random.seed(42)
     n = 100
-    
+
     # Random returns with slight upward bias
     returns = np.random.randn(n) * 0.02 + 0.001
     equity = 10000 * np.exp(np.cumsum(returns))
-    
+
     return pd.Series(equity)
 
 
@@ -95,9 +96,9 @@ def sample_returns():
     """
     np.random.seed(42)
     n = 252  # One year of daily returns
-    
+
     returns = pd.Series(np.random.randn(n) * 0.02)
-    
+
     return returns
 
 
@@ -166,19 +167,19 @@ def sample_dataframe():
     """
     np.random.seed(42)
     n = 500
-    
+
     # Generate realistic price data
     base_price = 50000
     returns = np.random.randn(n) * 0.02
     close = base_price * np.exp(np.cumsum(returns))
-    
+
     high = close * (1 + np.abs(np.random.randn(n) * 0.01))
     low = close * (1 - np.abs(np.random.randn(n) * 0.01))
     open_ = close * (1 + np.random.randn(n) * 0.005)
     volume = np.random.randint(100, 1000, n).astype(float)
-    
+
     dates = pd.date_range('2024-01-01', periods=n, freq='5min')
-    
+
     return pd.DataFrame({
         'date': dates,
         'open': open_,
@@ -215,10 +216,10 @@ def assert_no_nan_in_column(df: pd.DataFrame, column: str, allow_partial: bool =
     """Assert that column has no NaN values (or limited NaN for warmup)."""
     if column not in df.columns:
         raise AssertionError(f"Column '{column}' not in DataFrame")
-    
+
     nan_count = df[column].isna().sum()
     total = len(df)
-    
+
     if allow_partial:
         # Allow up to 50% NaN for warmup periods
         assert nan_count < total * 0.5, f"Column '{column}' has too many NaN values: {nan_count}/{total}"
@@ -229,9 +230,9 @@ def assert_no_nan_in_column(df: pd.DataFrame, column: str, allow_partial: bool =
 def assert_signal_generated(df: pd.DataFrame, signal_column: str, expected_count: int = None):
     """Assert that trading signals were generated."""
     assert signal_column in df.columns, f"Signal column '{signal_column}' not found"
-    
+
     signals = df[df[signal_column] == 1]
-    
+
     if expected_count is not None:
         assert len(signals) == expected_count, f"Expected {expected_count} signals, got {len(signals)}"
     else:
@@ -276,20 +277,20 @@ def uptrend_dataframe():
     """
     np.random.seed(42)
     n = 500
-    
+
     # Generate uptrend data
     base_price = 50000
     trend = np.linspace(0, 0.5, n)  # 50% uptrend
     noise = np.random.randn(n) * 0.01
     close = base_price * (1 + trend + noise)
-    
+
     high = close * (1 + np.abs(np.random.randn(n) * 0.005))
     low = close * (1 - np.abs(np.random.randn(n) * 0.005))
     open_ = close * (1 + np.random.randn(n) * 0.002)
     volume = np.random.randint(100, 1000, n).astype(float)
-    
+
     dates = pd.date_range('2024-01-01', periods=n, freq='5min')
-    
+
     return pd.DataFrame({
         'date': dates,
         'open': open_,
@@ -307,20 +308,20 @@ def downtrend_dataframe():
     """
     np.random.seed(42)
     n = 500
-    
+
     # Generate downtrend data
     base_price = 50000
     trend = np.linspace(0, -0.3, n)  # 30% downtrend
     noise = np.random.randn(n) * 0.01
     close = base_price * (1 + trend + noise)
-    
+
     high = close * (1 + np.abs(np.random.randn(n) * 0.005))
     low = close * (1 - np.abs(np.random.randn(n) * 0.005))
     open_ = close * (1 + np.random.randn(n) * 0.002)
     volume = np.random.randint(100, 1000, n).astype(float)
-    
+
     dates = pd.date_range('2024-01-01', periods=n, freq='5min')
-    
+
     return pd.DataFrame({
         'date': dates,
         'open': open_,
@@ -336,9 +337,9 @@ def mock_trade():
     """
     Mock freqtrade Trade object for testing.
     """
-    from unittest.mock import MagicMock
     from datetime import datetime, timedelta
-    
+    from unittest.mock import MagicMock
+
     trade = MagicMock()
     trade.pair = 'BTC/USDT'
     trade.stake_amount = 100.0
@@ -349,7 +350,7 @@ def mock_trade():
     trade.is_short = False
     trade.leverage = 1.0
     trade.stop_loss_pct = -0.05
-    
+
     return trade
 
 
@@ -359,13 +360,13 @@ def mock_exchange():
     Mock freqtrade exchange object for testing.
     """
     from unittest.mock import MagicMock
-    
+
     exchange = MagicMock()
     exchange.get_fee.return_value = 0.001
     exchange.get_min_pair_stake_amount.return_value = 10.0
     exchange.get_max_pair_stake_amount.return_value = 10000.0
     exchange.markets = {'BTC/USDT': {'limits': {'amount': {'min': 0.0001}}}}
-    
+
     return exchange
 
 
@@ -374,33 +375,33 @@ def stoic_strategy(minimal_config):
     """
     Create StoicEnsembleStrategy with proper config for testing.
     """
-    import sys
     import os
+    import sys
     # Add root and strategies dir to path
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../strategies"))
-    
+
     try:
         from StoicEnsembleStrategy import StoicEnsembleStrategy
     except ImportError:
         # Fallback to V5 if standard not found
         from StoicEnsembleStrategyV5 import StoicEnsembleStrategyV5 as StoicEnsembleStrategy
-    
+
     strategy = StoicEnsembleStrategy(minimal_config)
-    
+
     # Mock dp and config
     from unittest.mock import MagicMock
     strategy.dp = MagicMock()
     strategy.dp.current_whitelist.return_value = ["BTC/USDT", "ETH/USDT"]
     strategy.dp.get_pair_dataframe.return_value = pd.DataFrame() # Fallback
-    
+
     # Setup config
     strategy.config = minimal_config
-    
+
     # Mock wallets
     strategy.wallets = MagicMock()
     strategy.wallets.get_total_stake_amount.return_value = 1000.0
-    
+
     return strategy
 
 
@@ -409,14 +410,14 @@ def stoic_strategy_v2(minimal_config):
     """
     Create StoicEnsembleStrategyV2 with proper config for testing.
     """
-    import sys
     import os
+    import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../strategies"))
-    
+
     try:
         from StoicEnsembleStrategyV2 import StoicEnsembleStrategyV2
     except ImportError:
         from StoicEnsembleStrategyV5 import StoicEnsembleStrategyV5 as StoicEnsembleStrategyV2
-    
+
     return StoicEnsembleStrategyV2(minimal_config)

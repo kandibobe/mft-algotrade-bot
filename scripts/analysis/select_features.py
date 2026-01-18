@@ -76,7 +76,7 @@ def load_and_prepare_data(
     # Let's load a bit more to be safe
     limit = months * 30 * 24 * 12
 
-    df = get_ohlcv(exchange="binance", symbol=pair, timeframe="5m", use_cache=True)
+    df = get_ohlcv(pair=pair, timeframe="5m", exchange="binance")
 
     # Take first N rows (chronological)
     df = df.head(limit)
@@ -191,8 +191,10 @@ def select_features_by_importance(
 
     # SAFETY CAST: Ensure data types are float32 before passing to XGBoost
     # This prevents IntCastingNaNError when XGBoost tries to convert NaN/Inf to integers
-    X_train = X_train.astype(np.float32)
-    X_val = X_val.astype(np.float32)
+    X_train_numeric = X_train.select_dtypes(include=np.number)
+    X_val_numeric = X_val.select_dtypes(include=np.number)
+    X_train = X_train_numeric.astype(np.float32)
+    X_val = X_val_numeric.astype(np.float32)
 
     # Train XGBoost model for binary classification
     model = xgb.XGBClassifier(
@@ -226,13 +228,13 @@ def select_features_by_importance(
 
         # Calculate mean absolute SHAP value per feature
         importance_df = pd.DataFrame(
-            {"feature": X.columns, "importance": np.abs(shap_values).mean(axis=0)}
+            {"feature": list(X_train.columns), "importance": np.abs(shap_values).mean(axis=0)}
         )
         importance_type = "SHAP"
     else:
         # Use built-in feature importance
         importance_df = pd.DataFrame(
-            {"feature": X.columns, "importance": model.feature_importances_}
+            {"feature": X_train.columns, "importance": model.feature_importances_}
         )
         importance_type = "Gain"
         if use_shap and not SHAP_AVAILABLE:

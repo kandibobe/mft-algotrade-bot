@@ -8,20 +8,21 @@ Author: Stoic Citadel Team
 License: MIT
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-import sys
 import os
+import sys
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
+
+import numpy as np
+import pandas as pd
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../user_data/strategies"))
 
 # Add tests to path for conftest helpers
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from conftest import assert_signal_generated, assert_column_exists
+from conftest import assert_column_exists
 
 
 class TestStoicEnsembleStrategy:

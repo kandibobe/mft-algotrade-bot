@@ -1,14 +1,17 @@
 # handlers/watchlist_handler.py
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
-from telegram.constants import ParseMode
 import html
-from src.telegram_bot.services import user_manager
-from src.telegram_bot.localization.manager import get_user_language, get_text
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+from telegram.ext import ContextTypes
+
 from src.telegram_bot import constants
-from src.utils.logger import get_logger
+
 # ИСПРАВЛЕНИЕ: Импортируем alert_handler напрямую, но используем его осторожно
 from src.telegram_bot.handlers import alert_handler
+from src.telegram_bot.localization.manager import get_text, get_user_language
+from src.telegram_bot.services import user_manager
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -20,9 +23,9 @@ async def watchlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     watchlist = user_manager.get_user_watchlist(user_id)
     limits = user_manager.get_user_limits(user_id)
-    
+
     header_text = get_text(constants.TITLE_WATCHLIST, lang_code, count=len(watchlist), limit=limits['watchlist'])
-    
+
     if not watchlist:
         reply_text = header_text + "\n" + get_text(constants.MSG_WATCHLIST_EMPTY, lang_code)
         reply_markup = None
@@ -68,12 +71,12 @@ async def delwatch_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result_code = user_manager.remove_asset_from_watchlist(user_id, ticker_to_delete)
 
     await watchlist_command(update, context)
-    
+
     if result_code == user_manager.OPERATION_SUCCESS:
         msg_key = constants.MSG_DELWATCH_SUCCESS
     else:
         msg_key = constants.ERROR_DELWATCH_NOTFOUND
-    
+
     await context.bot.send_message(chat_id=user_id, text=get_text(msg_key, lang_code, asset_id=ticker_to_delete))
 
 
@@ -153,9 +156,9 @@ async def quick_add_alert_callback(update: Update, context: ContextTypes.DEFAULT
     """
     query = update.callback_query
     if not query: return
-    
+
     await query.answer()
-    
+
     try:
         ticker = query.data[len(constants.CB_ACTION_QUICK_ADD_ALERT):]
     except IndexError:
@@ -164,7 +167,7 @@ async def quick_add_alert_callback(update: Update, context: ContextTypes.DEFAULT
 
     # Подготавливаем аргументы для хендлера addalert_start
     context.args = [ticker]
-    
+
     try:
         # Удаляем сообщение со списком, чтобы не засорять чат
         await query.delete_message()
@@ -183,6 +186,6 @@ async def quick_add_alert_callback(update: Update, context: ContextTypes.DEFAULT
 
     fake_message = MockMessage(f"/addalert {ticker}", update.effective_chat.id, context.bot)
     fake_update = Update(update_id=update.update_id, message=fake_message)
-    
+
     # Вызываем хендлер напрямую
     await alert_handler.addalert_start(fake_update, context)

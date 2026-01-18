@@ -1,15 +1,15 @@
 # handlers/settings_handler.py
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, CallbackQueryHandler, MessageHandler, filters, CommandHandler
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
-import html
-from typing import Optional # <<< Добавлен Optional
-from src.telegram_bot.services import user_manager
-from src.telegram_bot.localization.manager import get_user_text, get_user_language, get_text
+from telegram.ext import ContextTypes
+
 from src.telegram_bot import constants
-from src.telegram_bot.config_adapter import DEFAULT_ANALYSIS_PERIOD, ANALYSIS_PERIODS
-from src.utils.logger import get_logger
+from src.telegram_bot.config_adapter import ANALYSIS_PERIODS, DEFAULT_ANALYSIS_PERIOD
 from src.telegram_bot.handlers import common
+from src.telegram_bot.localization.manager import get_text, get_user_language
+from src.telegram_bot.services import user_manager
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -40,7 +40,7 @@ async def show_period_selection(update: Update, context: ContextTypes.DEFAULT_TY
     period_buttons = [ InlineKeyboardButton(f"{p} дн.", callback_data=f"{constants.CB_ACTION_SET_PERIOD}{p}") for p in ANALYSIS_PERIODS ]
     back_button = InlineKeyboardButton("⬅️ Назад", callback_data=constants.CB_MAIN_SETTINGS); keyboard = [period_buttons, [back_button]]; reply_markup = InlineKeyboardMarkup(keyboard); prompt_text = get_text(constants.MSG_SELECT_PERIOD, lang_code)
     try: await query.edit_message_text(prompt_text, reply_markup=reply_markup)
-    except Exception as e: logger.error(f"Ошибка редактирования сообщения для выбора периода: {e}");
+    except Exception as e: logger.error(f"Ошибка редактирования сообщения для выбора периода: {e}")
     if query.message: await context.bot.send_message(chat_id=query.message.chat_id, text=prompt_text, reply_markup=reply_markup)
 
 async def set_analysis_period(update: Update, context: ContextTypes.DEFAULT_TYPE):

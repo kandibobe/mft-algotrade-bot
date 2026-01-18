@@ -2,11 +2,10 @@
 Tests for Model Trainer
 """
 
-import pytest
-import pandas as pd
+
 import numpy as np
-from pathlib import Path
-import tempfile
+import pandas as pd
+import pytest
 
 from src.ml.training.model_trainer import (
     ModelTrainer,
@@ -79,21 +78,21 @@ class TestModelTrainer:
         )
         trainer = ModelTrainer(config)
 
-        model, metrics = trainer.train(X, y)
+        model, metrics, _ = trainer.train(X, y)
 
-        # Check model was trained
-        assert model is not None
-        assert hasattr(model, 'predict')
+    # Check model was trained
+    assert model is not None
+    assert hasattr(model, 'predict')
 
-        # Check metrics
-        assert 'accuracy' in metrics
-        assert 'precision' in metrics
-        assert 'recall' in metrics
-        assert 'f1' in metrics
+    # Check metrics
+    assert 'accuracy' in metrics
+    assert 'precision' in metrics
+    assert 'recall' in metrics
+    assert 'f1' in metrics
 
-        # Check reasonable performance
-        assert 0 <= metrics['accuracy'] <= 1
-        assert 0 <= metrics['f1'] <= 1
+    # Check reasonable performance
+    assert 0 <= metrics['accuracy'] <= 1
+    assert 0 <= metrics['f1'] <= 1
 
     def test_train_with_validation(self, sample_training_data):
         """Test training with validation set."""
@@ -109,11 +108,11 @@ class TestModelTrainer:
             save_model=False,
         )
         trainer = ModelTrainer(config)
-        model, metrics = trainer.train(X_train, y_train, X_val, y_val)
+        model, metrics, _ = trainer.train(X_train, y_train, X_val, y_val)
 
-        # Should have metrics
-        assert 'accuracy' in metrics
-        assert 'f1' in metrics
+    # Should have metrics
+    assert 'accuracy' in metrics
+    assert 'f1' in metrics
 
     def test_get_feature_importance(self, sample_training_data):
         """Test feature importance extraction."""
@@ -124,13 +123,13 @@ class TestModelTrainer:
             save_model=False,
         )
         trainer = ModelTrainer(config)
-        model, metrics = trainer.train(X, y)
+        model, metrics, _ = trainer.train(X, y)
 
-        # Feature importance should be stored in trainer
-        assert trainer.feature_importance is not None
-        assert isinstance(trainer.feature_importance, pd.DataFrame)
-        assert 'feature' in trainer.feature_importance.columns
-        assert 'importance' in trainer.feature_importance.columns
+    # Feature importance should be stored in trainer
+    assert trainer.feature_importance is not None
+    assert isinstance(trainer.feature_importance, pd.DataFrame)
+    assert 'feature' in trainer.feature_importance.columns
+    assert 'importance' in trainer.feature_importance.columns
 
     def test_invalid_model_type(self, sample_training_data):
         """Test invalid model type handling."""
@@ -176,10 +175,10 @@ class TestModelTrainer:
         )
 
         trainer = ModelTrainer(config)
-        model, metrics = trainer.train(X, y)
+        model, metrics, _ = trainer.train(X, y)
 
-        # Model should be trained
-        assert model is not None
+    # Model should be trained
+    assert model is not None
 
 
 if __name__ == "__main__":

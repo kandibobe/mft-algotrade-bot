@@ -5,15 +5,15 @@ Tests for Triple Barrier Labeling
 Tests the Triple Barrier Method implementation.
 """
 
-import pytest
-import pandas as pd
+
 import numpy as np
-from datetime import datetime, timedelta
+import pandas as pd
+import pytest
 
 from src.ml.training.labeling import (
-    TripleBarrierLabeler,
-    TripleBarrierConfig,
     DynamicBarrierLabeler,
+    TripleBarrierConfig,
+    TripleBarrierLabeler,
     create_labels_for_training,
 )
 

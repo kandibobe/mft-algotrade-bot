@@ -14,15 +14,15 @@ Tests cover:
 7. Data leakage prevention
 """
 
-import pytest
-import pandas as pd
+
 import numpy as np
-from datetime import datetime, timedelta
+import pandas as pd
+import pytest
 
 from src.ml.training.labeling import (
-    TripleBarrierLabeler,
-    TripleBarrierConfig,
     DynamicBarrierLabeler,
+    TripleBarrierConfig,
+    TripleBarrierLabeler,
 )
 
 

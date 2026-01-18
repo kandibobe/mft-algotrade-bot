@@ -2,8 +2,9 @@
 Tests for circuit breaker.
 """
 
-import pytest
 from datetime import datetime, timedelta
+
+import pytest
 
 from src.order_manager.circuit_breaker import (
     CircuitBreaker,

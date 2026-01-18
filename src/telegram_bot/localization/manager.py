@@ -1,9 +1,9 @@
 # localization/manager.py
-from .strings import STRINGS
 from src.telegram_bot.config_adapter import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES
 from src.telegram_bot.database import db_manager
 from src.utils.logger import get_logger
-from src.telegram_bot import constants
+
+from .strings import STRINGS
 
 logger = get_logger(__name__)
 
@@ -12,13 +12,13 @@ user_lang_cache = {}
 async def get_user_language(user_id: int) -> str:
     if user_id in user_lang_cache:
         return user_lang_cache[user_id]
-    
+
     settings = db_manager.get_user_settings(user_id)
     lang = settings.get('language_code', DEFAULT_LANGUAGE)
-    
+
     if lang not in SUPPORTED_LANGUAGES:
         lang = DEFAULT_LANGUAGE
-        
+
     user_lang_cache[user_id] = lang
     return lang
 
@@ -29,7 +29,7 @@ def set_user_language_cache(user_id: int, lang_code: str):
         user_lang_cache[user_id] = DEFAULT_LANGUAGE
     logger.debug(f"Обновлен кеш языка для user {user_id}: {user_lang_cache[user_id]}")
 
-def get_text(key: str, lang_code: str = DEFAULT_LANGUAGE, default: str = None, **kwargs) -> str:
+def get_text(key: str, lang_code: str = DEFAULT_LANGUAGE, default: str | None = None, **kwargs) -> str:
     if lang_code not in SUPPORTED_LANGUAGES:
         lang_code = DEFAULT_LANGUAGE
 
@@ -60,6 +60,6 @@ def get_text(key: str, lang_code: str = DEFAULT_LANGUAGE, default: str = None, *
         logger.error(f"Ошибка форматирования строки локализации '{key}' (язык: {lang_code}): {e}. Строка: '{final_string}' Передано: {kwargs}")
         return f"[{key}: Ошибка Формата]"
 
-async def get_user_text(user_id: int, key: str, default: str = None, **kwargs) -> str:
+async def get_user_text(user_id: int, key: str, default: str | None = None, **kwargs) -> str:
      lang_code = await get_user_language(user_id)
      return get_text(key, lang_code, default=default, **kwargs)

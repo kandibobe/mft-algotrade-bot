@@ -16,6 +16,8 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.frozen import FrozenEstimator
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.model_selection import TimeSeriesSplit, train_test_split
 
@@ -29,6 +31,8 @@ class TrainingConfig:
     # Model parameters
     model_type: str = "random_forest"  # random_forest, xgboost, lightgbm
     random_state: int = 42
+    use_calibration: bool = True
+    calibration_method: str = "sigmoid"  # sigmoid or isotonic
 
     # Data split
     test_size: float = 0.2
@@ -134,13 +138,40 @@ class ModelTrainer:
         if hyperparams:
             logger.info(f"Using pre-computed hyperparameters: {hyperparams}")
             self.model = self._create_model(**hyperparams)
-            self.model.fit(X, y)
         elif self.config.optimize_hyperparams:
             self.model, best_params = self._optimize_hyperparams(X, y, X_val, y_val)
             logger.info(f"Best hyperparameters: {best_params}")
         else:
             self.model = self._create_model()
-            self.model.fit(X, y)
+
+        # Wrap with calibration if requested
+        if self.config.use_calibration:
+            logger.info(f"Wrapping model with CalibratedClassifierCV ({self.config.calibration_method})")
+
+            if X_val is not None and y_val is not None:
+                # If we have validation data, we fit the base model first,
+                # then use the validation data for calibration.
+                # In sklearn 1.8.0+, we use FrozenEstimator instead of cv="prefit".
+                self.model.fit(X, y)
+                self.model = CalibratedClassifierCV(
+                    estimator=FrozenEstimator(self.model),
+                    method=self.config.calibration_method,
+                    cv=None # Uses all provided data for calibration because estimator is frozen
+                )
+                self.model.fit(X_val, y_val)
+            else:
+                # If no validation data, let CalibratedClassifierCV handle cross-validation
+                self.model = CalibratedClassifierCV(
+                    estimator=self.model,
+                    method=self.config.calibration_method,
+                    cv=5
+                )
+                self.model.fit(X, y)
+        else:
+            if self.config.model_type == "xgboost" and X_val is not None and y_val is not None:
+                self.model.fit(X, y, eval_set=[(X_val, y_val)], verbose=False)
+            else:
+                self.model.fit(X, y)
 
         # Calculate feature importance
         self._calculate_feature_importance(X)
@@ -279,13 +310,17 @@ class ModelTrainer:
 
     def _calculate_feature_importance(self, X: pd.DataFrame) -> None:
         """Calculate and store feature importance."""
-        if hasattr(self.model, "feature_importances_"):
+        model_to_check = self.model
+        if isinstance(self.model, CalibratedClassifierCV):
+            model_to_check = self.model.estimator
+
+        if hasattr(model_to_check, "feature_importances_"):
             importance = pd.DataFrame(
-                {"feature": X.columns, "importance": self.model.feature_importances_}
+                {"feature": X.columns, "importance": model_to_check.feature_importances_}
             ).sort_values("importance", ascending=False)
             self.feature_importance = importance
             logger.info("Top 10 features:")
-            for idx, row in importance.head(10).iterrows():
+            for _idx, row in importance.head(10).iterrows():
                 logger.info(f"  {row['feature']}: {row['importance']:.4f}")
 
     def _evaluate(self, X_val: pd.DataFrame, y_val: pd.Series) -> dict[str, float]:
@@ -327,6 +362,8 @@ class ModelTrainer:
             "config": {
                 "test_size": self.config.test_size,
                 "random_state": self.config.random_state,
+                "use_calibration": self.config.use_calibration,
+                "calibration_method": self.config.calibration_method,
             },
         }
         metadata_path = model_path.with_suffix(".json")
@@ -354,6 +391,12 @@ class ModelTrainer:
             y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
 
             model = self._create_model()
+            if self.config.use_calibration:
+                model = CalibratedClassifierCV(
+                    estimator=model,
+                    method=self.config.calibration_method,
+                    cv=5
+                )
             model.fit(X_train, y_train)
             y_pred = model.predict(X_val)
 

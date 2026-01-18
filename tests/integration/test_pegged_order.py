@@ -1,11 +1,13 @@
 import asyncio
-import unittest
 import time
+import unittest
 from unittest.mock import MagicMock, patch
-from src.order_manager.smart_order_executor import SmartOrderExecutor
+
+from src.order_manager.order_types import OrderSide
 from src.order_manager.smart_order import PeggedOrder
-from src.order_manager.order_types import OrderStatus, OrderSide
+from src.order_manager.smart_order_executor import SmartOrderExecutor
 from src.websocket.aggregator import AggregatedTicker
+
 
 class TestPeggedOrderExecution(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -28,7 +30,7 @@ class TestPeggedOrderExecution(unittest.IsolatedAsyncioTestCase):
         # Setup mocks
         mock_create.return_value = {"id": "exch_123", "status": "open"}
         mock_fetch.return_value = {"id": "exch_123", "status": "open", "filled": 0, "price": 100.0}
-        
+
         # Create a pegged buy order: Primary peg (Best Bid) + 0 offset
         order = PeggedOrder(
             symbol="BTC/USDT",
@@ -38,15 +40,15 @@ class TestPeggedOrderExecution(unittest.IsolatedAsyncioTestCase):
             offset=0.0,
             peg_side="primary"
         )
-        
+
         # Submit order
         # Need to wait a bit because submit_order is async and starts a task
         order_id = await self.executor.submit_order(order)
         await asyncio.sleep(0.1) # Give time for _manage_order to start
-        
+
         # Verify initial placement
         mock_create.assert_called_with("BTC/USDT", 1.0, 100.0, {})
-        
+
         # Simulate ticker update: Best Bid moves from 100 to 101
         ticker = AggregatedTicker(
             symbol="BTC/USDT",
@@ -61,10 +63,10 @@ class TestPeggedOrderExecution(unittest.IsolatedAsyncioTestCase):
             total_volume_24h=1000.0,
             timestamp=time.time()
         )
-        
+
         # Trigger process_ticker_update
         await self.executor._process_ticker_update(ticker)
-        
+
         # Verify order replacement
         mock_cancel.assert_called_with("exch_123", "BTC/USDT")
         # Should be called again with new price 101.0
@@ -76,7 +78,7 @@ class TestPeggedOrderExecution(unittest.IsolatedAsyncioTestCase):
     async def test_pegged_order_opposite_side(self, mock_fetch, mock_create):
         mock_create.return_value = {"id": "exch_124", "status": "open"}
         mock_fetch.return_value = {"id": "exch_124", "status": "open", "filled": 0, "price": 2000.0}
-        
+
         # Create a pegged buy order: Opposite peg (Best Ask) - 0.5 offset (Aggressive)
         order = PeggedOrder(
             symbol="ETH/USDT",
@@ -86,10 +88,10 @@ class TestPeggedOrderExecution(unittest.IsolatedAsyncioTestCase):
             offset=-0.5,
             peg_side="opposite"
         )
-        
+
         await self.executor.submit_order(order)
         await asyncio.sleep(0.1)
-        
+
         # Simulate ticker update: Best Ask is 2010.0
         ticker = AggregatedTicker(
             symbol="ETH/USDT",
@@ -104,9 +106,9 @@ class TestPeggedOrderExecution(unittest.IsolatedAsyncioTestCase):
             total_volume_24h=5000.0,
             timestamp=time.time()
         )
-        
+
         await self.executor._process_ticker_update(ticker)
-        
+
         # New price should be 2010.0 - 0.5 = 2009.5
         self.assertEqual(order.price, 2009.5)
 

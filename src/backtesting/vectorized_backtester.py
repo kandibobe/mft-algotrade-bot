@@ -17,8 +17,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 try:
     import cudf
@@ -91,7 +91,7 @@ class VectorizedBacktester:
             # Convert to cuDF for GPU acceleration
             signals_gpu = cudf.from_pandas(signals)
             ohlcv_gpu = cudf.from_pandas(ohlcv)
-            
+
             # Prepare cuDF arrays for fast iteration
             opens = ohlcv_gpu["open"].to_numpy()
             highs = ohlcv_gpu["high"].to_numpy()
@@ -107,7 +107,7 @@ class VectorizedBacktester:
             closes = ohlcv["close"].values
             times = ohlcv.index
             sig_values = signals.values
-        
+
         if CUDA_AVAILABLE:
             run_backtest_numba = self._create_numba_backtester()
             trades, equity_curve, final_capital = run_backtest_numba(
@@ -191,7 +191,7 @@ class VectorizedBacktester:
                             entry_fee = cost_outflow * self.config.fee_rate
                             current_capital -= cost_outflow + entry_fee
                             in_position = True
-                
+
                 if in_position:
                     if entry_idx > i:
                         total_equity = current_capital + (quantity * entry_price)
@@ -227,9 +227,9 @@ class VectorizedBacktester:
                     )
                 )
                 equity_curve[-1] = current_capital
-            
+
             final_capital = current_capital
-            
+
         return {
             "trades": pd.DataFrame(trades),
             "equity_curve": pd.Series(equity_curve, index=times[: len(equity_curve)]),
@@ -298,7 +298,7 @@ class VectorizedBacktester:
                             entry_fee = cost_outflow * fee_rate
                             current_capital -= cost_outflow + entry_fee
                             in_position = True
-                
+
                 if in_position:
                     if entry_idx > i:
                         total_equity = current_capital + (quantity * entry_price)
@@ -308,7 +308,7 @@ class VectorizedBacktester:
                 else:
                     total_equity = current_capital
                 equity_curve[i] = total_equity
-            
+
             if in_position:
                 i = n_bars - 1
                 exit_price = closes[i] * (1 - slippage_rate)
@@ -324,6 +324,6 @@ class VectorizedBacktester:
                     )
                 )
                 equity_curve[i] = current_capital
-            
+
             return trades, equity_curve, current_capital
         return run_backtest_numba

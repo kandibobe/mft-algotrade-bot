@@ -20,11 +20,10 @@ License: MIT
 import asyncio
 import random
 from datetime import datetime
-from typing import Dict, List, Optional
+
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-
 
 app = FastAPI(
     title="Mock Exchange API",
@@ -42,7 +41,7 @@ class OrderRequest(BaseModel):
     side: str  # 'buy' or 'sell'
     type: str  # 'limit' or 'market'
     quantity: float
-    price: Optional[float] = None
+    price: float | None = None
 
 
 class OrderResponse(BaseModel):
@@ -96,7 +95,7 @@ class MockDataStore:
             "BTC": {"available": 0.1, "locked": 0.0},
             "ETH": {"available": 1.0, "locked": 0.0},
         }
-        self.orders: List[Dict] = []
+        self.orders: list[dict] = []
         self.order_counter = 0
 
     def get_price(self, symbol: str) -> float:
@@ -106,11 +105,11 @@ class MockDataStore:
         fluctuation = random.uniform(-0.005, 0.005)
         return round(base * (1 + fluctuation), 8)
 
-    def create_order(self, order: OrderRequest) -> Dict:
+    def create_order(self, order: OrderRequest) -> dict:
         """Create a mock order."""
         self.order_counter += 1
         price = order.price if order.price else self.get_price(order.symbol)
-        
+
         order_data = {
             "order_id": f"MOCK-{self.order_counter:08d}",
             "symbol": order.symbol,
@@ -146,13 +145,13 @@ async def health_check():
 async def get_ticker(symbol: str):
     """Get price ticker for a symbol."""
     symbol = symbol.replace("-", "/").upper()
-    
+
     if symbol not in store.base_prices:
         raise HTTPException(status_code=404, detail=f"Symbol {symbol} not found")
-    
+
     price = store.get_price(symbol)
     spread = price * 0.0001  # 0.01% spread
-    
+
     return TickerResponse(
         symbol=symbol,
         bid=round(price - spread, 8),
@@ -168,24 +167,24 @@ async def get_ticker(symbol: str):
 async def get_orderbook(symbol: str, depth: int = 20):
     """Get order book for a symbol."""
     symbol = symbol.replace("-", "/").upper()
-    
+
     if symbol not in store.base_prices:
         raise HTTPException(status_code=404, detail=f"Symbol {symbol} not found")
-    
+
     price = store.get_price(symbol)
-    
+
     # Generate fake order book
     bids = []
     asks = []
-    
+
     for i in range(depth):
         bid_price = price * (1 - 0.0001 * (i + 1))
         ask_price = price * (1 + 0.0001 * (i + 1))
         quantity = random.uniform(0.1, 10)
-        
+
         bids.append([round(bid_price, 8), round(quantity, 8)])
         asks.append([round(ask_price, 8), round(quantity, 8)])
-    
+
     return {
         "symbol": symbol,
         "bids": bids,
@@ -198,13 +197,13 @@ async def get_orderbook(symbol: str, depth: int = 20):
 async def get_trades(symbol: str, limit: int = 100):
     """Get recent trades for a symbol."""
     symbol = symbol.replace("-", "/").upper()
-    
+
     if symbol not in store.base_prices:
         raise HTTPException(status_code=404, detail=f"Symbol {symbol} not found")
-    
+
     trades = []
     base_price = store.get_price(symbol)
-    
+
     for i in range(min(limit, 100)):
         price = base_price * random.uniform(0.999, 1.001)
         trades.append({
@@ -214,7 +213,7 @@ async def get_trades(symbol: str, limit: int = 100):
             "side": random.choice(["buy", "sell"]),
             "timestamp": datetime.utcnow().isoformat() + "Z"
         })
-    
+
     return {
         "symbol": symbol,
         "trades": trades
@@ -225,19 +224,19 @@ async def get_trades(symbol: str, limit: int = 100):
 async def create_order(order: OrderRequest):
     """Place a new order."""
     order.symbol = order.symbol.replace("-", "/").upper()
-    
+
     if order.symbol not in store.base_prices:
         raise HTTPException(status_code=404, detail=f"Symbol {order.symbol} not found")
-    
+
     if order.side not in ["buy", "sell"]:
         raise HTTPException(status_code=400, detail="Invalid side. Use 'buy' or 'sell'")
-    
+
     if order.type not in ["limit", "market"]:
         raise HTTPException(status_code=400, detail="Invalid type. Use 'limit' or 'market'")
-    
+
     if order.quantity <= 0:
         raise HTTPException(status_code=400, detail="Quantity must be positive")
-    
+
     order_data = store.create_order(order)
     return OrderResponse(**order_data)
 
@@ -257,17 +256,17 @@ async def get_balance():
 
 
 @app.get("/api/v1/orders")
-async def get_orders(symbol: Optional[str] = None, status: Optional[str] = None):
+async def get_orders(symbol: str | None = None, status: str | None = None):
     """Get order history."""
     orders = store.orders
-    
+
     if symbol:
         symbol = symbol.replace("-", "/").upper()
         orders = [o for o in orders if o["symbol"] == symbol]
-    
+
     if status:
         orders = [o for o in orders if o["status"] == status]
-    
+
     return {"orders": orders[-100:]}  # Return last 100 orders
 
 
@@ -284,7 +283,7 @@ async def cancel_order(order_id: str):
                     status_code=400,
                     detail=f"Cannot cancel order with status: {order['status']}"
                 )
-    
+
     raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
 
 
@@ -297,7 +296,7 @@ async def websocket_ticker(websocket, symbol: str):
     """WebSocket endpoint for real-time price updates."""
     await websocket.accept()
     symbol = symbol.replace("-", "/").upper()
-    
+
     try:
         while True:
             price = store.get_price(symbol)

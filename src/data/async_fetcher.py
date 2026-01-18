@@ -279,7 +279,7 @@ class AsyncDataFetcher:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         data = {}
-        for symbol, result in zip(symbols, results):
+        for symbol, result in zip(symbols, results, strict=False):
             if isinstance(result, Exception):
                 logger.error(f"Failed to fetch {symbol}: {result}")
                 data[symbol] = pd.DataFrame()

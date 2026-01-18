@@ -27,6 +27,7 @@ License: MIT
 
 import asyncio
 import logging
+import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -151,9 +152,17 @@ class TradingFeatureStore:
 
     def initialize(self):
         """Initialize Feast feature store."""
+        # 🛡️ Production Safety: Fail hard if Feast is missing in production
+        is_prod = os.getenv("ENV", "development").lower() == "production"
+
         if not FEAST_AVAILABLE:
-            logger.error("Feast is not available. Please install with: pip install feast")
-            raise ImportError("Feast is not available. Please install with: pip install feast")
+            msg = "Feast is not available. Please install with: pip install feast"
+            if is_prod:
+                logger.critical(f"PROD ERROR: {msg}")
+                raise RuntimeError(f"CRITICAL: Feature Store cannot start in PRODUCTION without Feast! {msg}")
+            else:
+                logger.error(msg)
+                raise ImportError(msg)
 
         try:
             self._store = FeatureStore(repo_path=self.config_path)
@@ -240,6 +249,9 @@ class TradingFeatureStore:
                     Field(name="spread", dtype=Float32),
                     Field(name="bid_ask_ratio", dtype=Float32),
                     Field(name="order_book_imbalance", dtype=Float32),
+                    Field(name="order_imbalance_proxy", dtype=Float32),
+                    Field(name="trade_flow_ratio", dtype=Float32),
+                    Field(name="spread_volatility", dtype=Float32),
                     Field(name="volume_ratio_5m", dtype=Float32),
                     Field(name="price_change_1h", dtype=Float32),
                     Field(name="price_change_24h", dtype=Float32),
@@ -328,6 +340,9 @@ class TradingFeatureStore:
                     "market_features:spread",
                     "market_features:bid_ask_ratio",
                     "market_features:order_book_imbalance",
+                    "market_features:order_imbalance_proxy",
+                    "market_features:trade_flow_ratio",
+                    "market_features:spread_volatility",
                     "market_features:volume_ratio_5m",
                     "market_features:price_change_1h",
                     "market_features:price_change_24h",
@@ -480,7 +495,7 @@ class TradingFeatureStore:
             data = {"symbol_id": symbol, "timestamp": timestamp, **features}
 
             # Convert to DataFrame
-            df = pd.DataFrame([data])
+            pd.DataFrame([data])
 
             # Write to Feast (this is a simplified example)
             # In production, you would use proper Feast data sources
@@ -693,6 +708,9 @@ class MockFeatureStore(TradingFeatureStore):
                 "spread": 10.0,
                 "bid_ask_ratio": 1.05,
                 "order_book_imbalance": 0.02,
+                "order_imbalance_proxy": 0.55,
+                "trade_flow_ratio": 0.1,
+                "spread_volatility": 0.001,
                 "volume_ratio_5m": 1.2,
                 "price_change_1h": 0.01,
                 "price_change_24h": 0.05,
@@ -859,17 +877,23 @@ class RedisFeatureStore(MockFeatureStore):
             # 1. Get the last known features from store/cache
             # (In a real implementation, we'd fetch the latest timestamp from Redis)
             logger.info(f"Performing incremental update for {symbol} with {len(new_ohlcv)} new candles")
-            
+
+            # 🛡️ Production Check
+            import os
+            if os.getenv("ENV") == "production":
+                logger.error("Incremental update not yet implemented for PRODUCTION Feast store.")
+                return
+
             # 2. Calculate features only for new windows
-            # This is a mock: in production, we'd use technical indicators 
+            # This is a mock: in production, we'd use technical indicators
             # that support incremental updates (e.g., EMA)
             for idx, row in new_ohlcv.iterrows():
                 # Simulate feature calculation
-                feat_dict = {"close": row['close'], "volume": row['volume']}
+                feat_dict = {"close": float(row['close']), "volume": float(row['volume'])}
                 self.write_features(symbol, idx, feat_dict)
-                
+
             logger.info(f"Successfully updated {len(new_ohlcv)} feature sets incrementally.")
-            
+
         except Exception as e:
             logger.error(f"Incremental update failed for {symbol}: {e}")
 
@@ -994,17 +1018,22 @@ def create_feature_store(
     Returns:
         TradingFeatureStore instance
     """
-    # Try to load config defaults if not provided
-    if not kwargs.get("config_path"):
-        # In a real scenario, we might want to get this from ConfigurationManager
-        # But FeatureStore might be used independently.
-        # Let's keep "feature_repo" as safe default but allow override.
-        pass
+    # 🛡️ Production Safety: Check environment
+    import os
+    is_prod = os.getenv("ENV", "development").lower() == "production"
+
+    if is_prod and use_mock:
+        logger.critical("PROD ERROR: Attempted to use MockFeatureStore in PRODUCTION!")
+        raise RuntimeError("CRITICAL: MockFeatureStore is PROHIBITED in PRODUCTION environment!")
 
     if use_redis:
         logger.info("Creating RedisFeatureStore")
         return RedisFeatureStore(**kwargs)
     elif use_mock or not FEAST_AVAILABLE:
+        if is_prod and not FEAST_AVAILABLE:
+             logger.critical("PROD ERROR: Feast not available in PRODUCTION!")
+             raise RuntimeError("CRITICAL: Feature Store must have Feast in PRODUCTION!")
+
         logger.info("Creating MockFeatureStore (Feast not available or mock requested)")
         return MockFeatureStore(**kwargs)
     else:

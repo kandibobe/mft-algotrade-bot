@@ -7,6 +7,7 @@ Allows switching between Live (CCXT) and Dry-Run (Mock) execution.
 """
 
 import abc
+import asyncio
 import logging
 
 try:
@@ -34,14 +35,14 @@ class IExchangeBackend(abc.ABC):
 
     @abc.abstractmethod
     async def create_limit_buy_order(
-        self, symbol: str, quantity: float, price: float, params: dict = None
+        self, symbol: str, quantity: float, price: float, params: dict | None = None
     ) -> dict:
         """Create a limit buy order."""
         pass
 
     @abc.abstractmethod
     async def create_limit_sell_order(
-        self, symbol: str, quantity: float, price: float, params: dict = None
+        self, symbol: str, quantity: float, price: float, params: dict | None = None
     ) -> dict:
         """Create a limit sell order."""
         pass
@@ -83,6 +84,9 @@ class CCXTBackend(IExchangeBackend):
                 "options": {"defaultType": "future"},
             }
         )
+
+        # Enable 429 error handling and retries via CCXT built-in
+        self.exchange.enableRateLimit = True
         # Verify connection (optional but good for safety)
         # await self.exchange.load_markets()
         logger.info(f"Initialized CCXTBackend for {self.name}")
@@ -92,23 +96,38 @@ class CCXTBackend(IExchangeBackend):
             await self.exchange.close()
 
     async def create_limit_buy_order(
-        self, symbol: str, quantity: float, price: float, params: dict = None
+        self, symbol: str, quantity: float, price: float, params: dict | None = None
     ) -> dict:
         return await self.exchange.create_limit_buy_order(symbol, quantity, price, params or {})
 
     async def create_limit_sell_order(
-        self, symbol: str, quantity: float, price: float, params: dict = None
+        self, symbol: str, quantity: float, price: float, params: dict | None = None
     ) -> dict:
         return await self.exchange.create_limit_sell_order(symbol, quantity, price, params or {})
 
     async def cancel_order(self, order_id: str, symbol: str) -> dict:
         return await self.exchange.cancel_order(order_id, symbol)
 
+    async def _execute_with_retry(self, func, *args, **kwargs):
+        """Execute exchange call with explicit 429 backoff."""
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                return await func(*args, **kwargs)
+            except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
+                wait_time = (i + 1) * 2
+                logger.warning(f"Rate limit hit (429). Waiting {wait_time}s before retry {i+1}/{max_retries}. Error: {e}")
+                await asyncio.sleep(wait_time)
+            except Exception as e:
+                if i == max_retries - 1:
+                    raise e
+                await asyncio.sleep(1)
+
     async def fetch_order(self, order_id: str, symbol: str) -> dict:
-        return await self.exchange.fetch_order(order_id, symbol)
+        return await self._execute_with_retry(self.exchange.fetch_order, order_id, symbol)
 
     async def fetch_positions(self) -> list[dict]:
-        return await self.exchange.fetch_positions()
+        return await self._execute_with_retry(self.exchange.fetch_positions)
 
 
 class MockExchangeBackend(IExchangeBackend):
@@ -154,12 +173,12 @@ class MockExchangeBackend(IExchangeBackend):
         return order
 
     async def create_limit_buy_order(
-        self, symbol: str, quantity: float, price: float, params: dict = None
+        self, symbol: str, quantity: float, price: float, params: dict | None = None
     ) -> dict:
         return self._create_mock_order(symbol, "buy", quantity, price)
 
     async def create_limit_sell_order(
-        self, symbol: str, quantity: float, price: float, params: dict = None
+        self, symbol: str, quantity: float, price: float, params: dict | None = None
     ) -> dict:
         return self._create_mock_order(symbol, "sell", quantity, price)
 

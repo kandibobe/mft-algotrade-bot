@@ -12,6 +12,12 @@ services:
       - ./user_data:/freqtrade/user_data
     ports:
       - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     command: >
       freqtrade trade 
       --logfile /freqtrade/user_data/logs/freqtrade.log 
@@ -42,6 +48,11 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
     environment:
       - VITE_API_URL=http://freqtrade:8080
       - NGINX_ENVSUBST_TEMPLATE_DIR=/nonexistent
@@ -67,7 +78,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./deploy/scripts/init-db/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql
     ports:
-      - "127.0.0.1:5434:5432"
+      - "127.0.0.1:5431:5432"
     deploy:
       resources:
         limits:

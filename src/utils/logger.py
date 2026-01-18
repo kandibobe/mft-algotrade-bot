@@ -35,9 +35,12 @@ Usage:
 import logging
 import logging.handlers
 import sys
+from pathlib import Path
 from typing import Any
 
+import sentry_sdk
 import structlog
+from sentry_sdk.integrations.logging import LoggingIntegration
 
 
 def setup_structured_logging(
@@ -46,6 +49,7 @@ def setup_structured_logging(
     enable_console: bool = True,
     enable_file: bool = False,
     file_path: str | None = None,
+    sentry_dsn: str | None = None,
 ) -> None:
     """
     Configure structured logging with structlog.
@@ -78,6 +82,11 @@ def setup_structured_logging(
         handlers.append(console_handler)
 
     if enable_file and file_path:
+        # Ensure log directory exists
+        log_dir = Path(file_path).parent
+        log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Main log file
         file_handler = logging.handlers.RotatingFileHandler(
             file_path,
             maxBytes=10 * 1024 * 1024,  # 10 MB
@@ -86,34 +95,91 @@ def setup_structured_logging(
         )
         handlers.append(file_handler)
 
-    # Apply handlers to root logger
-    root_logger = logging.getLogger()
-    for handler in handlers:
-        root_logger.addHandler(handler)
+        # Separate error.log
+        error_log_path = file_path.replace(".log", "_error.log")
+        error_handler = logging.handlers.RotatingFileHandler(
+            error_log_path,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        )
+        error_handler.setLevel(logging.ERROR)
+        handlers.append(error_handler)
+
+        # Separate trades.log
+        trades_log_path = file_path.replace(".log", "_trades.log")
+        trades_handler = logging.handlers.RotatingFileHandler(
+            trades_log_path,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        )
+
+        class TradeFilter(logging.Filter):
+            def filter(self, record):
+                # Capture trade executions and order updates for the trades log
+                msg_str = str(record.msg)
+                return hasattr(record, "msg") and (
+                    '"event_type": "trade_executed"' in msg_str or
+                    '"event_type": "order_update"' in msg_str
+                )
+
+        trades_handler.addFilter(TradeFilter())
+        handlers.append(trades_handler)
+
+    # Initialize Sentry if DSN is provided
+    if sentry_dsn:
+        sentry_logging = LoggingIntegration(
+            level=logging.INFO,  # Capture info and above as breadcrumbs
+            event_level=logging.ERROR,  # Send errors as events
+        )
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            integrations=[sentry_logging],
+            traces_sample_rate=0.1,
+            # Set environment and release if available
+            environment=getattr(sys, "frozen", "development") if not hasattr(sys, "frozen") else "production",
+        )
 
     # Configure structlog processors
-    processors = [
-        structlog.stdlib.filter_by_level,
-        structlog.stdlib.add_logger_name,
+    # These processors are applied to both structlog and standard logging calls
+    shared_processors = [
         structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
     ]
 
-    # Add JSON renderer for ELK or console renderer for development
-    if json_output:
-        processors.append(structlog.processors.JSONRenderer())
-    else:
-        processors.append(structlog.dev.ConsoleRenderer())
-
     structlog.configure(
-        processors=processors,
+        processors=[
+            structlog.stdlib.filter_by_level,
+            *shared_processors,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=True,
         wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
     )
+
+    # Create formatter that renders JSON or Console
+    # This formatter is used by standard logging handlers
+    formatter = structlog.stdlib.ProcessorFormatter(
+        # These run on the message after it's been processed by shared_processors
+        processor=structlog.processors.JSONRenderer() if json_output else structlog.dev.ConsoleRenderer(),
+        # These run on standard logging messages before they reach the processor
+        foreign_pre_chain=shared_processors,
+    )
+
+    # Apply formatter to all handlers and add to root logger
+    root_logger = logging.getLogger()
+    for handler in handlers:
+        handler.setFormatter(formatter)
+        root_logger.addHandler(handler)
 
     # Log initialization
     log = structlog.get_logger()
@@ -245,6 +311,7 @@ def log_order(
         "quantity": quantity,
         "status": status,
         "event_type": "order_update",
+        "trace_id": additional_context.get("trace_id") or f"trc_{order_id.split('_')[-1] if '_' in order_id else order_id[:8]}",
     }
     if price is not None:
         context["price"] = price

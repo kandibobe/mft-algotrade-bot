@@ -18,7 +18,7 @@ class SmartOrder(Order):
     """Base class for smart orders."""
 
     attribution_metadata: dict | None = None
-    
+
     # Latency Tracking
     signal_timestamp: float | None = None
     submission_timestamp: float | None = None
@@ -51,7 +51,7 @@ class ChaseLimitOrder(LimitOrder, SmartOrder):
     def on_ticker_update(self, ticker: dict):
         """
         Adjust price based on new ticker and L2 imbalance.
-        
+
         MFT Optimization:
         - If Buy + Positive Imbalance: stay at Best Bid (passive).
         - If Buy + Negative Imbalance: move closer to Best Ask or increase offset (aggressive).
@@ -67,23 +67,23 @@ class ChaseLimitOrder(LimitOrder, SmartOrder):
             return
 
         new_price = self.price
-        
+
         # Adaptive offset based on imbalance
         # imbalance > 0 means more bids (buying pressure)
         # imbalance < 0 means more asks (selling pressure)
         dynamic_offset = self.chase_offset
-        
+
         if self.is_buy:
             if imbalance < -0.3: # Selling pressure, price might drop or we might get front-run
                 dynamic_offset += 0.00001 # Micro-increase to be first in line
-            
+
             target_price = best_bid + dynamic_offset
             new_price = min(target_price, self.max_chase_price)
 
         else: # Sell
             if imbalance > 0.3: # Buying pressure, price might rise
                 dynamic_offset += 0.00001
-                
+
             target_price = best_ask - dynamic_offset
             new_price = max(target_price, self.max_chase_price)
 
@@ -130,21 +130,21 @@ class VWAPOrder(SmartOrder):
 class PeggedOrder(SmartOrder):
     """
     Order pegged to a reference price (Best Bid/Ask).
-    
+
     Logic:
     - Automatically updates price as market moves.
     - Maintains 'offset' distance.
     - Primary Peg: Buy @ Best Bid / Sell @ Best Ask
     - Opposite Peg: Buy @ Best Ask / Sell @ Best Bid (Aggressive)
     """
-    
+
     offset: float = 0.0
     peg_side: str = "primary" # 'primary' (same side) or 'opposite' (crossing spread)
-    
+
     def __post_init__(self):
         super().__post_init__()
         self.order_type = OrderType.PEGGED
-        
+
     def on_ticker_update(self, ticker: dict):
         """Adjust price based on pegged reference."""
         if not self.is_active:
@@ -152,19 +152,19 @@ class PeggedOrder(SmartOrder):
 
         best_bid = ticker.get("best_bid")
         best_ask = ticker.get("best_ask")
-        
+
         if not best_bid or not best_ask:
             return
-            
+
         new_price = self.price
-        
+
         if self.is_buy:
             reference = best_bid if self.peg_side == "primary" else best_ask
             new_price = reference + self.offset
         else: # Sell
             reference = best_ask if self.peg_side == "primary" else best_bid
             new_price = reference - self.offset
-            
+
         # Update if changed significantly
         if abs(new_price - self.price) > 0.0000001:
             logger.info(f"PeggedOrder {self.order_id}: Adjusting price {self.price} -> {new_price} (Ref: {reference})")

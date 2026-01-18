@@ -5,15 +5,12 @@ import logging
 import sys
 from pathlib import Path
 
-import pandas as pd
-import numpy as np
-
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.ml.training.feature_engineering import FeatureEngineer, FeatureConfig
 from src.data.loader import get_ohlcv
+from src.ml.training.feature_engineering import FeatureConfig, FeatureEngineer
 
 # Configure logging
 logging.basicConfig(
@@ -25,7 +22,7 @@ logger = logging.getLogger(__name__)
 def test_load_data():
     """Test loading and feature engineering."""
     logger.info("Testing data loading...")
-    
+
     # Load small amount of data
     df = get_ohlcv(
         exchange="binance",
@@ -33,11 +30,11 @@ def test_load_data():
         timeframe="5m",
         use_cache=True
     )
-    
+
     logger.info(f"Loaded {len(df)} rows")
     logger.info(f"Columns: {df.columns.tolist()}")
     logger.info(f"First few rows:\n{df.head()}")
-    
+
     # Try feature engineering
     config = FeatureConfig(
         enforce_stationarity=True,
@@ -51,26 +48,26 @@ def test_load_data():
         scale_features=False,
         remove_correlated=False,
     )
-    
+
     engineer = FeatureEngineer(config)
-    
+
     try:
         logger.info("Attempting fit_transform...")
         features_df = engineer.fit_transform(df.head(1000))  # Only first 1000 rows
-        logger.info(f"Feature engineering successful!")
+        logger.info("Feature engineering successful!")
         logger.info(f"Features shape: {features_df.shape}")
         logger.info(f"Features columns: {features_df.columns.tolist()}")
-        
+
         # Check for NaN
         nan_cols = features_df.columns[features_df.isnull().any()].tolist()
         logger.info(f"Columns with NaN: {nan_cols}")
-        
+
         if nan_cols:
             logger.info("Filling NaN with 0...")
             features_df = features_df.fillna(0)
-            
+
         return features_df
-        
+
     except Exception as e:
         logger.error(f"Feature engineering failed: {e}", exc_info=True)
         return None

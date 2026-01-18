@@ -2,14 +2,14 @@
 Tests for Model Registry
 """
 
-import pytest
 import tempfile
 from pathlib import Path
-from datetime import datetime
+
+import pytest
 
 from src.ml.training.model_registry import (
-    ModelRegistry,
     ModelMetadata,
+    ModelRegistry,
     ModelStatus,
 )
 

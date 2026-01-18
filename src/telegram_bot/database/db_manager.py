@@ -1,9 +1,15 @@
 # database/db_manager.py
 import sqlite3
-from typing import Optional, Dict, Any, List
-from src.telegram_bot.config_adapter import DATABASE_URL, DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, DEFAULT_ANALYSIS_PERIOD
-from src.utils.logger import get_logger
+from typing import Any
+
 from src.telegram_bot import constants
+from src.telegram_bot.config_adapter import (
+    DATABASE_URL,
+    DEFAULT_ANALYSIS_PERIOD,
+    DEFAULT_LANGUAGE,
+    SUPPORTED_LANGUAGES,
+)
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -14,7 +20,7 @@ def _get_connection() -> sqlite3.Connection:
         return conn
     except sqlite3.Error as e:
         logger.critical(f"Не удалось подключиться к базе данных '{db_path}': {e}")
-        raise 
+        raise
 
 def initialize_db():
     conn = _get_connection()
@@ -71,12 +77,12 @@ def initialize_db():
                 UNIQUE(user_id, asset_id)
             )
         """)
-        
+
         # Indexes
         cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_watchlist_user_id ON {constants.DB_TABLE_WATCHLIST}(user_id)")
         cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_alerts_user_id ON {constants.DB_TABLE_PRICE_ALERTS}(user_id)")
         cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_portfolio_user_id ON {constants.DB_TABLE_USER_PORTFOLIO}(user_id)")
-        
+
         conn.commit()
         logger.info("Структура базы данных инициализирована/проверена.")
     except sqlite3.Error as e:
@@ -87,13 +93,13 @@ def initialize_db():
 
 def _dict_factory(cursor, row):
     fields = [column[0] for column in cursor.description]
-    return {key: value for key, value in zip(fields, row)}
+    return dict(zip(fields, row, strict=False))
 
-def get_user_settings(user_id: int) -> Dict[str, Any]:
+def get_user_settings(user_id: int) -> dict[str, Any]:
     conn = _get_connection()
-    conn.row_factory = _dict_factory 
+    conn.row_factory = _dict_factory
     cursor = conn.cursor()
-    settings: Optional[Dict[str, Any]] = None
+    settings: dict[str, Any] | None = None
     try:
         cursor.execute(f"SELECT * FROM {constants.DB_TABLE_USER_SETTINGS} WHERE user_id = ?", (user_id,))
         settings = cursor.fetchone()
@@ -109,17 +115,17 @@ def get_user_settings(user_id: int) -> Dict[str, Any]:
             values = list(default_settings.values())
             cursor.execute(f"INSERT INTO {constants.DB_TABLE_USER_SETTINGS} ({columns}) VALUES ({placeholders})", values)
             conn.commit()
-            settings = default_settings 
+            settings = default_settings
             logger.info(f"Настройки по умолчанию для пользователя {user_id} созданы.")
         else:
             if constants.DB_FIELD_IS_PREMIUM not in settings:
                 logger.warning(f"Отсутствует поле '{constants.DB_FIELD_IS_PREMIUM}' для user {user_id}. Добавление со значением False.")
                 update_user_settings(user_id, {constants.DB_FIELD_IS_PREMIUM: False})
-                settings[constants.DB_FIELD_IS_PREMIUM] = False 
+                settings[constants.DB_FIELD_IS_PREMIUM] = False
             if settings.get('language_code') not in SUPPORTED_LANGUAGES:
                 logger.warning(f"Некорректный язык '{settings.get('language_code')}' для user {user_id}. Установка '{DEFAULT_LANGUAGE}'.")
                 update_user_settings(user_id, {'language_code': DEFAULT_LANGUAGE})
-                settings['language_code'] = DEFAULT_LANGUAGE 
+                settings['language_code'] = DEFAULT_LANGUAGE
     except sqlite3.Error as e:
         logger.error(f"Ошибка получения настроек для user {user_id}: {e}", exc_info=True)
         settings = {
@@ -133,18 +139,18 @@ def get_user_settings(user_id: int) -> Dict[str, Any]:
             'notifications_enabled': True, constants.DB_FIELD_IS_PREMIUM: False
         }
 
-def update_user_settings(user_id: int, updates: Dict[str, Any]) -> bool:
+def update_user_settings(user_id: int, updates: dict[str, Any]) -> bool:
     if not updates: return False
     conn = _get_connection()
     cursor = conn.cursor()
     set_clause = ", ".join([f"{key} = ?" for key in updates.keys()])
     values = list(updates.values())
-    values.append(user_id) 
+    values.append(user_id)
     success = False
     try:
         cursor.execute(f"UPDATE {constants.DB_TABLE_USER_SETTINGS} SET {set_clause} WHERE user_id = ?", tuple(values))
         conn.commit()
-        success = cursor.rowcount > 0 
+        success = cursor.rowcount > 0
         if not success:
              logger.warning(f"Обновление настроек не затронуло строк для user {user_id}. (Настройки: {updates})")
         else:
@@ -181,13 +187,13 @@ def add_to_watchlist(user_id: int, asset_type: str, asset_id: str) -> bool:
         conn.commit()
         logger.info(f"Актив '{asset_id}' ({asset_type}) добавлен в watchlist для user {user_id}.")
         success = True
-    except sqlite3.IntegrityError: 
+    except sqlite3.IntegrityError:
         logger.warning(f"Актив '{asset_id}' уже существует в watchlist для user {user_id}.")
-        success = False 
+        success = False
     except sqlite3.Error as e:
         logger.error(f"Ошибка добавления в watchlist user {user_id}, актив {asset_id}: {e}", exc_info=True)
         conn.rollback()
-        success = False 
+        success = False
     finally:
         conn.close()
     return success
@@ -199,7 +205,7 @@ def remove_from_watchlist(user_id: int, asset_id: str) -> bool:
     try:
         cursor.execute(f"DELETE FROM {constants.DB_TABLE_WATCHLIST} WHERE user_id = ? AND asset_id = ?", (user_id, asset_id))
         conn.commit()
-        success = cursor.rowcount > 0 
+        success = cursor.rowcount > 0
         if success:
             logger.info(f"Актив '{asset_id}' удален из watchlist для user {user_id}.")
         else:
@@ -212,7 +218,7 @@ def remove_from_watchlist(user_id: int, asset_id: str) -> bool:
         conn.close()
     return success
 
-def get_watchlist(user_id: int) -> List[Dict[str, str]]:
+def get_watchlist(user_id: int) -> list[dict[str, str]]:
     conn = _get_connection()
     conn.row_factory = _dict_factory
     cursor = conn.cursor()
@@ -226,10 +232,10 @@ def get_watchlist(user_id: int) -> List[Dict[str, str]]:
         conn.close()
     return watchlist if watchlist is not None else []
 
-def add_alert(user_id: int, asset_type: str, asset_id: str, alert_type: str, condition: str, target_value: float) -> Optional[int]:
+def add_alert(user_id: int, asset_type: str, asset_id: str, alert_type: str, condition: str, target_value: float) -> int | None:
     conn = _get_connection()
     cursor = conn.cursor()
-    alert_id: Optional[int] = None
+    alert_id: int | None = None
     try:
         cursor.execute(f"""
             INSERT INTO {constants.DB_TABLE_PRICE_ALERTS}
@@ -237,7 +243,7 @@ def add_alert(user_id: int, asset_type: str, asset_id: str, alert_type: str, con
             VALUES (?, ?, ?, ?, ?, ?)
         """, (user_id, asset_type, asset_id, alert_type, condition, target_value))
         conn.commit()
-        alert_id = cursor.lastrowid 
+        alert_id = cursor.lastrowid
         if alert_id:
              logger.info(f"Алерт (тип: {alert_type}) ID {alert_id} создан для user {user_id} ({asset_id} {condition} {target_value}).")
         else:
@@ -249,7 +255,7 @@ def add_alert(user_id: int, asset_type: str, asset_id: str, alert_type: str, con
         conn.close()
     return alert_id
 
-def get_price_alerts(user_id: Optional[int] = None) -> List[Dict[str, Any]]:
+def get_price_alerts(user_id: int | None = None) -> list[dict[str, Any]]:
     conn = _get_connection()
     conn.row_factory = _dict_factory
     cursor = conn.cursor()
@@ -304,7 +310,7 @@ def update_alert_trigger_time(alert_id: int, timestamp: int) -> bool:
         conn.close()
     return success
 
-def get_subscribed_users() -> List[int]:
+def get_subscribed_users() -> list[int]:
     conn = _get_connection()
     cursor = conn.cursor()
     user_ids = []
@@ -317,14 +323,14 @@ def get_subscribed_users() -> List[int]:
         conn.close()
     return user_ids
 
-def update_price_alert_fields(user_id: int, alert_id: int, updates: Dict[str, Any]) -> bool:
+def update_price_alert_fields(user_id: int, alert_id: int, updates: dict[str, Any]) -> bool:
     if not updates:
         logger.warning(f"Нет данных для обновления алерта ID {alert_id} для user {user_id}")
         return False
-    
+
     conn = _get_connection()
     cursor = conn.cursor()
-    
+
     set_clause_parts = []
     values = []
     for key, value in updates.items():
@@ -333,7 +339,7 @@ def update_price_alert_fields(user_id: int, alert_id: int, updates: Dict[str, An
             values.append(value)
         else:
             logger.warning(f"Попытка обновить неразрешенное поле '{key}' для алерта ID {alert_id}")
-            
+
     if not set_clause_parts:
         logger.warning(f"Нет разрешенных полей для обновления в алерте ID {alert_id}. Updates: {updates}")
         conn.close()
@@ -342,12 +348,12 @@ def update_price_alert_fields(user_id: int, alert_id: int, updates: Dict[str, An
     set_clause = ", ".join(set_clause_parts)
     values.append(alert_id)
     values.append(user_id)
-    
+
     success = False
     try:
         cursor.execute(f"UPDATE {constants.DB_TABLE_PRICE_ALERTS} SET {set_clause} WHERE id = ? AND user_id = ?", tuple(values))
         conn.commit()
-        success = cursor.rowcount > 0 
+        success = cursor.rowcount > 0
         if success:
             logger.info(f"Алерт ID {alert_id} для user {user_id} обновлен: {updates}.")
         else:
@@ -362,7 +368,7 @@ def update_price_alert_fields(user_id: int, alert_id: int, updates: Dict[str, An
 
 # --- Portfolio Functions ---
 
-def get_portfolio(user_id: int) -> List[Dict[str, Any]]:
+def get_portfolio(user_id: int) -> list[dict[str, Any]]:
     conn = _get_connection()
     conn.row_factory = _dict_factory
     cursor = conn.cursor()

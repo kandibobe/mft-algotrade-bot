@@ -1,5 +1,6 @@
 import pandera as pa
-from pandera.typing import DataFrame, Series
+from pandera.typing import Series
+
 
 class OHLCVSchema(pa.DataFrameModel):
     """
@@ -16,7 +17,7 @@ class OHLCVSchema(pa.DataFrameModel):
     def high_ge_low(cls, high: Series[float], *, low: Series[float]) -> bool:
         """Check that the high is always greater than or equal to the low."""
         return (high >= low).all()
-        
+
     class Config:
         strict = False  # Allow other columns to be present
         coerce = True   # Coerce data types if possible

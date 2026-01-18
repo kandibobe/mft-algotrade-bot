@@ -25,7 +25,7 @@ from src.strategies.core_logic import StoicLogic
 logger = logging.getLogger(__name__)
 
 
-def run_reality_check(pairs: list[str] = None, hours: int = 24):
+def run_reality_check(pairs: list[str] | None = None, hours: int = 24):
     """
     Run the reality check simulation.
     """
@@ -263,7 +263,7 @@ def run_reality_check(pairs: list[str] = None, hours: int = 24):
             print("-" * 60)
             print(f"{'Timestamp':<25} | {'Live':<6} | {'Sim':<6} | {'Sim Conf':<8}")
             print("-" * 60)
-            for idx, row in discrepancies.head(10).iterrows():  # Show top 10
+            for _idx, row in discrepancies.head(10).iterrows():  # Show top 10
                 ts_str = str(row["timestamp"])
                 print(
                     f"{ts_str:<25} | {row['live_signal']:<6} | {row['sim_signal']:<6} | {row['ml_prediction']:.4f}"

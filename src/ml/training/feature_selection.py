@@ -123,7 +123,7 @@ class FeatureSelector:
         self.feature_importance = self._combine_importances(shap_importance, perm_importance)
 
         # Step 3: Add noise feature and filter
-        X_with_noise, noise_importance = self._add_noise_feature(X_uncorrelated, y, model)
+        _X_with_noise, noise_importance = self._add_noise_feature(X_uncorrelated, y, model)
 
         # Step 4: Filter features below noise threshold
         noise_threshold = noise_importance * self.config.noise_multiplier
@@ -234,7 +234,7 @@ class FeatureSelector:
             # Calculate mean absolute SHAP value per feature
             importance = np.abs(shap_values).mean(axis=0)
 
-            return dict(zip(X.columns, importance))
+            return dict(zip(X.columns, importance, strict=False))
 
         except ImportError:
             logger.warning("SHAP not installed, skipping SHAP importance")
@@ -265,13 +265,13 @@ class FeatureSelector:
 
             importance = result.importances_mean
 
-            return dict(zip(X.columns, importance))
+            return dict(zip(X.columns, importance, strict=False))
 
         except Exception as e:
             logger.warning(f"Permutation importance failed: {e}")
             # Fall back to model's built-in importance
             if hasattr(model, "feature_importances_"):
-                return dict(zip(X.columns, model.feature_importances_))
+                return dict(zip(X.columns, model.feature_importances_, strict=False))
             return {}
 
     def _combine_importances(

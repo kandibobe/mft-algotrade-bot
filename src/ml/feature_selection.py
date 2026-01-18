@@ -7,8 +7,10 @@ Helps identify and remove noisy features that don't contribute to model performa
 """
 
 import logging
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+
 try:
     import shap
     SHAP_AVAILABLE = True
@@ -35,24 +37,24 @@ class FeatureSelectorSHAP:
             return X
 
         logger.info(f"Running SHAP feature selection on {X.shape[1]} features...")
-        
+
         try:
             # Use TreeExplainer for tree-based models (XGBoost, LightGBM)
             explainer = shap.TreeExplainer(self.model)
             shap_values = explainer.shap_values(X)
-            
+
             # For multiclass, shap_values is a list. Take mean absolute value across all classes.
             if isinstance(shap_values, list):
                 importance = np.mean([np.abs(v).mean(0) for v in shap_values], axis=0)
             else:
                 importance = np.abs(shap_values).mean(0)
-                
+
             feature_importance = pd.Series(importance, index=X.columns)
             self.selected_features = feature_importance.sort_values(ascending=False).head(top_n).index.tolist()
-            
+
             logger.info(f"Selected top {len(self.selected_features)} features using SHAP.")
             return X[self.selected_features]
-            
+
         except Exception as e:
             logger.error(f"SHAP selection failed: {e}")
             return X

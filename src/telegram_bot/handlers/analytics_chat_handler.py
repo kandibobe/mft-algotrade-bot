@@ -1,23 +1,16 @@
 # handlers/analytics_chat_handler.py
 import asyncio
-import html
-from typing import Optional
-
-from telegram import Update
-from telegram.ext import (
-    ContextTypes, CommandHandler, MessageHandler, filters,
-    ConversationHandler
-)
-from telegram.constants import ParseMode
-
-from src.telegram_bot.services import user_manager
-from src.telegram_bot.localization.manager import get_user_language, get_text
-from src.telegram_bot import constants
-from src.utils.logger import get_logger
-from src.telegram_bot.handlers import common as common_handlers
-from openai import OpenAI
-from src.telegram_bot.config_adapter import OPENAI_API_KEY
 from datetime import datetime
+
+from openai import OpenAI
+from telegram import Update
+from telegram.ext import CommandHandler, ContextTypes, ConversationHandler, MessageHandler, filters
+
+from src.telegram_bot import constants
+from src.telegram_bot.config_adapter import OPENAI_API_KEY
+from src.telegram_bot.handlers import common as common_handlers
+from src.telegram_bot.localization.manager import get_text, get_user_language
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -48,7 +41,7 @@ async def get_llm_response(user_input: str, user_id: int) -> str:
     """
     try:
         logger.info(f"Отправка запроса в OpenAI для user {user_id}: '{user_input[:50]}...'")
-        
+
         # Запускаем синхронный вызов API в отдельном потоке, чтобы не блокировать бота
         response = await asyncio.to_thread(
             client.chat.completions.create,
@@ -86,7 +79,7 @@ async def handle_chat_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     loading_msg = await update.message.reply_text("🤖 AI-аналитик думает...")
     llm_answer = await get_llm_response(user_input, user_id)
-    
+
     # Используем parse_mode=None, так как ответ от LLM может содержать Markdown-разметку
     await loading_msg.edit_text(llm_answer, parse_mode=None)
 

@@ -84,6 +84,10 @@ class OnlineMetaEnsemble:
             X: New features.
             y_true: True labels for the new features.
         """
+        # 0. Regime-Adaptive Meta-Learning (Task 9 - Plan)
+        # We can dynamically adjust meta-learner weights based on regime detection
+        # If volatility is high, we might want to favor models trained on volatile data.
+
         # 1. Update each online learner with the new data.
         for learner in self.online_learners:
             learner.batch_update(X, y_true)
@@ -107,6 +111,17 @@ class OnlineMetaEnsemble:
             # but in a production system you would.
             # self.meta_learner.train_with_validation_split(X_recent, y_recent)
             pass
+
+    def adapt_to_regime(self, regime: str) -> None:
+        """
+        Adjust ensemble strategy based on detected market regime.
+        """
+        logger.info(f"Ensemble adapting to regime: {regime}")
+        if regime == "volatile":
+            # Example: Increase threshold for meta-learner
+            self.meta_learner.config.min_confidence = 0.7
+        else:
+            self.meta_learner.config.min_confidence = 0.5
 
     def get_status(self) -> dict[str, Any]:
         """

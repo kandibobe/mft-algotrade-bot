@@ -1,25 +1,30 @@
 # handlers/alert_handler.py
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    ContextTypes, CommandHandler, MessageHandler, filters,
-    ConversationHandler, CallbackQueryHandler
-)
-from telegram.constants import ParseMode
-from telegram.error import TelegramError, BadRequest
 import html
-import time
 import re
-from src.telegram_bot.services import user_manager, data_fetcher
-from src.telegram_bot.localization.manager import get_user_language, get_text
-from src.telegram_bot import constants
-from src.utils.logger import get_logger
-from src.telegram_bot.handlers import common as common_handlers
+
 # УБИРАЕМ ЦИКЛИЧЕСКИЕ ИМПОРТЫ
 # from src.telegram_bot.handlers import report_handler, signal_handler, watchlist_handler, misc_handler
 # from src.telegram_bot.handlers import news_handler, settings_handler, volatility_handler, explain_handler
 # from src.telegram_bot.handlers import language_handler, feedback_handler
 from datetime import datetime
-from typing import Optional, Tuple, Any, Dict
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+from telegram.error import BadRequest
+from telegram.ext import (
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
+    filters,
+)
+
+from src.telegram_bot import constants
+from src.telegram_bot.handlers import common as common_handlers
+from src.telegram_bot.localization.manager import get_text, get_user_language
+from src.telegram_bot.services import data_fetcher, user_manager
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -41,7 +46,7 @@ async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Запрос списка алертов от user_id {user_id}")
     alerts = user_manager.get_user_price_alerts(user_id)
     limits = user_manager.get_user_limits(user_id)
-    
+
     header_text = get_text(constants.TITLE_ALERTS, lang_code, count=len(alerts), limit=limits['alerts'])
     keyboard_rows = []
 
@@ -57,7 +62,7 @@ async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 try:
                     created_at_str = datetime.strptime(alert['created_at'], '%Y-%m-%d %H:%M:%S').strftime('%d.%m.%y')
                 except ValueError: pass
-            
+
             if alert_type == constants.ALERT_TYPE_RSI:
                 alert_text_display = get_text(constants.MSG_ALERT_ITEM_RSI, lang_code, alert_id=alert['id'], asset_id=ticker, condition=html.escape(alert['condition']), value=int(alert['target_value']), created_at=created_at_str)
             else:
@@ -131,7 +136,7 @@ async def delalert_confirmed_callback(update: Update, context: ContextTypes.DEFA
         await context.bot.send_message(user_id, get_text(constants.MSG_DELALERT_SUCCESS, lang_code, alert_id=alert_id))
     else:
         await context.bot.send_message(user_id, get_text(constants.ERROR_DELALERT_NOTFOUND, lang_code, alert_id=alert_id))
-    
+
     await alerts_command(update, context)
 
 
@@ -165,7 +170,7 @@ async def delalert_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def addalert_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
     lang_code = await get_user_language(user_id)
-    
+
     limits = user_manager.get_user_limits(user_id)
     if user_manager.get_price_alert_count(user_id) >= limits['alerts']:
         await update.message.reply_text(get_text(constants.ERROR_ADDALERT_LIMIT, lang_code, limit=limits['alerts'], premium_ad=get_text(constants.MSG_PREMIUM_AD_TEXT, lang_code)))
@@ -180,7 +185,7 @@ async def addalert_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def _handle_quick_price_alert(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> bool:
     user_id = update.effective_user.id
     lang_code = await get_user_language(user_id)
-    
+
     match_abs = re.match(constants.ALERT_QUICK_ADD_REGEX, text, re.IGNORECASE)
     if match_abs:
         ticker, condition, value_str = match_abs.groups()
@@ -197,10 +202,10 @@ async def _handle_quick_price_alert(update: Update, context: ContextTypes.DEFAUL
         except ValueError:
             await update.message.reply_text(get_text(constants.ERROR_ADDALERT_INVALID_VALUE, lang_code))
             return True
-        
+
         asset_type, asset_id = asset_info
         result_code, new_alert_id = user_manager.add_user_alert(user_id, asset_type, asset_id, constants.ALERT_TYPE_PRICE, condition, target_value)
-        
+
         if result_code == user_manager.OPERATION_SUCCESS:
             reply_text = get_text(constants.MSG_ADDALERT_QUICK_SUCCESS, lang_code, alert_id=new_alert_id, asset_id=ticker, condition=html.escape(condition), value=target_value)
             await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
@@ -230,9 +235,9 @@ async def _handle_quick_price_alert(update: Update, context: ContextTypes.DEFAUL
             await update.message.reply_text(get_text(constants.MSG_ERROR_GENERAL, lang_code))
             return True
         loading_msg = await update.message.reply_text(get_text(constants.MSG_LOADING, lang_code))
-        
+
         asset_type, asset_id = asset_info
-        price_data: Optional[Tuple[Optional[float], Optional[float], str]] = None
+        price_data: tuple[float | None, float | None, str] | None = None
         if asset_type == constants.ASSET_CRYPTO:
             prices = await data_fetcher.fetch_current_crypto_data(session, [asset_id])
             price_data = prices.get(asset_id)
@@ -245,14 +250,14 @@ async def _handle_quick_price_alert(update: Update, context: ContextTypes.DEFAUL
         if not price_data or price_data[0] is None or price_data[2] != data_fetcher.STATUS_OK:
             await update.message.reply_text(get_text(constants.ERROR_ADDALERT_FETCH_PRICE, lang_code, ticker=ticker))
             return True
-        
+
         current_price = price_data[0]
         condition = ">" if sign == "+" else "<"
         target_price = current_price * (1 + (percent_change / 100) if sign == "+" else - (percent_change / 100))
         result_code, new_alert_id = user_manager.add_user_alert(user_id, asset_type, asset_id, constants.ALERT_TYPE_PRICE, condition, target_price)
-        
+
         if result_code == user_manager.OPERATION_SUCCESS:
-            reply_text = get_text(constants.MSG_ADDALERT_PERCENT_SUCCESS, lang_code, 
+            reply_text = get_text(constants.MSG_ADDALERT_PERCENT_SUCCESS, lang_code,
                                   alert_id=new_alert_id, asset_id=ticker, condition=html.escape(condition),
                                   target_price=target_price, sign=sign, percent=percent_change)
             await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
@@ -265,7 +270,7 @@ async def ask_asset_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not update.message or not update.message.text: return ASK_ASSET
     user_id = update.effective_user.id
     lang_code = await get_user_language(user_id)
-    
+
     if await _handle_quick_price_alert(update, context, update.message.text):
         return ConversationHandler.END
 
@@ -281,7 +286,7 @@ async def ask_asset_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     keyboard = [[InlineKeyboardButton(get_text(constants.BTN_ALERT_TYPE_PRICE, lang_code), callback_data=f"{constants.CB_ACTION_CHOOSE_ALERT_TYPE}{constants.ALERT_TYPE_PRICE}")]]
     if asset_info[0] == constants.ASSET_CRYPTO:
         keyboard[0].append(InlineKeyboardButton(get_text(constants.BTN_ALERT_TYPE_RSI, lang_code), callback_data=f"{constants.CB_ACTION_CHOOSE_ALERT_TYPE}{constants.ALERT_TYPE_RSI}"))
-    
+
     await update.message.reply_text(get_text(constants.PROMPT_ADDALERT_TYPE, lang_code, ticker=html.escape(ticker)), reply_markup=InlineKeyboardMarkup(keyboard))
     return CHOOSE_TYPE
 
@@ -306,7 +311,7 @@ async def ask_price_condition(update: Update, context: ContextTypes.DEFAULT_TYPE
     current_price_text = ""
     session = context.bot_data.get('aiohttp_session')
     if session and not session.closed:
-        price_data: Optional[Tuple[Optional[float], Optional[float], str]] = None
+        price_data: tuple[float | None, float | None, str] | None = None
         try:
             if asset_type == constants.ASSET_CRYPTO:
                 prices = await data_fetcher.fetch_current_crypto_data(session, [asset_id])
@@ -389,7 +394,7 @@ async def received_rsi_condition_button(update: Update, context: ContextTypes.DE
     await query.edit_message_reply_markup(reply_markup=None)
     data = context.user_data
     result_code, new_alert_id = user_manager.add_user_alert(user_id, data['alert_asset_type'], data['alert_asset_id'], data['alert_type'], condition, float(target_value))
-    
+
     if result_code == user_manager.OPERATION_SUCCESS:
         reply_text = get_text(constants.MSG_ADDALERT_SUCCESS_RSI, lang_code, alert_id=new_alert_id, asset_id=html.escape(data['alert_ticker']), condition=html.escape(condition), value=target_value)
         await context.bot.send_message(chat_id=user_id, text=reply_text, reply_markup=common_handlers.get_main_keyboard(lang_code))
@@ -418,7 +423,7 @@ async def edit_alert_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     except (IndexError, ValueError):
         await query.edit_message_text(get_text(constants.MSG_ERROR_GENERAL, lang_code))
         return ConversationHandler.END
-    
+
     alert_data = next((a for a in user_manager.get_user_price_alerts(user_id) if a['id'] == alert_id), None)
     if not alert_data:
         await query.edit_message_text(get_text(constants.ERROR_DELALERT_NOTFOUND, lang_code, alert_id=alert_id))
@@ -463,7 +468,7 @@ async def edit_alert_receive_condition(update: Update, context: ContextTypes.DEF
     await query.answer()
     try:
         _, new_condition = query.data[len(CB_EA_SET_COND_PREFIX):].split('_', 1)
-    except (IndexError, ValueError) as e:
+    except (IndexError, ValueError):
         await query.edit_message_text(get_text(constants.MSG_ERROR_GENERAL, await get_user_language(update.effective_user.id)))
         return ConversationHandler.END
 
@@ -576,7 +581,7 @@ add_alert_conv_handler = ConversationHandler(
         ASK_PRICE_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_price_alert_finish)],
         ASK_RSI_CONDITION: [CallbackQueryHandler(received_rsi_condition_button, pattern=f"^{constants.CB_ACTION_SET_RSI_COND}")],
     },
-    fallbacks=common_fallbacks_for_alert_dialogs + [CommandHandler(constants.CMD_CANCEL, cancel_addalert)],
+    fallbacks=[*common_fallbacks_for_alert_dialogs, CommandHandler(constants.CMD_CANCEL, cancel_addalert)],
     conversation_timeout=300.0,
     per_user=True, per_chat=True, per_message=False
 )
@@ -595,10 +600,7 @@ edit_alert_conv_handler = ConversationHandler(
             CallbackQueryHandler(edit_alert_cancel, pattern=f"^{CB_EA_CANCEL_SINGLE}{constants.ALERT_ID_REGEX_PART}$")
         ]
     },
-    fallbacks=common_fallbacks_for_alert_dialogs + [
-        CallbackQueryHandler(edit_alert_cancel, pattern=f"^{CB_EA_CANCEL_SINGLE}{constants.ALERT_ID_REGEX_PART}$"),
-        CommandHandler(constants.CMD_CANCEL, edit_alert_cancel)
-    ],
+    fallbacks=[*common_fallbacks_for_alert_dialogs, CallbackQueryHandler(edit_alert_cancel, pattern=f"^{CB_EA_CANCEL_SINGLE}{constants.ALERT_ID_REGEX_PART}$"), CommandHandler(constants.CMD_CANCEL, edit_alert_cancel)],
     conversation_timeout=300.0,
     per_user=True, per_chat=True, per_message=False
 )

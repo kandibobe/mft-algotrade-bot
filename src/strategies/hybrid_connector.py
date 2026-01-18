@@ -50,7 +50,7 @@ class HybridConnectorMixin:
     ) -> None:
         """
         Initialize the Hybrid Connector and start the Websocket Aggregator in a background thread.
-        
+
         This method acts as the entry point for bridging the synchronous strategy loop
         with the asynchronous execution layer. It sets up the event loop, aggregator,
         and order executor.
@@ -60,7 +60,7 @@ class HybridConnectorMixin:
             exchange_name: Optional override for exchange name. Defaults to config.
             shadow_mode: If True, executes in shadow mode (no real orders).
             risk_manager: Optional RiskManager instance for pre-trade checks.
-        
+
         Raises:
             Exception: If configuration loading fails.
         """
@@ -182,10 +182,10 @@ class HybridConnectorMixin:
             return 0.0
         return getattr(ticker, 'imbalance', 0.0)
 
-    def submit_smart_order(self, order: "SmartOrder", exchange: str = None) -> str | None:
+    def submit_smart_order(self, order: "SmartOrder", exchange: str | None = None) -> str | None:
         """
         Submit an order to the Smart Order Executor.
-        
+
         This is the bridge method that routes strategy signals to the AsyncIO executor.
         It must be thread-safe as it's called from the sync strategy thread.
         """
@@ -196,7 +196,7 @@ class HybridConnectorMixin:
         if self._loop and self._loop.is_running():
             # Schedule the coroutine in the background loop
             future = asyncio.run_coroutine_threadsafe(
-                self._executor.submit_order(order, exchange), 
+                self._executor.submit_order(order, exchange),
                 self._loop
             )
             try:

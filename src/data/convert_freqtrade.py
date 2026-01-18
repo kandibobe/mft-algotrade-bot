@@ -7,7 +7,6 @@ Converts Freqtrade JSON/H5 data to Feather format for high-performance loading.
 
 import logging
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 
@@ -38,7 +37,7 @@ def convert_freqtrade_data(data_dir: str | None = None):
 
             logger.info(f"Converting {json_file.name}...")
             df = pd.read_json(json_file)
-            
+
             # Freqtrade format usually needs some renaming/sorting
             # but we assume standard format for now
             df.to_feather(feather_file)

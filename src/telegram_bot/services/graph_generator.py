@@ -1,11 +1,14 @@
 # services/graph_generator.py
-import pandas as pd
-import mplfinance as mpf
 import io
-from datetime import datetime, date
-from typing import List, Tuple, Optional, Union, Dict
+from datetime import date, datetime
+from typing import Union
+
+import matplotlib
+import mplfinance as mpf
+import pandas as pd
+
 from src.utils.logger import get_logger
-import matplotlib 
+
 matplotlib.use('Agg') # Используем бэкенд Agg для работы без GUI
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,16 +20,16 @@ DateType = Union[datetime, date]
 MIN_POINTS_FOR_GRAPH_RENDER = 3
 
 def generate_candlestick_graph(
-    historical_data: List[Tuple[DateType, float]],
+    historical_data: list[tuple[DateType, float]],
     asset_symbol: str,
     period_days: int,
-) -> Optional[bytes]:
+) -> bytes | None:
     if not historical_data or len(historical_data) < MIN_POINTS_FOR_GRAPH_RENDER:
         logger.warning(f"Недостаточно данных для генерации графика {asset_symbol} ({len(historical_data)} < {MIN_POINTS_FOR_GRAPH_RENDER}).")
         return None
 
     logger.debug(f"Генерация свечного графика для {asset_symbol} ({period_days} дн., {len(historical_data)} точек)")
-    fig = None 
+    fig = None
 
     try:
         df = pd.DataFrame(historical_data, columns=['Date', 'Close'])
@@ -44,7 +47,7 @@ def generate_candlestick_graph(
             if len(df) < MIN_POINTS_FOR_GRAPH_RENDER:
                 logger.warning(f"После удаления NaN осталось недостаточно данных для графика {asset_symbol} ({len(df)} < {MIN_POINTS_FOR_GRAPH_RENDER}).")
                 return None
-        
+
         if df.empty:
             logger.warning(f"DataFrame для графика {asset_symbol} пуст после обработки.")
             return None
@@ -52,7 +55,7 @@ def generate_candlestick_graph(
         style = 'yahoo'
         buf = io.BytesIO()
 
-        fig, axes = mpf.plot(
+        fig, _axes = mpf.plot(
             df, type='candle', title=f"\n{asset_symbol} Price ({period_days}d)",
             ylabel='Price (USD)', figratio=(12, 6), figscale=1.1, style=style,
             volume=False, datetime_format='%y-%m-%d', tight_layout=True, returnfig=True
@@ -70,10 +73,10 @@ def generate_candlestick_graph(
             except Exception as close_err: logger.error(f"Ошибка при закрытии фигуры графика '{asset_symbol}': {close_err}")
 
 def generate_trend_graph(
-    data: List[Union[Tuple[DateType, float], float]],
+    data: list[tuple[DateType, float] | float],
     title: str,
     y_label: str
-) -> Optional[bytes]:
+) -> bytes | None:
     """Генерирует линейный график с линией тренда."""
     if not data or len(data) < 2:
         logger.warning(f"Недостаточно данных для генерации графика тренда для '{title}' ({len(data)} < 2).")
@@ -97,34 +100,34 @@ def generate_trend_graph(
         # Расчет линии тренда
         x_numeric = np.arange(len(values))
         y_numeric = np.array(values, dtype=float)
-        
+
         # Игнорируем NaN для расчета тренда
         mask = ~np.isnan(y_numeric)
         if np.sum(mask) < 2:
             logger.warning(f"Недостаточно валидных (не NaN) точек для тренда в '{title}'")
             return None
-            
+
         slope, intercept, _, _, _ = linregress(x_numeric[mask], y_numeric[mask])
         trend_line = slope * x_numeric + intercept
 
         # Построение графика
         plt.style.use('seaborn-v0_8-darkgrid')
         fig, ax = plt.subplots(figsize=(10, 5), dpi=100)
-        
+
         ax.plot(x_axis, values, label=y_label, color='royalblue', linewidth=2)
         ax.plot(x_axis, trend_line, label='Тренд', color='tomato', linestyle='--', linewidth=2)
 
         ax.set_title(title, fontsize=16)
         ax.set_ylabel(y_label, fontsize=12)
         ax.legend()
-        
+
         if isinstance(x_axis, pd.DatetimeIndex):
             plt.gcf().autofmt_xdate() # Автоформатирование дат
 
         buf = io.BytesIO()
         fig.savefig(buf, format='png', bbox_inches='tight')
         buf.seek(0)
-        
+
         logger.debug(f"График тренда '{title}' успешно сгенерирован.")
         return buf.getvalue()
     except Exception as e:

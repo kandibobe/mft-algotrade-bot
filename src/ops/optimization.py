@@ -8,7 +8,6 @@ Automates hyperopt and backtesting cycles.
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from src.config import config
 
@@ -79,7 +78,7 @@ class StrategyOptimizer:
         ]
 
         if spaces:
-            cmd.extend(["--spaces"] + spaces)
+            cmd.extend(["--spaces", *spaces])
 
         try:
             subprocess.run(cmd, check=True)

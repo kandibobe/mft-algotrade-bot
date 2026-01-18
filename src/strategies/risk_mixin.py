@@ -9,7 +9,6 @@ Uses the central RiskManager to enforce strict safety checks.
 import logging
 from datetime import datetime, timedelta
 
-import pandas as pd
 from freqtrade.persistence import Trade
 
 from src.config.manager import ConfigurationManager

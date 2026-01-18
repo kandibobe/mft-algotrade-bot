@@ -8,7 +8,6 @@ Uses Unified Configuration for connection details.
 
 import logging
 import os
-import sys
 from contextlib import contextmanager
 from typing import Any
 
@@ -60,7 +59,7 @@ class DatabaseManager:
             kwargs = {
                 "pool_pre_ping": True,
             }
-            
+
             if db_url.startswith("postgresql"):
                 kwargs["poolclass"] = pool.QueuePool
                 kwargs["pool_size"] = 10

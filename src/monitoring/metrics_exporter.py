@@ -216,7 +216,6 @@ class TradingMetricsExporter:
 
         # Also update existing trading metrics if available
         if self.trading_metrics:
-            result = "win" if status == "filled" else "loss"
             self.trading_metrics.record_trade(side, 0.0, 0.0)  # Placeholder
 
     def record_order(self, order_type: str, filled: bool = True) -> None:

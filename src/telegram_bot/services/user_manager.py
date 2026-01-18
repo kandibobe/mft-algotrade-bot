@@ -1,12 +1,18 @@
-from typing import Optional, Dict, Any, List, Tuple, Union
-from src.telegram_bot.database import db_manager
-from src.utils.logger import get_logger
+from typing import Any
+
 from src.telegram_bot import constants
 from src.telegram_bot.config_adapter import (
-    WATCHLIST_LIMIT, PRICE_ALERT_LIMIT, SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE,
-    WATCHLIST_LIMIT_PREMIUM, PRICE_ALERT_LIMIT_PREMIUM, ANALYSIS_PERIODS
+    ANALYSIS_PERIODS,
+    DEFAULT_LANGUAGE,
+    PRICE_ALERT_LIMIT,
+    PRICE_ALERT_LIMIT_PREMIUM,
+    SUPPORTED_LANGUAGES,
+    WATCHLIST_LIMIT,
+    WATCHLIST_LIMIT_PREMIUM,
 )
+from src.telegram_bot.database import db_manager
 from src.telegram_bot.localization.manager import set_user_language_cache
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -17,7 +23,7 @@ OPERATION_FAILED_NOT_FOUND = "not_found"
 OPERATION_FAILED_INVALID = "invalid_input"
 OPERATION_FAILED_DB_ERROR = "db_error"
 
-def get_settings(user_id: int) -> Dict[str, Any]:
+def get_settings(user_id: int) -> dict[str, Any]:
     return db_manager.get_user_settings(user_id)
 
 def is_user_premium(user_id: int) -> bool:
@@ -30,7 +36,7 @@ def update_analysis_period(user_id: int, period: int) -> bool:
          return False
     return db_manager.update_user_settings(user_id, {'analysis_period': period})
 
-def toggle_notifications(user_id: int) -> Optional[bool]:
+def toggle_notifications(user_id: int) -> bool | None:
     settings = get_settings(user_id)
     current_status = settings.get('notifications_enabled', True)
     new_status = not current_status
@@ -57,7 +63,7 @@ def set_language(user_id: int, lang_code: str) -> bool:
          logger.error(f"Не удалось сохранить язык '{lang_code}' в БД для user {user_id}.")
     return success
 
-def get_user_limits(user_id: int) -> Dict[str, int]:
+def get_user_limits(user_id: int) -> dict[str, int]:
     premium = is_user_premium(user_id)
     limits = {
         'watchlist': WATCHLIST_LIMIT_PREMIUM if premium else WATCHLIST_LIMIT,
@@ -89,7 +95,7 @@ def add_asset_to_watchlist(user_id: int, ticker: str) -> str:
 
 def remove_asset_from_watchlist(user_id: int, ticker_or_id: str) -> str:
     ticker_upper = ticker_or_id.upper()
-    asset_id_to_delete: Optional[str] = None
+    asset_id_to_delete: str | None = None
     asset_info = constants.SUPPORTED_ASSETS.get(ticker_upper)
     if asset_info:
         asset_id_to_delete = asset_info[1]
@@ -114,7 +120,7 @@ def remove_asset_from_watchlist(user_id: int, ticker_or_id: str) -> str:
     deleted = db_manager.remove_from_watchlist(user_id, asset_id_to_delete)
     return OPERATION_SUCCESS if deleted else OPERATION_FAILED_NOT_FOUND
 
-def get_user_watchlist(user_id: int) -> List[Dict[str, str]]:
+def get_user_watchlist(user_id: int) -> list[dict[str, str]]:
     return db_manager.get_watchlist(user_id)
 
 def get_watchlist_count(user_id: int) -> int:
@@ -127,7 +133,7 @@ def add_user_alert(
     alert_type: str,
     condition: str,
     target_value: float
-) -> Tuple[str, Optional[int]]:
+) -> tuple[str, int | None]:
     limits = get_user_limits(user_id)
     current_count = get_price_alert_count(user_id)
     if current_count >= limits['alerts']:
@@ -146,10 +152,10 @@ def add_user_alert(
     alert_id = db_manager.add_alert(user_id, asset_type, asset_id, alert_type, condition, target_value)
     return (OPERATION_SUCCESS, alert_id) if alert_id is not None else (OPERATION_FAILED_DB_ERROR, None)
 
-def get_user_price_alerts(user_id: int) -> List[Dict[str, Any]]:
+def get_user_price_alerts(user_id: int) -> list[dict[str, Any]]:
     return db_manager.get_price_alerts(user_id)
 
-def get_all_price_alerts() -> List[Dict[str, Any]]:
+def get_all_price_alerts() -> list[dict[str, Any]]:
     return db_manager.get_price_alerts()
 
 def delete_user_price_alert(user_id: int, alert_id: int) -> str:
@@ -160,26 +166,26 @@ def delete_user_price_alert(user_id: int, alert_id: int) -> str:
 def update_alert_trigger(alert_id: int, timestamp: int) -> bool:
     return db_manager.update_alert_trigger_time(alert_id, timestamp)
 
-def get_subscribed_user_ids() -> List[int]:
+def get_subscribed_user_ids() -> list[int]:
     return db_manager.get_subscribed_users()
 
 def get_price_alert_count(user_id: int) -> int:
     return len(db_manager.get_price_alerts(user_id))
 
-def update_user_price_alert_fields(user_id: int, alert_id: int, updates: Dict[str, Any]) -> bool:
+def update_user_price_alert_fields(user_id: int, alert_id: int, updates: dict[str, Any]) -> bool:
     if not isinstance(alert_id, int) or alert_id <= 0 or not updates:
         return False
 
     allowed_updates = {
-        k: v for k, v in updates.items() 
-        if (k == 'condition' and v in ['>', '<']) or 
+        k: v for k, v in updates.items()
+        if (k == 'condition' and v in ['>', '<']) or
            (k == 'target_value' and isinstance(v, (int, float)) and v > 0)
     }
     return db_manager.update_price_alert_fields(user_id, alert_id, allowed_updates) if allowed_updates else False
 
 # --- Portfolio Management ---
 
-def get_user_portfolio(user_id: int) -> List[Dict[str, Any]]:
+def get_user_portfolio(user_id: int) -> list[dict[str, Any]]:
     return db_manager.get_portfolio(user_id)
 
 def add_asset_to_portfolio(user_id: int, ticker: str, quantity: float, price: float) -> str:
@@ -187,7 +193,7 @@ def add_asset_to_portfolio(user_id: int, ticker: str, quantity: float, price: fl
     asset_info = constants.SUPPORTED_ASSETS.get(ticker_upper)
     if not asset_info:
         return OPERATION_FAILED_INVALID
-    
+
     asset_type, asset_id = asset_info
     if db_manager.add_to_portfolio(user_id, asset_type, asset_id, quantity, price):
         return OPERATION_SUCCESS
@@ -199,7 +205,7 @@ def remove_asset_from_portfolio(user_id: int, ticker: str) -> str:
     asset_info = constants.SUPPORTED_ASSETS.get(ticker_upper)
     if not asset_info:
         return OPERATION_FAILED_NOT_FOUND
-        
+
     asset_id = asset_info[1]
     if db_manager.remove_from_portfolio(user_id, asset_id):
         return OPERATION_SUCCESS

@@ -1,14 +1,14 @@
 # utils/logger.py
 import logging
+import os  # Добавлен для получения уровня лога из окружения
 import sys
-import os # Добавлен для получения уровня лога из окружения
 
 # Определяем уровень логирования из переменной окружения или по умолчанию INFO
 # Это позволяет легко менять уровень детализации логов без изменения кода
 log_level_name = os.getenv('LOG_LEVEL', 'INFO').upper()
 log_level = getattr(logging, log_level_name, logging.INFO)
 
-def get_logger(name: str = None) -> logging.Logger:
+def get_logger(name: str | None = None) -> logging.Logger:
     """
     Настраивает и возвращает логгер с заданным именем или именем вызывающего модуля.
     Логгер выводит сообщения в stdout с заданным форматом и уровнем.

@@ -1,9 +1,10 @@
 # handlers/navigation.py
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
-from src.telegram_bot.localization.manager import get_user_language, get_text
+from telegram.ext import ContextTypes
+
 from src.telegram_bot import constants
+from src.telegram_bot.localization.manager import get_text, get_user_language
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -31,7 +32,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
 
     text = get_text("menu_main_header", lang_code, default="<b>🤖 Главное меню</b>\n\nВыберите категорию, чтобы увидеть доступные команды.")
-    
+
     keyboard = [
         [InlineKeyboardButton(f"📈 {get_text('menu_category_analytics', lang_code, default='Аналитика')}", callback_data=CB_NAV_ANALYTICS)],
         [InlineKeyboardButton(f"📊 {get_text('menu_category_market_data', lang_code, default='Рыночные данные')}", callback_data=CB_NAV_MARKET_DATA)],
@@ -111,13 +112,13 @@ async def navigate_to_command_callback(update: Update, context: ContextTypes.DEF
     query = update.callback_query
     if not query or not query.data:
         return
-    
+
     command_to_run = query.data.split(":", 1)[1]
-    
+
     # Имитируем вызов команды от пользователя
     update.message = query.message # "Пересаживаем" сообщение из query в update
     update.message.text = command_to_run
-    
+
     # Очищаем аргументы, если они были от предыдущей команды
     context.args = []
 
@@ -133,10 +134,16 @@ async def navigate_to_command_callback(update: Update, context: ContextTypes.DEF
     # Для этого мы должны "пропустить" обновление дальше.
     # Но так как мы уже в callback-обработчике, стандартный механизм не сработает.
     # Поэтому мы напрямую вызовем нужную функцию-обработчик.
-    
+
     # Простой маппинг для примера.
-    from src.telegram_bot.handlers import report_handler, signal_handler, misc_handler, watchlist_handler, alert_handler
-    
+    from src.telegram_bot.handlers import (
+        alert_handler,
+        misc_handler,
+        report_handler,
+        signal_handler,
+        watchlist_handler,
+    )
+
     command_map = {
         "/report": report_handler.report_command_handler,
         "/signal": signal_handler.signal_command_handler,
@@ -150,7 +157,7 @@ async def navigate_to_command_callback(update: Update, context: ContextTypes.DEF
         "/watchlist": watchlist_handler.watchlist_command,
         "/alerts": alert_handler.alerts_command,
     }
-    
+
     handler_func = command_map.get(command_to_run)
     if handler_func:
         logger.info(f"Навигация: вызов команды {command_to_run} для user {update.effective_user.id}")

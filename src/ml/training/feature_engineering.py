@@ -29,6 +29,7 @@ class FeatureConfig:
     include_momentum_features: bool = True
     include_volatility_features: bool = True
     include_trend_features: bool = True
+    include_microstructure_features: bool = True
     include_meta_labeling_features: bool = True  # Meta-labeling features for De Prado methodology
 
     # Stationarity transformation
@@ -301,7 +302,7 @@ class FeatureEngineer:
         result = self._apply_aggressive_cleaning(result)
 
         # Validate features before further processing
-        is_valid, issues = self.validate_features(
+        _is_valid, _issues = self.validate_features(
             result,
             fix_issues=True,  # Auto-fix issues in training
             raise_on_error=False,  # Don't fail, just warn
@@ -365,7 +366,7 @@ class FeatureEngineer:
         result = self._apply_aggressive_cleaning(result)
 
         # Validate features (allow auto-fixing in test mode too)
-        is_valid, issues = self.validate_features(
+        _is_valid, _issues = self.validate_features(
             result,
             fix_issues=True,  # Auto-fix issues in test mode as well
             raise_on_error=False,  # Don't fail, just warn
@@ -677,6 +678,9 @@ class FeatureEngineer:
 
         if self.config.include_trend_features:
             result = self._add_trend_features(result)
+
+        if self.config.include_microstructure_features:
+            result = self._add_microstructure_features(result)
 
         # Add meta-labeling features (De Prado methodology)
         if self.config.include_meta_labeling_features:
@@ -1063,6 +1067,50 @@ class FeatureEngineer:
             df = pd.concat([df, new_features_df], axis=1)
 
         return df
+
+    def _add_microstructure_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Add market microstructure features.
+        - Orderbook Imbalance (proxy)
+        - Trade Flow (buys vs sells)
+        - Spread Volatility
+        """
+        result = df.copy()
+        new_features = {}
+
+        # 1. Orderbook Imbalance (Proxy using High-Low-Close relationships)
+        # Imbalance = (Close - Low) / (High - Low) -> 0.5 is balanced, >0.5 is bullish
+        new_features["order_imbalance_proxy"] = (result["close"] - result["low"]) / (
+            result["high"] - result["low"] + 1e-10
+        )
+
+        # 2. Trade Flow (Proxy using Volume and Price Change)
+        # If price goes up, volume is considered "buy volume"
+        # We calculate buy/sell pressure over a rolling window
+        price_change = result["close"].diff()
+        buy_vol = result["volume"].where(price_change > 0, 0)
+        sell_vol = result["volume"].where(price_change < 0, 0)
+
+        # Trade Flow = (Buy Vol - Sell Vol) / Total Vol over 10 candles (approx 50s-10m depending on timeframe)
+        window = 10
+        rolling_buy_vol = buy_vol.rolling(window).sum()
+        rolling_sell_vol = sell_vol.rolling(window).sum()
+        rolling_total_vol = result["volume"].rolling(window).sum()
+
+        new_features["trade_flow_ratio"] = (rolling_buy_vol - rolling_sell_vol) / (
+            rolling_total_vol + 1e-10
+        )
+
+        # 3. Spread Volatility (Proxy using High-Low spread)
+        # Spread = (High - Low) / Close
+        spread = (result["high"] - result["low"]) / (result["close"] + 1e-10)
+        new_features["spread_volatility"] = spread.rolling(window).std()
+
+        # Batch add features
+        new_features_df = pd.DataFrame(new_features, index=df.index)
+        result = pd.concat([result, new_features_df], axis=1)
+
+        return result
 
     def _add_time_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add time-based features."""

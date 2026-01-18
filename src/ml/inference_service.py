@@ -596,7 +596,7 @@ class OptimizedInferenceService(MLInferenceService):
             predictions = outputs[0].flatten()
 
             results = []
-            for i, (features, prediction) in enumerate(zip(features_list, predictions)):
+            for i, (_features, prediction) in enumerate(zip(features_list, predictions, strict=False)):
                 probability = abs(prediction)
                 signal = "buy" if prediction > 0.6 else "sell" if prediction < 0.4 else "hold"
                 confidence = abs(prediction - 0.5) * 2
@@ -665,7 +665,7 @@ class OptimizedInferenceService(MLInferenceService):
 
         try:
             results = await self.predict_batch(model_name, features_list)
-            for future, result in zip(futures, results):
+            for future, result in zip(futures, results, strict=False):
                 if not future.done():
                     future.set_result(result)
         except Exception:

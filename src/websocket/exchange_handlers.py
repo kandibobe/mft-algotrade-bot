@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from .data_types import IWebSocketClient, TickerData, TradeData, OrderbookData
+from .data_types import IWebSocketClient, OrderbookData, TickerData, TradeData
 from .exchange_types import Exchange
 
 logger = logging.getLogger(__name__)
@@ -112,15 +112,15 @@ class BinanceHandler(ExchangeHandler):
         # Note: top-N depth doesn't have 'e' field, but has 'lastUpdateId'
         if "bids" in data and "asks" in data and "lastUpdateId" in data:
             # For Binance @depthN, symbol is NOT in the payload usually.
-            symbol = data.get("s", "UNKNOWN/USDT") 
-            
+            symbol = data.get("s", "UNKNOWN/USDT")
+
             bids = [[float(b[0]), float(b[1])] for b in data["bids"]]
             asks = [[float(a[0]), float(a[1])] for a in data["asks"]]
-            
+
             bid_vol = sum(b[1] for b in bids)
             ask_vol = sum(a[1] for a in asks)
             imbalance = (bid_vol - ask_vol) / (bid_vol + ask_vol) if (bid_vol + ask_vol) > 0 else 0
-            
+
             ob = OrderbookData(
                 exchange="binance",
                 symbol=symbol,

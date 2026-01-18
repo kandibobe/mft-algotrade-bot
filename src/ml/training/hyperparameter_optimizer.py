@@ -192,7 +192,7 @@ class HyperparameterOptimizer:
 
         scores = []
 
-        for fold, (train_idx, val_idx) in enumerate(tscv.split(X)):
+        for _fold, (train_idx, val_idx) in enumerate(tscv.split(X)):
             # Split data
             X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
             y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
@@ -456,7 +456,7 @@ class HyperparameterOptimizer:
         ensemble.fit(X, y)
 
         logger.info(
-            f"Ensemble created with weights: {dict(zip([e[0] for e in estimators], weights))}"
+            f"Ensemble created with weights: {dict(zip([e[0] for e in estimators], weights, strict=False))}"
         )
 
         return ensemble

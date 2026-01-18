@@ -65,6 +65,8 @@ class ExecutionRecord(Base):
     slippage_pct = Column(Float)
     latency_ms = Column(Float)  # Time from Signal to Fill
     spread_at_fill = Column(Float)  # Market spread at moment of fill
+    order_book_imbalance = Column(Float) # L2 Imbalance at moment of fill
+    trade_flow_imbalance = Column(Float) # Trade flow aggregation at fill
 
     meta_data = Column(JSON)
 
@@ -75,6 +77,7 @@ class TradeRecord(Base):
     __tablename__ = "trades"
 
     id = Column(Integer, primary_key=True)
+    trace_id = Column(String(100), unique=True, index=True) # Unified trace ID
     symbol = Column(String(20), nullable=False)
     exchange = Column(String(50))
     side = Column(String(10))
@@ -119,7 +122,7 @@ class ShadowTradeRecord(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     symbol = Column(String(20), nullable=False)
     side = Column(String(10))
-    
+
     # Latency Metrics
     signal_timestamp = Column(DateTime)
     submission_timestamp = Column(DateTime)
@@ -130,10 +133,10 @@ class ShadowTradeRecord(Base):
     target_price = Column(Float)
     fill_price = Column(Float)
     amount = Column(Float)
-    
+
     # Quality Metrics
     slippage_pct = Column(Float)
     expected_pnl_usd = Column(Float)
-    
+
     strategy_name = Column(String(100))
     meta_data = Column(JSON)

@@ -3,19 +3,8 @@
 Exchange Connector MCP Server
 ==============================
 
-MCP сервер для управления подключениями к биржам и выполнения торговых операций.
-
-Предоставляет инструменты:
-- create_order: Создание ордера
-- cancel_order: Отмена ордера
-- get_balance: Получение баланса
-- get_open_orders: Получение открытых ордеров
-- get_order_status: Проверка статуса ордера
-
-ВНИМАНИЕ: Этот сервер работает с реальными торговыми операциями!
-Используйте с осторожностью в production.
-
-Author: Stoic Citadel Team
+MCP сервер для управления подключениями к биржам.
+Использует централизованную конфигурацию проекта.
 """
 
 import asyncio
@@ -35,39 +24,57 @@ except ImportError:
     sys.exit(1)
 
 # Project imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, PROJECT_ROOT)
+
+from src.config.unified_config import load_config
 from src.data.async_fetcher import AsyncOrderExecutor, FetcherConfig
 
 # Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr
+)
+logger = logging.getLogger("mcp-exchange-connector")
 
 # Global executor instance
 executor: AsyncOrderExecutor = None
 
-
 async def initialize_executor():
-    """Инициализация executor с API ключами из переменных окружения."""
+    """Инициализация executor с использованием unified_config."""
     global executor
 
     if executor is not None:
         return
 
-    # Определяем биржу (по умолчанию Binance)
-    exchange = os.getenv("EXCHANGE_NAME", "binance")
+    try:
+        # Загружаем конфиг проекта
+        # Пытаемся найти config.json или использовать дефолтный путь
+        config_path = os.getenv("CONFIG_PATH", "config/config.json")
+        if not os.path.exists(config_path):
+            config_path = None # Будет загружено из переменных окружения
 
-    config = FetcherConfig(
-        exchange=exchange,
-        api_key=os.getenv(f"{exchange.upper()}_API_KEY"),
-        api_secret=os.getenv(f"{exchange.upper()}_API_SECRET"),
-        rate_limit=True,
-        max_retries=3,
-    )
+        full_config = load_config(config_path)
 
-    executor = AsyncOrderExecutor(config)
-    await executor.connect()
-    logger.info(f"Exchange executor initialized for {exchange}")
+        # Настройки биржи
+        exchange_name = full_config.exchange.name
 
+        config = FetcherConfig(
+            exchange=exchange_name,
+            api_key=full_config.exchange.api_key,
+            api_secret=full_config.exchange.api_secret,
+            sandbox=full_config.exchange.sandbox,
+            rate_limit=full_config.exchange.rate_limit,
+            timeout=full_config.exchange.timeout_ms
+        )
+
+        executor = AsyncOrderExecutor(config)
+        await executor.connect()
+        logger.info(f"Exchange executor initialized for {exchange_name} (Sandbox: {full_config.exchange.sandbox})")
+    except Exception as e:
+        logger.error(f"Failed to initialize exchange executor: {e}")
+        raise
 
 async def cleanup_executor():
     """Закрытие соединений."""
@@ -77,117 +84,61 @@ async def cleanup_executor():
         executor = None
         logger.info("Exchange executor closed")
 
-
 # Create MCP server
 server = Server("exchange-connector")
-
 
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
     """Список доступных инструментов."""
     return [
         types.Tool(
-            name="create_limit_order",
-            description="Создать лимитный ордер на покупку/продажу",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "symbol": {
-                        "type": "string",
-                        "description": "Торговая пара (например: BTC/USDT)",
-                    },
-                    "side": {
-                        "type": "string",
-                        "enum": ["buy", "sell"],
-                        "description": "Сторона: buy или sell",
-                    },
-                    "amount": {
-                        "type": "number",
-                        "description": "Количество базовой валюты",
-                    },
-                    "price": {
-                        "type": "number",
-                        "description": "Цена лимитного ордера",
-                    },
-                },
-                "required": ["symbol", "side", "amount", "price"],
-            },
-        ),
-        types.Tool(
-            name="create_market_order",
-            description="Создать рыночный ордер (выполняется немедленно по рыночной цене)",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "symbol": {
-                        "type": "string",
-                        "description": "Торговая пара",
-                    },
-                    "side": {
-                        "type": "string",
-                        "enum": ["buy", "sell"],
-                        "description": "Сторона: buy или sell",
-                    },
-                    "amount": {
-                        "type": "number",
-                        "description": "Количество базовой валюты",
-                    },
-                },
-                "required": ["symbol", "side", "amount"],
-            },
-        ),
-        types.Tool(
-            name="cancel_order",
-            description="Отменить открытый ордер",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "order_id": {
-                        "type": "string",
-                        "description": "ID ордера",
-                    },
-                    "symbol": {
-                        "type": "string",
-                        "description": "Торговая пара",
-                    },
-                },
-                "required": ["order_id", "symbol"],
-            },
-        ),
-        types.Tool(
-            name="get_order_status",
-            description="Получить статус ордера",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "order_id": {
-                        "type": "string",
-                        "description": "ID ордера",
-                    },
-                    "symbol": {
-                        "type": "string",
-                        "description": "Торговая пара",
-                    },
-                },
-                "required": ["order_id", "symbol"],
-            },
-        ),
-        types.Tool(
             name="get_balance",
-            description="Получить баланс аккаунта",
+            description="Получить баланс аккаунта. Можно указать конкретную валюту (например, USDT).",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "currency": {
                         "type": "string",
-                        "description": "Валюта (опционально, например: USDT, BTC)",
+                        "description": "Код валюты (опционально)",
                     },
                 },
             },
         ),
         types.Tool(
+            name="get_ticker",
+            description="Получить текущие котировки для пары (например, BTC/USDT)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Торговая пара",
+                    },
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get_order_status",
+            description="Проверить статус ордера по его ID",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "order_id": {
+                        "type": "string",
+                        "description": "ID ордера",
+                    },
+                    "symbol": {
+                        "type": "string",
+                        "description": "Торговая пара",
+                    },
+                },
+                "required": ["order_id", "symbol"],
+            },
+        ),
+        types.Tool(
             name="get_connection_status",
-            description="Проверить статус подключения к бирже",
+            description="Проверить статус подключения к бирже и настройки API",
             inputSchema={
                 "type": "object",
                 "properties": {},
@@ -195,207 +146,78 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
     ]
 
-
 @server.call_tool()
 async def handle_call_tool(
     name: str, arguments: dict | None
 ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Обработка вызовов инструментов."""
 
-    # Инициализация executor при первом вызове
-    await initialize_executor()
+    try:
+        await initialize_executor()
+    except Exception as e:
+        return [types.TextContent(type="text", text=json.dumps({"success": False, "error": f"Init failed: {e}"}))]
 
     try:
-        if name == "create_limit_order":
-            symbol = arguments.get("symbol")
-            side = arguments.get("side")
-            amount = arguments.get("amount")
-            price = arguments.get("price")
+        if name == "get_balance":
+            currency = arguments.get("currency")
+            balance_data = await executor.exchange.fetch_balance()
 
-            logger.info(f"Creating limit order: {side} {amount} {symbol} @ {price}")
-
-            order = await executor.create_limit_order(
-                symbol=symbol,
-                side=side,
-                amount=amount,
-                price=price,
-            )
-
-            result = {
-                "success": True,
-                "order_id": order.get("id"),
-                "symbol": order.get("symbol"),
-                "side": order.get("side"),
-                "type": order.get("type"),
-                "amount": order.get("amount"),
-                "price": order.get("price"),
-                "status": order.get("status"),
-                "timestamp": order.get("timestamp"),
-            }
+            if currency:
+                info = balance_data.get(currency, {})
+                result = {
+                    "success": True,
+                    "currency": currency,
+                    "free": info.get("free", 0),
+                    "used": info.get("used", 0),
+                    "total": info.get("total", 0),
+                }
+            else:
+                # Только непустые балансы
+                balances = {k: v for k, v in balance_data.items() if isinstance(v, dict) and v.get("total", 0) > 0}
+                result = {"success": True, "balances": balances}
 
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
-        elif name == "create_market_order":
+        elif name == "get_ticker":
             symbol = arguments.get("symbol")
-            side = arguments.get("side")
-            amount = arguments.get("amount")
-
-            logger.info(f"Creating market order: {side} {amount} {symbol}")
-
-            order = await executor.create_market_order(
-                symbol=symbol,
-                side=side,
-                amount=amount,
-            )
-
+            ticker = await executor.exchange.fetch_ticker(symbol)
             result = {
                 "success": True,
-                "order_id": order.get("id"),
-                "symbol": order.get("symbol"),
-                "side": order.get("side"),
-                "type": order.get("type"),
-                "amount": order.get("amount"),
-                "filled": order.get("filled"),
-                "average_price": order.get("average"),
-                "status": order.get("status"),
-                "timestamp": order.get("timestamp"),
+                "symbol": symbol,
+                "last": ticker.get("last"),
+                "bid": ticker.get("bid"),
+                "ask": ticker.get("ask"),
+                "volume": ticker.get("baseVolume"),
+                "timestamp": ticker.get("timestamp")
             }
-
-            return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-
-        elif name == "cancel_order":
-            order_id = arguments.get("order_id")
-            symbol = arguments.get("symbol")
-
-            logger.info(f"Canceling order: {order_id} for {symbol}")
-
-            result_data = await executor.cancel_order(order_id, symbol)
-
-            result = {
-                "success": True,
-                "order_id": result_data.get("id"),
-                "symbol": result_data.get("symbol"),
-                "status": result_data.get("status"),
-                "message": "Order cancelled successfully",
-            }
-
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
         elif name == "get_order_status":
             order_id = arguments.get("order_id")
             symbol = arguments.get("symbol")
-
             order = await executor.fetch_order(order_id, symbol)
-
-            result = {
-                "success": True,
-                "order_id": order.get("id"),
-                "symbol": order.get("symbol"),
-                "side": order.get("side"),
-                "type": order.get("type"),
-                "amount": order.get("amount"),
-                "filled": order.get("filled"),
-                "remaining": order.get("remaining"),
-                "price": order.get("price"),
-                "average_price": order.get("average"),
-                "status": order.get("status"),
-                "timestamp": order.get("timestamp"),
-            }
-
-            return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-
-        elif name == "get_balance":
-            currency = arguments.get("currency")
-
-            balance_data = await executor.exchange.fetch_balance()
-
-            if currency:
-                # Specific currency
-                balance_info = balance_data.get(currency, {})
-                result = {
-                    "success": True,
-                    "currency": currency,
-                    "free": balance_info.get("free", 0),
-                    "used": balance_info.get("used", 0),
-                    "total": balance_info.get("total", 0),
-                }
-            else:
-                # All currencies with non-zero balance
-                balances = {}
-                for curr, info in balance_data.items():
-                    if curr not in ["info", "free", "used", "total"]:
-                        if info.get("total", 0) > 0:
-                            balances[curr] = {
-                                "free": info.get("free", 0),
-                                "used": info.get("used", 0),
-                                "total": info.get("total", 0),
-                            }
-
-                result = {
-                    "success": True,
-                    "balances": balances,
-                    "currencies_count": len(balances),
-                }
-
-            return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
+            return [types.TextContent(type="text", text=json.dumps({"success": True, "order": order}, indent=2))]
 
         elif name == "get_connection_status":
-            # Проверяем подключение через ping или простой запрос
-            try:
-                await executor.exchange.fetch_status()
-                status = {
-                    "success": True,
-                    "connected": executor._connected,
-                    "exchange": executor.config.exchange,
-                    "message": "Connection active",
-                }
-            except Exception as e:
-                status = {
-                    "success": False,
-                    "connected": False,
-                    "exchange": executor.config.exchange,
-                    "error": str(e),
-                }
-
-            return [types.TextContent(type="text", text=json.dumps(status, indent=2))]
+            status = await executor.exchange.fetch_status()
+            result = {
+                "success": True,
+                "status": status.get("status"),
+                "exchange": executor.config.exchange,
+                "sandbox": executor.config.sandbox,
+                "api_key_set": bool(executor.config.api_key)
+            }
+            return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
         else:
-            return [
-                types.TextContent(
-                    type="text",
-                    text=json.dumps({"success": False, "error": f"Unknown tool: {name}"}),
-                )
-            ]
+            return [types.TextContent(type="text", text=json.dumps({"success": False, "error": f"Unknown tool: {name}"}))]
 
     except Exception as e:
-        logger.error(f"Error in {name}: {e}", exc_info=True)
-        return [
-            types.TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "success": False,
-                        "error": str(e),
-                        "tool": name,
-                    }
-                ),
-            )
-        ]
-
+        logger.error(f"Error in {name}: {e}")
+        return [types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))]
 
 async def main():
     """Запуск MCP сервера."""
-    logger.info("Starting Exchange Connector MCP Server...")
-
-    # Проверка наличия API ключей
-    exchange = os.getenv("EXCHANGE_NAME", "binance")
-    api_key = os.getenv(f"{exchange.upper()}_API_KEY")
-
-    if not api_key:
-        logger.warning(
-            f"WARNING: {exchange.upper()}_API_KEY not set. Some features will be limited."
-        )
-
     try:
         async with stdio_server() as (read_stream, write_stream):
             await server.run(
@@ -403,7 +225,7 @@ async def main():
                 write_stream,
                 InitializationOptions(
                     server_name="exchange-connector",
-                    server_version="1.0.0",
+                    server_version="1.1.0",
                     capabilities=server.get_capabilities(
                         notification_options=NotificationOptions(),
                         experimental_capabilities={},
@@ -412,7 +234,6 @@ async def main():
             )
     finally:
         await cleanup_executor()
-
 
 if __name__ == "__main__":
     asyncio.run(main())

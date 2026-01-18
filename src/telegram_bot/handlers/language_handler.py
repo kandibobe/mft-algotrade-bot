@@ -1,13 +1,19 @@
 # handlers/language_handler.py
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
-from src.telegram_bot.services import user_manager
-from src.telegram_bot.localization.manager import get_user_text, get_user_language, get_text, set_user_language_cache
+from telegram.ext import ContextTypes
+
 from src.telegram_bot import constants
-from src.telegram_bot.config_adapter import SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE
+from src.telegram_bot.config_adapter import SUPPORTED_LANGUAGES
+from src.telegram_bot.handlers.common import (
+    get_main_keyboard,  # Импортируем для обновления клавиатуры
+)
+from src.telegram_bot.localization.manager import (
+    get_text,
+    get_user_language,
+)
+from src.telegram_bot.services import user_manager
 from src.utils.logger import get_logger
-from src.telegram_bot.handlers.common import get_main_keyboard # Импортируем для обновления клавиатуры
 
 logger = get_logger(__name__)
 

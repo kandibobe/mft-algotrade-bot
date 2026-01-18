@@ -10,8 +10,9 @@ from typing import Any
 import pandas as pd
 
 from src.config import config
+from src.ml.feature_store import create_feature_store
 from src.ml.training.feature_engineering import FeatureEngineer
-from src.ml.training.labeling import LabelGenerator
+from src.ml.training.labeling import LabelGenerator, create_labels_for_training
 from src.ml.training.model_registry import ModelMetadata, ModelRegistry, ModelStatus
 from src.ml.training.model_trainer import ModelTrainer, TrainingConfig as MLTrainingConfig
 from src.ml.training.optimizer import HyperparameterOptimizer
@@ -38,11 +39,14 @@ class MLPipeline:
         self.engineer = FeatureEngineer()
         self.labeler = LabelGenerator()
         
+        # <Û Unified Feature Store (Task 11)
+        self.feature_store = create_feature_store(use_mock=not quick_mode)
+        
         # Correctly pass a TrainingConfig object
         trainer_config = MLTrainingConfig(models_dir=str(self.models_dir))
         self.trainer = ModelTrainer(trainer_config)
 
-    def run_pipeline_for_pair(self, pair: str, timeframe: str = "5m") -> str | None:
+    def run_pipeline_for_pair(self, pair: str, timeframe: str = "5m", labeling_method: str = "atr_barrier") -> str | None:
         pair_slug = pair.replace("/", "_")
         logger.info(f"Starting ML Pipeline for {pair} ({timeframe})")
 
@@ -62,10 +66,11 @@ class MLPipeline:
             df = df.sort_values('timestamp').reset_index(drop=True)
             
             # Use prepare_data to generate features
+            # <Û Unified Feature Store: Ensure features match production serving logic
             df_features = self.engineer.prepare_data(df)
             
-            # Generate labels (returns a Series)
-            labels = self.labeler.label(df_features)
+            # Generate labels (returns a Series) using advanced Triple Barrier method
+            labels = create_labels_for_training(df_features, method=labeling_method)
             df_features["target"] = labels
             
             df_clean = df_features.dropna(subset=["target"])
@@ -116,14 +121,14 @@ class MLPipeline:
             results[pair] = model_path
         return results
 
-    def train_on_data(self, data: pd.DataFrame, pair: str, optimize: bool = False) -> dict[str, Any]:
+    def train_on_data(self, data: pd.DataFrame, pair: str, optimize: bool = False, labeling_method: str = "atr_barrier") -> dict[str, Any]:
         """Train model on specific data (for WFO)."""
         try:
-            # Feature Engineering
-            df_features = self.engineer.prepare_data(data)
+            # Feature Engineering - ensure we use fit_transform here to fit the scaler
+            df_features = self.engineer.fit_transform(data)
             
             # Labeling
-            labels = self.labeler.label(df_features)
+            labels = create_labels_for_training(df_features, method=labeling_method)
             df_features["target"] = labels
             
             df_clean = df_features.dropna(subset=["target"])

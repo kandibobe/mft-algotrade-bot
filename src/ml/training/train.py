@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 def train_model(
     pairs: list[str],
-    days: int = None,
-    target: str = None,
+    days: int | None = None,
+    target: str | None = None,
     timeframe: str = "5m",
     optimize: bool = False,
     quick: bool = False,

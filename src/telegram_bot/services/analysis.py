@@ -1,18 +1,19 @@
 # services/analysis.py
+from datetime import date, datetime
+from typing import Any, Union
+
 import numpy as np
 import pandas as pd
-import pandas_ta as ta
-from scipy.stats import pearsonr, linregress
-from typing import List, Tuple, Optional, Dict, Any, Union
-from src.utils.logger import get_logger
-from datetime import datetime, date
+from scipy.stats import linregress, pearsonr
+
 from src.telegram_bot import constants
 from src.telegram_bot.localization.manager import get_text
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 DateType = Union[datetime, date]
 
-def calculate_correlation(data1: List[float], data2: List[float]) -> Optional[float]:
+def calculate_correlation(data1: list[float], data2: list[float]) -> float | None:
     if not data1 or not data2 or len(data1) != len(data2) or len(data1) < 3:
         return None
     try:
@@ -24,7 +25,7 @@ def calculate_correlation(data1: List[float], data2: List[float]) -> Optional[fl
         logger.error(f"Ошибка вычисления корреляции: {e}", exc_info=True)
         return None
 
-def calculate_trend(data: List[float]) -> float:
+def calculate_trend(data: list[float]) -> float:
     if len(data) < 2: return 0.0
     try:
         x, y = np.arange(len(data)), np.array(data, dtype=float)
@@ -37,9 +38,9 @@ def calculate_trend(data: List[float]) -> float:
         return 0.0
 
 def align_data_by_date(
-    data1: List[Tuple[DateType, float]],
-    data2: List[Tuple[DateType, float]]
-) -> Tuple[List[float], List[float], List[date]]:
+    data1: list[tuple[DateType, float]],
+    data2: list[tuple[DateType, float]]
+) -> tuple[list[float], list[float], list[date]]:
     if not data1 or not data2: return [], [], []
     try:
         dict1 = { (item[0].date() if isinstance(item[0], datetime) else item[0]): item[1]
@@ -50,7 +51,7 @@ def align_data_by_date(
         common_dates_set = set(dict1.keys()) & set(dict2.keys())
         if not common_dates_set: return [], [], []
 
-        common_dates = sorted(list(common_dates_set))
+        common_dates = sorted(common_dates_set)
         return [dict1[d] for d in common_dates], [dict2[d] for d in common_dates], common_dates
     except Exception as e:
         logger.error(f"Ошибка при выравнивании данных по дате: {e}", exc_info=True)
@@ -62,11 +63,11 @@ def get_factor_arrow_score(score_value: int) -> str:
     return "🟨 (0)"
 
 def calculate_technical_indicators(
-    historical_prices: List[Tuple[DateType, float]],
+    historical_prices: list[tuple[DateType, float]],
     rsi_period: int = 14,
     sma_short: int = 50,
     sma_long: int = 200
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Рассчитывает RSI, SMA и положение цены для отчета /report.
     """
@@ -117,8 +118,8 @@ def calculate_technical_indicators(
         return None
 
 def calculate_detailed_technical_indicators(
-    historical_prices: List[Tuple[DateType, float]]
-) -> Optional[Dict[str, Any]]:
+    historical_prices: list[tuple[DateType, float]]
+) -> dict[str, Any] | None:
     """
     Рассчитывает RSI, MACD, Bollinger Bands для команды /ta.
     """
@@ -159,12 +160,12 @@ def calculate_detailed_technical_indicators(
 
 def generate_trading_signal(
     btc_trend_val: float,
-    cpi_data_full: Optional[List[Tuple[date, float]]],
+    cpi_data_full: list[tuple[date, float]] | None,
     dxy_trend_val: float,
-    correlation_btc_dxy_val: Optional[float],
-    fng_value: Optional[int],
-    btc_dominance_trend_val: Optional[float] = None
-    ) -> Dict[str, Any]:
+    correlation_btc_dxy_val: float | None,
+    fng_value: int | None,
+    btc_dominance_trend_val: float | None = None
+    ) -> dict[str, Any]:
 
     buy_score = 0
     sell_score = 0

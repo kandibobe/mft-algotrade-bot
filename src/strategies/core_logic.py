@@ -11,18 +11,17 @@ Refactored V6: Regime-Permission Matrix + Signal Persistence
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
-import numpy as np
 
 # Import indicators and regime
 from src.utils.indicators import (
+    calculate_atr,
     calculate_bollinger_bands,
     calculate_ema,
     calculate_macd,
     calculate_rsi,
-    calculate_atr,
 )
 from src.utils.logger import log_strategy_signal
 from src.utils.regime_detection import MarketRegime, calculate_regime
@@ -68,7 +67,7 @@ class StoicLogic:
         Includes technical indicators, column aliasing, and safety fallbacks.
         """
         df = dataframe.copy()
-        
+
         # 1. Core Technicals
         df["ema_50"] = calculate_ema(df["close"], 50)
         df["ema_100"] = calculate_ema(df["close"], 100)
@@ -86,13 +85,13 @@ class StoicLogic:
         df["bb_middle"] = bb["middle"]
         df["bb_upper"] = bb["upper"]
         df["bb_width"] = bb["width"]
-        
+
         # Stochastic (Legacy/Robustness)
         low_min = df['low'].rolling(window=14).min()
         high_max = df['high'].rolling(window=14).max()
         df['slowk'] = 100 * (df['close'] - low_min) / (high_max - low_min)
         df['slowd'] = df['slowk'].rolling(window=3).mean()
-        
+
         # Volume
         df['volume_mean'] = df['volume'].rolling(window=20).mean()
 

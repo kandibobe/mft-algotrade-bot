@@ -23,12 +23,12 @@ Usage:
             print("Executing live trade!")
 """
 
-from .unified_config import TradingConfig, load_config, ConfigWatcher
 from .manager import config
+from .unified_config import ConfigWatcher, TradingConfig, load_config
 
 __all__ = [
-    "TradingConfig",
-    "load_config",
     "ConfigWatcher",
+    "TradingConfig",
     "config",
+    "load_config",
 ]

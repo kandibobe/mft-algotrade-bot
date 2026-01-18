@@ -1,42 +1,48 @@
 # src/telegram_bot/runner.py
-import asyncio
-import aiohttp
-from typing import Optional, List
-from telegram import Update
-from telegram.ext import (
-    Application, ApplicationBuilder, CommandHandler, CallbackQueryHandler,
-    ContextTypes, Defaults, MessageHandler, filters, JobQueue
-)
-from telegram.constants import ParseMode
-from telegram.error import Forbidden
-
 from datetime import time, timezone
+
+import aiohttp
+from telegram import Update
+from telegram.constants import ParseMode
+from telegram.ext import (
+    Application,
+    ApplicationBuilder,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    Defaults,
+    JobQueue,
+    MessageHandler,
+    filters,
+)
+
+from src.telegram_bot import constants, jobs
 
 # Updated imports for project structure
 from src.telegram_bot.config_adapter import (
-    TELEGRAM_BOT_TOKEN, PRICE_ALERT_CHECK_INTERVAL,
-    DIGEST_SEND_HOUR_UTC, VOLATILITY_FETCH_INTERVAL,
-    SHARED_DATA_FETCH_INTERVAL, DEFAULT_LANGUAGE,
-    SUPPORTED_LANGUAGES,
+    DIGEST_SEND_HOUR_UTC,
     INDEX_FETCH_INTERVAL,
-    ONCHAIN_FETCH_INTERVAL
+    ONCHAIN_FETCH_INTERVAL,
+    PRICE_ALERT_CHECK_INTERVAL,
+    SHARED_DATA_FETCH_INTERVAL,
+    SUPPORTED_LANGUAGES,
+    TELEGRAM_BOT_TOKEN,
+    VOLATILITY_FETCH_INTERVAL,
 )
-from src.utils.logger import log as logger
 from src.telegram_bot.database import db_manager
-from src.telegram_bot import constants
-
 from src.telegram_bot.handlers import (
-    common as common_main_handlers,
-    report_handler, signal_handler, settings_handler,
-    explain_handler, volatility_handler, watchlist_handler,
-    alert_handler, language_handler, misc_handler,
-    news_handler, feedback_handler,
+    alert_handler,
     analytics_chat_handler,
-    portfolio_handler,
-    mft_control_handler
+    mft_control_handler,
+    report_handler,
+    settings_handler,
+    signal_handler,
+    volatility_handler,
+    watchlist_handler,
 )
-from src.telegram_bot import jobs
-from src.telegram_bot.localization.manager import get_user_language, get_text
+from src.telegram_bot.handlers import common as common_main_handlers
+from src.telegram_bot.localization.manager import get_text
+from src.utils.logger import log as logger
 
 BOT_VERSION = "1.2.0-integrated"
 
@@ -52,21 +58,21 @@ async def post_init(application: Application):
     logger.info("Creating shared aiohttp session...")
     if 'aiohttp_session' not in application.bot_data or application.bot_data['aiohttp_session'].closed:
        application.bot_data['aiohttp_session'] = aiohttp.ClientSession()
-    
-    jq: Optional[JobQueue] = application.job_queue
+
+    jq: JobQueue | None = application.job_queue
     if jq:
         logger.info("Scheduling background jobs...")
         # Remove old jobs if any
         for job in jq.jobs():
              job.schedule_removal()
-        
+
         # Add jobs
         jq.run_repeating(jobs.check_price_alerts, interval=PRICE_ALERT_CHECK_INTERVAL, first=10, name="PriceAlertCheck")
         jq.run_repeating(jobs.fetch_volatility_job, interval=VOLATILITY_FETCH_INTERVAL, first=40, name="VolatilityFetch")
         jq.run_repeating(jobs.fetch_shared_data_job, interval=SHARED_DATA_FETCH_INTERVAL, first=5, name="SharedDataFetch")
         jq.run_repeating(jobs.fetch_index_data_job, interval=INDEX_FETCH_INTERVAL, first=15, name="IndexFetch")
         jq.run_repeating(jobs.fetch_onchain_data_job, interval=ONCHAIN_FETCH_INTERVAL, first=60, name="OnChainDataFetch")
-        
+
         try:
             digest_hour = int(DIGEST_SEND_HOUR_UTC)
             if 0 <= digest_hour <= 23:
@@ -74,14 +80,14 @@ async def post_init(application: Application):
                 jq.run_daily(jobs.send_daily_digest, time=digest_time_utc, name="DailyDigest")
         except (ValueError, TypeError):
             logger.error(f"Invalid DIGEST_SEND_HOUR_UTC: {DIGEST_SEND_HOUR_UTC}")
-            
+
         logger.info("All jobs scheduled.")
     else:
          logger.warning("JobQueue not available!")
 
 async def post_shutdown(application: Application):
     logger.info("Bot shutdown initiated...")
-    session: Optional[aiohttp.ClientSession] = application.bot_data.get('aiohttp_session')
+    session: aiohttp.ClientSession | None = application.bot_data.get('aiohttp_session')
     if session and not session.closed:
         await session.close()
     logger.info("Bot shutdown complete.")
@@ -89,7 +95,7 @@ async def post_shutdown(application: Application):
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logger.error("Exception while handling an update:", exc_info=context.error)
 
-def get_button_texts(button_key: str) -> List[str]:
+def get_button_texts(button_key: str) -> list[str]:
     texts = set()
     for lang in SUPPORTED_LANGUAGES:
         try:
@@ -126,16 +132,17 @@ def create_bot_application() -> Application:
     application.add_handler(CommandHandler(constants.CMD_WATCHLIST, watchlist_handler.watchlist_command))
     application.add_handler(CommandHandler(constants.CMD_ALERTS, alert_handler.alerts_command))
     application.add_handler(CommandHandler(constants.CMD_SETTINGS, settings_handler.settings_command_handler))
-    
+
     # MFT Control Commands
     application.add_handler(CommandHandler("status", mft_control_handler.status_command))
     application.add_handler(CommandHandler("balance", mft_control_handler.balance_command))
     application.add_handler(CommandHandler("positions", mft_control_handler.positions_command))
+    application.add_handler(CommandHandler("stop_panic", mft_control_handler.stop_panic_command))
 
     # Message Handlers for Menus
     application.add_handler(MessageHandler(filters.Text(get_button_texts("menu_btn_report")), report_handler.report_command_handler))
     application.add_handler(MessageHandler(filters.Text(get_button_texts("menu_btn_watchlist")), watchlist_handler.watchlist_command))
-    
+
     # Callbacks
     application.add_handler(CallbackQueryHandler(settings_handler.settings_main_menu_callback, pattern=f"^{constants.CB_MAIN_SETTINGS}$"))
     application.add_handler(CallbackQueryHandler(alert_handler.delalert_callback, pattern=f"^{constants.CB_ACTION_DEL_ALERT}{constants.ALERT_ID_REGEX_PART}$"))

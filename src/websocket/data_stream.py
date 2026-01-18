@@ -28,7 +28,7 @@ from typing import Any
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from .data_types import IWebSocketClient, TickerData, TradeData, OrderbookData
+from .data_types import IWebSocketClient, OrderbookData, TickerData, TradeData
 from .exchange_handlers import ExchangeHandler, create_exchange_handler
 from .exchange_types import Exchange
 
@@ -99,6 +99,9 @@ class WebSocketDataStream:
 
         # Subscribed symbols tracking
         self._subscribed: set[str] = set()
+        
+        # Background tasks
+        self._background_tasks = set()
 
     # =========================================================================
     # Decorator Methods for Event Handlers
@@ -134,7 +137,9 @@ class WebSocketDataStream:
         self._stats["uptime_start"] = time.time()
 
         # Start message processor
-        asyncio.create_task(self._process_messages())
+        task = asyncio.create_task(self._process_messages())
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
         # Connect and maintain connection
         while self._running:
@@ -213,16 +218,29 @@ class WebSocketDataStream:
     async def _listen(self):
         """Listen for incoming messages."""
         try:
+            # Check if we should use watchdog based on last_message_time
+            # For some markets/timeframes, 5s might be too short during low liquidity
+            from src.config.unified_config import load_config
+            u_cfg = load_config()
+            watchdog_timeout = u_cfg.system.ws_watchdog_timeout
+
             if hasattr(self._ws, "__aiter__"):
-                async for message in self._ws:
-                    await self._handle_incoming_message(message)
+                while self._running:
+                    try:
+                        # Add watchdog for each message
+                        message = await asyncio.wait_for(self._ws.recv(), timeout=watchdog_timeout)
+                        await self._handle_incoming_message(message)
+                    except asyncio.TimeoutError:
+                        logger.warning(f"Websocket Watchdog: No data for {watchdog_timeout} seconds. Reconnecting...")
+                        break # Exit _listen to trigger reconnect in start() loop
             else:
                 while self._running:
                     try:
-                        message = await asyncio.wait_for(self._ws.recv(), timeout=1.0)
+                        message = await asyncio.wait_for(self._ws.recv(), timeout=watchdog_timeout)
                         await self._handle_incoming_message(message)
                     except asyncio.TimeoutError:
-                        continue
+                        logger.warning(f"Websocket Watchdog: No data for {watchdog_timeout} seconds. Reconnecting...")
+                        break
 
         except ConnectionClosed as e:
             logger.warning(f"Connection closed: {e}")

@@ -70,7 +70,10 @@ def retrain_model(pair: str, params_path: str, timeframe: str = "5m", days: int 
     )
     trainer = ModelTrainer(trainer_config)
     
-    model, metrics, feature_names = trainer.train(X, y_binary, hyperparams=best_params)
+    from sklearn.model_selection import train_test_split
+    X_train, X_val, y_train, y_val = train_test_split(X, y_binary, test_size=0.2, shuffle=False)
+    
+    model, metrics, feature_names = trainer.train(X_train, y_train, X_val, y_val, hyperparams=best_params)
 
     # 4. Register Model as Production
     registry = ModelRegistry()

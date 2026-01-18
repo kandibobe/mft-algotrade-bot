@@ -189,6 +189,9 @@ ignore = [
     "B008",  # do not perform function calls in argument defaults
     "S101",  # Use of assert detected
     "S113",  # Probable use of requests call without timeout
+    "RUF001", # String contains ambiguous unicode character
+    "RUF002", # Docstring contains ambiguous unicode character
+    "RUF003", # Comment contains ambiguous unicode character
 ]
 
 # Allow autofix for all rules

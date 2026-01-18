@@ -5,31 +5,34 @@ Integration Tests for Hybrid Connector Strategy Flow
 Tests the integration of HybridConnector into StoicEnsembleStrategyV5.
 """
 
-import pytest
 import sys
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-from datetime import datetime
+
+import pytest
 
 # Add user_data to path so we can import strategies
 sys.path.append(str(Path(__file__).parent.parent.parent / "user_data"))
 
 from strategies.StoicEnsembleStrategyV5 import StoicEnsembleStrategyV5
+
 from src.websocket.aggregator import AggregatedTicker
 
+
 class TestHybridConnectorIntegration:
-    
+
     @pytest.fixture
     def strategy(self):
         """Create a mocked strategy instance."""
         # Mock Config Loading
         with patch('src.config.manager.ConfigurationManager.initialize') as mock_init, \
              patch('src.config.manager.ConfigurationManager.get_config') as mock_get_config:
-            
+
             mock_config = MagicMock()
             mock_config.pairs = ["BTC/USDT", "ETH/USDT"]
             mock_get_config.return_value = mock_config
-            
+
             # Initialize Strategy
             # We mock the Freqtrade IStrategy init to avoid deep framework dependencies
             with patch('freqtrade.strategy.IStrategy.__init__', return_value=None):
@@ -37,7 +40,7 @@ class TestHybridConnectorIntegration:
                 strat.config = mock_config # Manually set config
                 strat.dp = MagicMock()
                 strat.dp.runmode.value = 'live' # Simulate live mode
-                
+
                 # Manually init Mixins if needed, but bot_start should handle it
                 return strat
 
@@ -45,7 +48,7 @@ class TestHybridConnectorIntegration:
         """Test that bot_start initializes the Hybrid Connector."""
         with patch.object(strategy, 'initialize_hybrid_connector') as mock_init_conn:
             strategy.bot_start()
-            
+
             mock_init_conn.assert_called_once()
             # Verify called with correct pairs from config
             args, kwargs = mock_init_conn.call_args
@@ -55,7 +58,7 @@ class TestHybridConnectorIntegration:
         """Test that confirm_trade_entry calls check_market_safety."""
         # Mock check_market_safety
         strategy.check_market_safety = MagicMock(return_value=True)
-        
+
         # Mock super().confirm_trade_entry to return True
         with patch('src.strategies.risk_mixin.StoicRiskMixin.confirm_trade_entry', return_value=True):
             allowed = strategy.confirm_trade_entry(
@@ -68,7 +71,7 @@ class TestHybridConnectorIntegration:
                 entry_tag="test",
                 side="long"
             )
-            
+
             assert allowed is True
             strategy.check_market_safety.assert_called_once_with("BTC/USDT", "long")
 
@@ -76,7 +79,7 @@ class TestHybridConnectorIntegration:
         """Test that unsafe market condition rejects trade."""
         # Mock check_market_safety to return False
         strategy.check_market_safety = MagicMock(return_value=False)
-        
+
         allowed = strategy.confirm_trade_entry(
             pair="BTC/USDT",
             order_type="limit",
@@ -87,18 +90,18 @@ class TestHybridConnectorIntegration:
             entry_tag="test",
             side="long"
         )
-        
+
         assert allowed is False
 
     def test_check_market_safety_logic(self, strategy):
         """Test the actual logic of check_market_safety."""
         # We need to test the HybridConnectorMixin method directly
         # Mock get_realtime_metrics
-        
+
         # Case 1: No data -> Safe (warning logged)
         with patch.object(strategy, 'get_realtime_metrics', return_value=None):
             assert strategy.check_market_safety("BTC/USDT", "long") is True
-            
+
         # Case 2: High Spread -> Unsafe
         # Need to provide all required fields for dataclass
         bad_ticker = AggregatedTicker(
@@ -116,7 +119,7 @@ class TestHybridConnectorIntegration:
         )
         with patch.object(strategy, 'get_realtime_metrics', return_value=bad_ticker):
             assert strategy.check_market_safety("BTC/USDT", "long") is False
-            
+
         # Case 3: Low Spread -> Safe
         good_ticker = AggregatedTicker(
             symbol="BTC/USDT",

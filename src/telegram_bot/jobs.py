@@ -1,27 +1,29 @@
 # jobs.py
 import asyncio
-import time
-from typing import Optional, Dict, Any, List
-from telegram.ext import ContextTypes, Application
-from telegram.constants import ParseMode
-from telegram.error import Forbidden, BadRequest
 import html
-from src.telegram_bot.services import data_fetcher, user_manager
-from src.telegram_bot.localization.manager import get_user_language, get_text
+import time
+from datetime import datetime, timezone
+from typing import Any
+
+from telegram.constants import ParseMode
+from telegram.error import Forbidden
+from telegram.ext import Application, ContextTypes
+
 from src.telegram_bot import constants
 from src.telegram_bot.config_adapter import (
-    PRICE_ALERT_CHECK_INTERVAL, DIGEST_SEND_HOUR_UTC, ALERT_COOLDOWN_SECONDS,
-    API_COOLDOWN, VOLATILITY_FETCH_INTERVAL, SHARED_DATA_FETCH_INTERVAL,
-    INDEX_FETCH_INTERVAL, CRYPTO_PANIC_FILTER,
-    NEWS_API_PAGE_SIZE
+    ALERT_COOLDOWN_SECONDS,
+    API_COOLDOWN,
+    CRYPTO_PANIC_FILTER,
+    NEWS_API_PAGE_SIZE,
 )
+from src.telegram_bot.localization.manager import get_text, get_user_language
+from src.telegram_bot.services import data_fetcher, user_manager
 from src.utils.logger import get_logger
-from datetime import datetime, timezone
 
 logger = get_logger(__name__)
 
 # --- Кэш для данных, используемых несколькими пользователями ---
-shared_data_cache: Dict[str, Dict[str, Any]] = {
+shared_data_cache: dict[str, dict[str, Any]] = {
     "fng": {"data": None, "last_fetch": 0},
     "gas": {"data": None, "last_fetch": 0},
     "trending": {"data": None, "last_fetch": 0},
@@ -160,7 +162,7 @@ async def fetch_onchain_data_job(context: ContextTypes.DEFAULT_TYPE):
         return
 
     logger.info("Запуск задачи обновления On-Chain данных...")
-    
+
     try:
         netflow_data, status = await data_fetcher.fetch_glassnode_metric(
             session, constants.GLASSNODE_BTC_NET_TRANSFER_EXCHANGES, 'BTC', '24h'
@@ -194,7 +196,7 @@ async def check_price_alerts(context: ContextTypes.DEFAULT_TYPE):
         logger.debug("Активных алертов нет.")
         return
 
-    assets_to_check: Dict[str, set] = {constants.ASSET_CRYPTO: set(), constants.ASSET_FOREX: set()}
+    assets_to_check: dict[str, set] = {constants.ASSET_CRYPTO: set(), constants.ASSET_FOREX: set()}
     for alert in all_alerts:
         if alert.get('asset_type') in assets_to_check and alert.get('asset_id'):
              assets_to_check[alert['asset_type']].add(alert['asset_id'])
@@ -228,7 +230,7 @@ async def check_price_alerts(context: ContextTypes.DEFAULT_TYPE):
 
         alert_id, condition, target_value = alert['id'], alert['condition'], alert['target_value']
         last_triggered = alert.get('last_triggered_at', 0)
-        
+
         triggered = False
         try:
             if condition == '>' and current_price > target_value: triggered = True
@@ -240,7 +242,7 @@ async def check_price_alerts(context: ContextTypes.DEFAULT_TYPE):
             ticker = constants.REVERSE_ASSET_MAP.get(alert['asset_id'], alert['asset_id'])
             lang_code = await get_user_language(user_id)
             price_format = "{:.5f}" if alert['asset_type'] == constants.ASSET_FOREX else "{:,.4f}"
-            
+
             message_text = get_text(
                 constants.MSG_PRICE_ALERT_TRIGGERED, lang_code,
                 asset_id=ticker, condition=html.escape(condition),
@@ -283,7 +285,7 @@ async def send_daily_digest(context: ContextTypes.DEFAULT_TYPE):
     # Сбор данных по всем watchlist'ам пользователей
     all_watchlists = {uid: user_manager.get_user_watchlist(uid) for uid in subscribed_users}
     unique_crypto_ids = {item['asset_id'] for wl in all_watchlists.values() for item in wl if item['asset_type'] == constants.ASSET_CRYPTO}
-    
+
     watchlist_prices = {}
     if unique_crypto_ids:
         crypto_results = await data_fetcher.fetch_current_crypto_data(session, list(unique_crypto_ids), include_change=True)
@@ -345,6 +347,6 @@ async def fetch_volatility_job(context: ContextTypes.DEFAULT_TYPE):
     if status == data_fetcher.STATUS_OK and isinstance(data, dict):
         shared_data_cache["volatility"]["data"] = data
         shared_data_cache["volatility"]["last_fetch"] = int(time.time())
-        logger.info(f"Кеш волатильности обновлен.")
+        logger.info("Кеш волатильности обновлен.")
     else:
         logger.error(f"Не удалось обновить кеш волатильности (статус: {status}). Кеш не изменен.")

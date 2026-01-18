@@ -245,7 +245,7 @@ def calculate_risk_metrics(equity_curve: pd.Series) -> dict[str, float]:
     """
     returns = equity_curve.pct_change().dropna()
 
-    max_dd, peak_idx, trough_idx = calculate_max_drawdown(equity_curve)
+    max_dd, _peak_idx, _trough_idx = calculate_max_drawdown(equity_curve)
 
     return {
         "total_return": (equity_curve.iloc[-1] / equity_curve.iloc[0]) - 1,

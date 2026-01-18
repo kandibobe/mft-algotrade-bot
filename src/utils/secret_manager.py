@@ -1,7 +1,8 @@
 
-import os
 import base64
 import logging
+import os
+
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -17,14 +18,14 @@ class SecretManager:
     If Vault is not configured, it falls back to a local decryption method
     for legacy secrets. New secrets should be stored in Vault.
     """
-    
+
     _fernet = None
 
     @classmethod
     def get_secret(cls, identifier: str) -> str:
         """
         Retrieves a secret, prioritizing Vault.
-        
+
         The identifier can be a Vault path (e.g., 'exchange/binance') or
         a locally encrypted string ("ENC:...").
         """
@@ -46,7 +47,7 @@ class SecretManager:
             if not master_key:
                 logger.warning("STOIC_MASTER_KEY not set. Using default development key. NOT SECURE FOR PRODUCTION!")
                 master_key = "dev-secret-key-do-not-use-in-production"
-            
+
             salt = b'stoic_citadel_salt'
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
@@ -63,7 +64,7 @@ class SecretManager:
         """Decrypt a string if it's in the legacy encrypted format."""
         if not data or not data.startswith("ENC:"):
             return data
-        
+
         try:
             f = cls._get_fernet()
             encrypted_part = data[4:]

@@ -26,8 +26,8 @@ try:
 except ImportError:
     METRICS_AVAILABLE = False
 
-from src.utils.notifications import get_notifier
 from src.config import config
+from src.utils.notifications import get_notifier
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +177,7 @@ class CircuitBreaker:
             self._trip(TripReason.HIGH_VOLATILITY)
 
     def check_market_crash(self, symbol: str, price_change_pct: float) -> None:
-        if (symbol == self.config.flash_crash_symbol 
+        if (symbol == self.config.flash_crash_symbol
             and price_change_pct <= -self.config.flash_crash_threshold_pct):
             logger.critical(f"🚨 FLASH CRASH on {symbol}: {price_change_pct:.2%} drop!")
             self._trip(TripReason.FLASH_CRASH)

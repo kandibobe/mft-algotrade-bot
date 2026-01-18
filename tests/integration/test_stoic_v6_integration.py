@@ -6,23 +6,24 @@ Tests the integration of HybridConnector, RiskManager, and ML components
 into the V6 strategy implementation.
 """
 
-import pytest
 import sys
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-from datetime import datetime
+
 import pandas as pd
-import numpy as np
+import pytest
 
 # Add user_data to path so we can import strategies
 sys.path.append(str(Path(__file__).parent.parent.parent / "user_data"))
 
 from strategies.StoicEnsembleStrategyV6 import StoicEnsembleStrategyV6
+
 from src.websocket.aggregator import AggregatedTicker
-from src.config.unified_config import TradingConfig
+
 
 class TestStoicV6Integration:
-    
+
     @pytest.fixture
     def strategy(self):
         """Create a mocked V6 strategy instance."""
@@ -36,14 +37,14 @@ class TestStoicV6Integration:
             "dry_run": True,
             "runmode": "live"
         }
-        
+
         # Mock Freqtrade Strategy Init
         with patch('freqtrade.strategy.IStrategy.__init__', return_value=None):
             strat = StoicEnsembleStrategyV6(config=mock_config)
             strat.config = mock_config
             strat.dp = MagicMock()
             strat.dp.runmode.value = 'live'
-            
+
             # Manually trigger bot_start behavior if needed
             # In V6, base_strategy handles some of this
             return strat
@@ -58,7 +59,7 @@ class TestStoicV6Integration:
         """Test that populate_indicators attempts to fetch ML features."""
         df = pd.DataFrame({'open': [1], 'high': [1], 'low': [1], 'close': [1], 'volume': [1]})
         metadata = {'pair': 'BTC/USDT'}
-        
+
         # Mock Feature Store
         mock_fs = MagicMock()
         # Mock get_online_features to return a DataFrame with predictions
@@ -66,17 +67,17 @@ class TestStoicV6Integration:
             'ensemble_prediction': [0.8],
             'prediction_confidence': [0.9]
         })
-        
+
         with patch('user_data.strategies.StoicEnsembleStrategyV6.create_feature_store', return_value=mock_fs):
             # We need to ensure populate_indicators is called
             # and it handles the feature store initialization
             df_out = strategy.populate_indicators(df, metadata)
-            
+
             assert 'ml_prediction' in df_out.columns or 'ml_prediction' in strategy.feature_store_data_if_any # V6 implementation detail dependent
             # Based on the code I read:
             # dataframe.iloc[-1, dataframe.columns.get_loc('ml_prediction')] = latest_pred
             # Wait, V6.py uses dataframe.columns.get_loc('ml_prediction'), so it must exist first.
-            
+
     def test_market_safety_gate(self, strategy):
         """Test the HybridConnector safety gate integration."""
         # Mock check_market_safety (from HybridConnectorMixin)
@@ -110,22 +111,22 @@ class TestStoicV6Integration:
             total_volume_24h=1000.0,
             timestamp=datetime.now().timestamp()
         )
-        
+
         # Mock Trade object
         mock_trade = MagicMock()
         mock_trade.is_short = False
-        
+
         if hasattr(strategy, 'custom_entry_price'):
             with patch.object(strategy, 'get_realtime_metrics', return_value=mock_ticker):
-                # Check signature - Freqtrade often changes this. 
+                # Check signature - Freqtrade often changes this.
                 # We'll use kwargs to be safe if it's not present in the public version yet.
                 try:
                     price = strategy.custom_entry_price(
-                        pair="BTC/USDT", 
+                        pair="BTC/USDT",
                         trade=mock_trade,
-                        current_time=datetime.now(), 
-                        proposed_rate=50000.0, 
-                        entry_tag="test", 
+                        current_time=datetime.now(),
+                        proposed_rate=50000.0,
+                        entry_tag="test",
                         side="long"
                     )
                     assert price == 49950.0

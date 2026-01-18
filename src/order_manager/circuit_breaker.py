@@ -349,7 +349,7 @@ class CircuitBreaker:
 
     def _check_order_rate(self) -> bool:
         """Check if order rate is within limits."""
-        now = datetime.now()
+        datetime.now()
 
         # Count orders in last minute
         orders_last_minute = self._count_recent_orders(1)

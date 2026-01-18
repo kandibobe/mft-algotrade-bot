@@ -68,12 +68,14 @@ def calculate_regime(
 
     # --- 1. Volatility Metric (Z-Score of ATR%) ---
     # Optimized: Cache ATR calculation
-    atr = calculate_atr(high, low, close, 14)
+    # Construct temporary dataframe for calculate_atr which expects DataFrame input
+    temp_df = pd.DataFrame({"high": high, "low": low, "close": close})
+    atr_df = calculate_atr(temp_df, 14)
+    atr = atr_df["atr_14"]
     atr_pct = (atr / close).replace([np.inf, -np.inf], 0).fillna(0)
 
     # Calculate Rolling Mean/Std of ATR% for Z-Score
     # Using raw numpy arrays for speed where possible
-    atr_values = atr_pct.values
     vol_rolling = atr_pct.rolling(window=lookback_vol, min_periods=50)
     vol_mean = vol_rolling.mean()
     vol_std = vol_rolling.std()
@@ -83,8 +85,10 @@ def calculate_regime(
 
     # --- 2. Trend Metric (ADX + Hurst) ---
     # ADX measures directional strength (0-100)
-    adx_data = calculate_adx(high, low, close, 14)
-    result["adx"] = adx_data["adx"]
+    # calculate_adx also expects DataFrame
+    temp_df = pd.DataFrame({"high": high, "low": low, "close": close})
+    adx_data = calculate_adx(temp_df, 14)
+    result["adx"] = adx_data["adx_14"]
 
     # Hurst measures persistence (0.0-1.0)
     # Optimization: Hurst calculation is the bottleneck.

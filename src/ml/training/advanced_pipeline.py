@@ -485,7 +485,6 @@ class TripleBarrierWithPurging:
             # Check forward bars
             hit_tp = False
             hit_sl = False
-            hit_time = False
 
             for j in range(1, self.config.max_holding_period + 1):
                 if i + j >= len(df):
@@ -684,7 +683,7 @@ class FeatureSelector:
             top_features = importance_df.head(self.config.top_n_features)["feature"].tolist()
 
             logger.info("Top 10 features by SHAP importance:")
-            for idx, row in importance_df.head(10).iterrows():
+            for _idx, row in importance_df.head(10).iterrows():
                 logger.info(f"  {row['feature']}: {row['importance']:.4f}")
 
             return X[top_features]
@@ -727,7 +726,7 @@ class FeatureSelector:
         top_features = importance.head(self.config.top_n_features)["feature"].tolist()
 
         logger.info("Top 10 features by importance:")
-        for idx, row in importance.head(10).iterrows():
+        for _idx, row in importance.head(10).iterrows():
             logger.info(f"  {row['feature']}: {row['importance']:.4f}")
 
         return X[top_features]
@@ -772,7 +771,7 @@ class FeatureSelector:
 
             logger.info(f"RFE selected {len(selected_features)} features")
             logger.info("Top 10 features by RFE ranking:")
-            for idx, row in ranking.head(10).iterrows():
+            for _idx, row in ranking.head(10).iterrows():
                 logger.info(f"  {row['feature']}: ranking {row['ranking']}")
 
             return X[selected_features]
@@ -799,8 +798,8 @@ class FeatureSelector:
             fold_features = []
 
             for fold, (train_idx, test_idx) in enumerate(tscv.split(X)):
-                X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
-                y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+                X_train, _X_test = X.iloc[train_idx], X.iloc[test_idx]
+                y_train, _y_test = y.iloc[train_idx], y.iloc[test_idx]
 
                 # Train model on fold
                 model = xgb.XGBClassifier(
@@ -1277,10 +1276,10 @@ class TradingMetrics:
     def calculate_uncertainty(self, proba: np.ndarray) -> np.ndarray:
         """
         Calculate prediction uncertainty (Entropy).
-        
+
         Args:
             proba: Prediction probabilities [n_samples, n_classes]
-            
+
         Returns:
             Entropy values
         """
@@ -1347,7 +1346,7 @@ class AdvancedTradingPipeline:
         # Stage 6: Trading metrics (on full data with best model)
         model.fit(X_selected, y)
         predictions = model.predict(X_selected)
-        
+
         # Uncertainty estimation
         if hasattr(model, "predict_proba"):
             proba = model.predict_proba(X_selected)

@@ -16,9 +16,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from src.analysis.monte_carlo import MonteCarloSimulator
 from src.database.db_manager import DatabaseManager
 from src.database.models import ExecutionRecord, SignalRecord, TradeRecord
-from src.analysis.monte_carlo import MonteCarloSimulator
 
 # --- Configuration ---
 st.set_page_config(
@@ -232,7 +232,7 @@ def main():
         )
 
         st.divider()
-        
+
         # Equity Curve & Drawdown
         st.subheader("Equity Curve & Drawdown")
         if not df.empty:
@@ -240,32 +240,32 @@ def main():
             df_sorted = df.sort_values("exit_time")
             # Calculate cumulative PnL
             df_sorted["equity"] = df_sorted["pnl_usd"].cumsum()
-            
+
             # Calculate Drawdown
             df_sorted["max_equity"] = df_sorted["equity"].cummax()
             df_sorted["drawdown"] = df_sorted["equity"] - df_sorted["max_equity"]
-            
+
             # Plot Equity
             fig_equity = px.line(
-                df_sorted, 
-                x="exit_time", 
-                y="equity", 
+                df_sorted,
+                x="exit_time",
+                y="equity",
                 title="Portfolio Equity Curve (USD)",
                 markers=True
             )
             fig_equity.update_traces(line_color="#4CAF50")
             st.plotly_chart(fig_equity, use_container_width=True)
-            
+
             # Plot Drawdown (Waterfall style using bar chart)
             fig_dd = px.bar(
-                df_sorted, 
-                x="exit_time", 
-                y="drawdown", 
+                df_sorted,
+                x="exit_time",
+                y="drawdown",
                 title="Drawdown Waterfall (USD)",
             )
             fig_dd.update_traces(marker_color="#FF5252")
             st.plotly_chart(fig_dd, use_container_width=True)
-            
+
         else:
             st.info("Not enough data for equity curve.")
 
@@ -280,37 +280,37 @@ def main():
                 axis=1,
             )
             selected_trade_str = st.selectbox("Select a Trade to Analyze", options=trade_options)
-            
+
             if selected_trade_str:
                 idx = trade_options[trade_options == selected_trade_str].index[0]
                 trade_data = df.iloc[idx]
-                
+
                 st.markdown(f"### Trade Analysis: {trade_data['symbol']} ({trade_data['side'].upper()})")
-                
+
                 # Layout
                 col_attr_1, col_attr_2, col_attr_3 = st.columns(3)
-                
+
                 with col_attr_1:
                     st.markdown("#### 🧠 Model Reasoning")
                     st.metric("Model Confidence", f"{trade_data['model_confidence']:.2f}")
                     st.metric("Market Regime", f"{trade_data['signal_regime']}")
-                    
+
                     # Feature Importance (if available in metadata)
                     attr_data = trade_data.get("attribution", {})
                     if attr_data and isinstance(attr_data, dict):
                          strategy_name = attr_data.get("strategy_name", "Unknown")
                          st.info(f"Strategy: {strategy_name}")
                          # Potentially more details here if we logged them
-                    
+
                 with col_attr_2:
                     st.markdown("#### 🛡️ Risk Parameters")
                     # Assuming we can calculate or get these
                     entry = trade_data['entry_price']
-                    # We might need stop loss from metadata if not in main columns, 
+                    # We might need stop loss from metadata if not in main columns,
                     # but let's just show what we have
                     st.metric("Entry Price", f"{entry:.4f}")
                     st.metric("Exit Price", f"{trade_data['exit_price']:.4f}")
-                    
+
                 with col_attr_3:
                     st.markdown("#### ⚡ Execution Quality")
                     st.metric("Slippage", f"{trade_data['slippage_pct']:.4f}%")
@@ -356,7 +356,7 @@ def main():
     # --- Tab 3: Risk & Drift Analysis ---
     with tab3:
         st.subheader("Monte Carlo Simulation (Live)")
-        
+
         if not df.empty:
             col_mc1, col_mc2 = st.columns(2)
             with col_mc1:
@@ -364,13 +364,13 @@ def main():
                 iterations = st.slider("Iterations", 100, 5000, 1000)
             with col_mc2:
                 max_dd_limit = st.slider("Max Drawdown Limit", 0.1, 0.9, 0.5)
-                
+
             if st.button("Run Monte Carlo Simulation"):
                 with st.spinner("Simulating..."):
                     # Prepare data
                     sim_df = df.copy()
                     sim_df["profit_ratio"] = sim_df["pnl_pct"]
-                    
+
                     simulator = MonteCarloSimulator(
                         trades_df=sim_df,
                         iterations=iterations,
@@ -379,29 +379,29 @@ def main():
                     )
                     simulator.run()
                     summary = simulator.get_summary()
-                    
+
                     # Display metrics
                     m1, m2, m3 = st.columns(3)
                     m1.metric("Probability of Ruin", f"{summary['probability_of_ruin']:.2f}%")
                     m2.metric("Mean Max Drawdown", f"{summary['mean_max_drawdown']:.2%}")
                     m3.metric("99th %ile Drawdown", f"{summary['99th_percentile_drawdown']:.2%}")
-                    
+
                     # Plot equity curves
                     st.markdown("#### Simulated Equity Curves")
                     fig_mc = plt.figure(figsize=(10, 6))
-                    
+
                     # Plot a subset of curves
-                    import numpy as np
                     import matplotlib.pyplot as plt
-                    
+                    import numpy as np
+
                     subset_indices = np.random.choice(len(simulator.all_equity_curves), size=min(100, iterations), replace=False)
                     for i in subset_indices:
                         plt.plot(simulator.all_equity_curves[i], color='gray', alpha=0.1)
-                        
+
                     # Plot median
                     median_curve = np.median(simulator.all_equity_curves, axis=0)
                     plt.plot(median_curve, color='blue', linewidth=2, label='Median')
-                    
+
                     plt.title("Projected Equity Paths")
                     plt.grid(True, alpha=0.3)
                     st.pyplot(fig_mc)

@@ -1,16 +1,34 @@
+# Core Dependencies
+freqtrade==2024.1
+ccxt==4.5.29
+pandas==2.3.3
+numpy==2.2.6
+scipy==1.16.3
+scikit-learn==1.8.0
+lightgbm==4.6.0
+xgboost==3.1.2
+optuna==4.6.0
+sqlalchemy==2.0.45
+alembic==1.17.2
+psycopg2-binary==2.9.11
+redis==7.1.0
+feast==0.58.0
+pydantic==2.12.5
+pydantic-settings==2.12.0
+python-dotenv==1.2.1
+uvicorn==0.34.0
+fastapi==0.127.0
+typer==0.21.0
+rich==14.2.0
+structlog==25.5.0
+prometheus-client==0.23.1
+tenacity==8.5.0
+cachetools==6.2.4
 
-hvac
-fastapi
-uvicorn
-psutil
-redis
-numpy
-pandas
-pydantic
-pydantic-settings
-pyyaml
-watchdog
-ccxt
-sqlalchemy
-cryptography
--r requirements.in
+# Additional dependencies
+hvac==2.4.0
+psutil==7.2.0
+PyYAML==6.0.3
+watchdog==6.0.0
+sentry-sdk==2.13.0
+cryptography==46.0.3

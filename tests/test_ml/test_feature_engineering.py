@@ -2,14 +2,14 @@
 Tests for Feature Engineering Pipeline
 """
 
-import pytest
-import pandas as pd
+
 import numpy as np
-from datetime import datetime, timedelta
+import pandas as pd
+import pytest
 
 from src.ml.training.feature_engineering import (
-    FeatureEngineer,
     FeatureConfig,
+    FeatureEngineer,
 )
 
 
@@ -94,7 +94,7 @@ class TestFeatureEngineer:
                 # Call original but with raise_on_error=False
                 return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
             return original_validate(df, fix_issues, raise_on_error, **kwargs)
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         # Use fit_transform to populate feature_names
@@ -133,7 +133,7 @@ class TestFeatureEngineer:
                 # Call original but with raise_on_error=False
                 return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
             return original_validate(df, fix_issues, raise_on_error, **kwargs)
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         result = engineer.transform(sample_ohlcv_data)
@@ -168,7 +168,7 @@ class TestFeatureEngineer:
                 # Call original but with raise_on_error=False
                 return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
             return original_validate(df, fix_issues, raise_on_error, **kwargs)
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         result = engineer.transform(sample_ohlcv_data)
@@ -202,7 +202,7 @@ class TestFeatureEngineer:
                 # Call original but with raise_on_error=False
                 return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
             return original_validate(df, fix_issues, raise_on_error, **kwargs)
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         result = engineer.transform(sample_ohlcv_data)
@@ -238,7 +238,7 @@ class TestFeatureEngineer:
                 # Call original but with raise_on_error=False
                 return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
             return original_validate(df, fix_issues, raise_on_error, **kwargs)
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         result = engineer.transform(sample_ohlcv_data)
@@ -275,7 +275,7 @@ class TestFeatureEngineer:
                 # Call original but with raise_on_error=False
                 return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
             return original_validate(df, fix_issues, raise_on_error, **kwargs)
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         result = engineer.transform(sample_ohlcv_data)
@@ -313,7 +313,7 @@ class TestFeatureEngineer:
                 # Call original but with raise_on_error=False
                 return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
             return original_validate(df, fix_issues, raise_on_error, **kwargs)
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         result = engineer.transform(sample_ohlcv_data)
@@ -337,13 +337,13 @@ class TestFeatureEngineer:
 
         # Monkey-patch validate_features to ignore NaN and low variance in test data
         original_validate = engineer.validate_features
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, **kwargs):
             # For test data, ignore NaN and low variance issues
             if fix_issues is False and raise_on_error is True:
                 # Call original but with raise_on_error=False
-                return original_validate(df, fix_issues=False, raise_on_error=False)
-            return original_validate(df, fix_issues, raise_on_error)
-        
+                return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
+            return original_validate(df, fix_issues, raise_on_error, **kwargs)
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         result = engineer.fit_transform(sample_ohlcv_data)
@@ -373,10 +373,10 @@ class TestFeatureEngineer:
         engineer = FeatureEngineer(config)
 
         # Monkey-patch validate_features to skip validation entirely
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, **kwargs):
             # Return (True, {}) meaning validation passed with no issues
             return True, {}
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         result = engineer.fit_transform(sample_ohlcv_data)
@@ -397,10 +397,10 @@ class TestFeatureEngineer:
         engineer = FeatureEngineer(config)
 
         # Monkey-patch validate_features to skip validation entirely
-        def patched_validate(df, fix_issues=False, raise_on_error=True):
+        def patched_validate(df, fix_issues=False, raise_on_error=True, **kwargs):
             # Return (True, {}) meaning validation passed with no issues
             return True, {}
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         engineer.fit_transform(sample_ohlcv_data)
@@ -430,7 +430,7 @@ class TestFeatureEngineer:
                 # Call original but with raise_on_error=False
                 return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
             return original_validate(df, fix_issues, raise_on_error, **kwargs)
-        
+
         monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
         result = engineer.transform(sample_ohlcv_data)
@@ -453,13 +453,13 @@ class TestFeatureEngineer:
 
             # Monkey-patch validate_features to ignore NaN and low variance in test data
             original_validate = engineer.validate_features
-            def patched_validate(df, fix_issues=False, raise_on_error=True):
+            def patched_validate(df, fix_issues=False, raise_on_error=True, **kwargs):
                 # For test data, ignore NaN and low variance issues
                 if fix_issues is False and raise_on_error is True:
                     # Call original but with raise_on_error=False
-                    return original_validate(df, fix_issues=False, raise_on_error=False)
-                return original_validate(df, fix_issues, raise_on_error)
-            
+                    return original_validate(df, fix_issues=False, raise_on_error=False, **kwargs)
+                return original_validate(df, fix_issues, raise_on_error, **kwargs)
+
             monkeypatch.setattr(engineer, 'validate_features', patched_validate)
 
             result = engineer.fit_transform(sample_ohlcv_data)

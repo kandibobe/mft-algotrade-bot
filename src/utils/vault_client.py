@@ -1,10 +1,9 @@
 
 import logging
 import os
-from typing import Optional
 
 import hvac
-from hvac.exceptions import InvalidPath, Forbidden
+from hvac.exceptions import Forbidden, InvalidPath
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +17,7 @@ class VaultClient:
     def _get_client(cls):
         """
         Initializes and returns a singleton Vault client instance.
-        
+
         Reads connection details from environment variables.
         """
         if cls._client is None:
@@ -28,7 +27,7 @@ class VaultClient:
             if not vault_addr or not vault_token:
                 logger.debug("VAULT_ADDR or VAULT_TOKEN not set. VaultClient is disabled.")
                 return None
-            
+
             try:
                 cls._client = hvac.Client(url=vault_addr, token=vault_token)
                 if not cls._client.is_authenticated():
@@ -41,7 +40,7 @@ class VaultClient:
         return cls._client
 
     @classmethod
-    def get_secret(cls, path: str, key: str = "value") -> Optional[str]:
+    def get_secret(cls, path: str, key: str = "value") -> str | None:
         """
         Retrieves a secret from Vault's KV version 2 engine.
 
@@ -60,7 +59,7 @@ class VaultClient:
         try:
             # Defaulting to 'kv' mount point, which is standard
             response = client.secrets.kv.v2.read_secret_version(path=path)
-            
+
             secret_value = response['data']['data'].get(key)
 
             if secret_value:

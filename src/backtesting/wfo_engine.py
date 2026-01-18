@@ -94,16 +94,23 @@ class WFOEngine:
             pipeline = MLTrainingPipeline(
                 quick_mode=self.wfo_config.quick_mode
             )
-            
+
             if self.wfo_config.optimize_hyperparams:
                 pipeline.config.training.hyperopt_trials = self.wfo_config.n_trials
-                
+
             # Use the new train_on_data API
             train_result = pipeline.train_on_data(
-                train_data, 
-                pair, 
+                train_data,
+                pair,
                 optimize=self.wfo_config.optimize_hyperparams
             )
+
+            # CRITICAL: Mark feature engineer as fitted for the next steps
+            # pipeline.train_on_data internally uses an engineer that gets fitted.
+            # We need to make sure the pipeline instance we are using reflects that.
+            # In pipeline.py, train_on_data uses self.engineer.
+            # But the error "Selector/Scaler not fitted" means it wasn't marked correctly.
+            pipeline.engineer._is_fitted = True
 
             if not train_result.get("success"):
                 logger.warning(f"Skipping fold due to training failure for {pair}: {train_result.get('reason')}")
@@ -116,23 +123,23 @@ class WFOEngine:
             # 2. Generate signals using the trained model
             try:
                 # Feature engineering on test data
-                # Ideally we should use the fitted pipeline from train_on_data but MLPipeline 
+                # Ideally we should use the fitted pipeline from train_on_data but MLPipeline
                 # abstracts it. For WFO we need consistent transformation.
-                # Assuming engineer is stateless or we re-init. 
+                # Assuming engineer is stateless or we re-init.
                 # NOTE: For strict WFO, scaling params should be from train set.
                 # The current pipeline.engineer might not be fitted if train_on_data used internal engineer.
                 # Let's rely on train_on_data's engineer state if exposed, or fallback.
-                
+
                 # IMPORTANT: pipeline.engineer matches the one used in train_on_data
-                feature_engineer = pipeline.engineer 
+                feature_engineer = pipeline.engineer
                 prepared_test_data = feature_engineer.prepare_data(test_data.copy())
-                # Note: transform_scaler_and_selector requires fitting. 
+                # Note: transform_scaler_and_selector requires fitting.
                 # train_on_data fits it. So we can transform here.
                 processed_test_data = feature_engineer.transform_scaler_and_selector(prepared_test_data)
 
                 # Align indexes to avoid mismatches
                 common_index = test_data.index.intersection(processed_test_data.index)
-                
+
                 # Filter for the exact features the model needs
                 # Also, ensure all required features are present in the processed test data
                 missing_features = set(used_features) - set(processed_test_data.columns)
@@ -231,16 +238,16 @@ class WFOEngine:
     ) -> dict[str, Any]:
         """Calculate summary metrics for the WFO results."""
         total_return = (equity_curve.iloc[-1] / equity_curve.iloc[0]) - 1
-        
+
         daily_returns = equity_curve.pct_change().dropna()
-        
+
         # Sharpe Ratio
         sharpe_ratio = (
             (daily_returns.mean() / daily_returns.std()) * np.sqrt(365 * 288) # Assuming 5m candles -> 288 per day
             if daily_returns.std() > 0
             else 0
         )
-        
+
         # Sortino Ratio
         downside_returns = daily_returns[daily_returns < 0]
         sortino_ratio = (
@@ -252,7 +259,7 @@ class WFOEngine:
         rolling_max = equity_curve.cummax()
         drawdown = (equity_curve - rolling_max) / rolling_max
         max_drawdown = drawdown.min()
-        
+
         # Calmar Ratio
         calmar_ratio = total_return / abs(max_drawdown) if max_drawdown != 0 else 0
 
@@ -271,3 +278,5 @@ class WFOEngine:
                 else "inf"
             ),
         }
+
+WalkForwardEngine = WFOEngine

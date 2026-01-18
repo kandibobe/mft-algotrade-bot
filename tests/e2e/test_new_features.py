@@ -9,7 +9,6 @@ This file contains template test cases for the new features:
 """
 
 import unittest
-import pandas as pd
 
 # This is a placeholder for the full application setup.
 # In a real E2E test, you would import and initialize your application's main components.
@@ -34,13 +33,13 @@ class TestNewFeatures(unittest.TestCase):
         """
         # 1. Define the TWAP order
         # order = TWAPOrder(symbol="BTC/USDT", side=OrderSide.BUY, quantity=1.0, duration_minutes=10, num_chunks=5)
-        
+
         # 2. Submit the order to the executor
         # order_id = self.app.order_executor.submit_order(order)
-        
+
         # 3. Wait for the order to be executed
         # await asyncio.sleep(11 * 60) # Wait for the duration + a buffer
-        
+
         # 4. Assert that the order was executed in the correct number of chunks
         # filled_order = self.app.order_executor.get_order(order_id)
         # self.assertEqual(filled_order.status, OrderStatus.FILLED)
@@ -53,7 +52,7 @@ class TestNewFeatures(unittest.TestCase):
         """
         # 1. Get historical price data
         # prices = self.app.data_loader.get_historical_prices(["BTC/USDT", "ETH/USDT"])
-        
+
         # 2. Request a trade with HRP sizing
         # trade_decision = self.app.risk_manager.evaluate_trade(
         #     symbol="BTC/USDT",
@@ -62,7 +61,7 @@ class TestNewFeatures(unittest.TestCase):
         #     sizing_method="hrp",
         #     prices=prices
         # )
-        
+
         # 3. Assert that the position size is calculated correctly based on HRP weights
         # self.assertTrue(trade_decision['allowed'])
         # self.assertAlmostEqual(trade_decision['position_size'], EXPECTED_HRP_SIZE, places=4)
@@ -77,10 +76,10 @@ class TestNewFeatures(unittest.TestCase):
         #     "BTC/USDT": {"value": 10000, "current_price": 50000},
         #     "ETH/USDT": {"value": 1000, "current_price": 3000}
         # })
-        
+
         # 2. Run the rebalancer
         # self.app.rebalancer.run()
-        
+
         # 3. Assert that the correct rebalancing trades were created
         # created_orders = self.app.order_executor.get_all_orders()
         # self.assertEqual(len(created_orders), 1) # Should create a sell for BTC and a buy for ETH

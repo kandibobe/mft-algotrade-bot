@@ -381,20 +381,20 @@ class ModelRegistry:
             return {}
 
         import pandas as pd
-        
+
         # Look for importance CSV next to model file
         model_path = Path(metadata.model_path)
         importance_path = model_path.with_suffix(".csv")
-        
+
         if not importance_path.exists():
             logger.warning(f"Feature importance file not found: {importance_path}")
             return {}
-            
+
         try:
             df = pd.read_csv(importance_path)
             # Assuming columns 'feature' and 'importance'
             if 'feature' in df.columns and 'importance' in df.columns:
-                return dict(zip(df['feature'], df['importance']))
+                return dict(zip(df['feature'], df['importance'], strict=False))
             return {}
         except Exception as e:
             logger.error(f"Failed to load feature importance: {e}")

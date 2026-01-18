@@ -7,22 +7,19 @@ Centralizes indicators, ML, and risk management.
 """
 
 import logging
-from typing import Optional, Dict, Any, Tuple, List
 from datetime import datetime
-import pandas as pd
-import numpy as np
+
+from freqtrade.strategy import DecimalParameter, IntParameter, IStrategy, merge_informative_pair
 from pandas import DataFrame
 
-from freqtrade.strategy import IStrategy, IntParameter, DecimalParameter, merge_informative_pair
-from freqtrade.persistence import Trade
-
-# Internal Imports
-from src.utils.regime_detection import calculate_regime
-from src.strategies.risk_mixin import StoicRiskMixin
 from src.strategies.core_logic import StoicLogic
 from src.strategies.hybrid_connector import HybridConnectorMixin
 from src.strategies.ml_adapter import StrategyMLAdapter
+from src.strategies.risk_mixin import StoicRiskMixin
 from src.utils.logger import log as stoic_log
+
+# Internal Imports
+from src.utils.regime_detection import calculate_regime
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +27,7 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
     INTERFACE_VERSION = 3
     timeframe = '5m'
     startup_candle_count = 500
-    
+
     # Common Parameters (Hyperoptable)
     buy_rsi = IntParameter(10, 60, default=30, space="buy")
     sell_rsi = IntParameter(60, 95, default=75, space="sell")
@@ -39,6 +36,10 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
     regime_hurst_threshold = DecimalParameter(0.40, 0.60, default=0.55, space="buy")
     risk_per_trade = DecimalParameter(0.005, 0.02, default=0.01, space="sell")
     max_equity_drawdown = DecimalParameter(0.05, 0.20, default=0.10, space="sell")
+
+    # Liquidity Filter Parameters
+    min_volume_1h = DecimalParameter(100000.0, 1000000.0, default=500000.0, space="buy", optimize=True)
+    max_spread_pct = DecimalParameter(0.01, 0.2, default=0.05, space="buy", optimize=True)
 
     def __init__(self, config: dict) -> None:
         super().__init__(config)
@@ -55,7 +56,10 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
         try:
             # 1. Technical Indicators
             dataframe = StoicLogic.populate_indicators(dataframe)
-            
+
+            # 1b. Liquidity Metrics
+            dataframe['rolling_volume_1h'] = dataframe['volume'].rolling(window=12).sum() # 12 * 5m = 1h
+
             # 2. Regime Detection
             regime_df = calculate_regime(
                 dataframe['high'], dataframe['low'], dataframe['close'], dataframe['volume'],
@@ -67,7 +71,7 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
             dataframe['hurst'] = regime_df['hurst']
             dataframe['adx'] = regime_df['adx']
             dataframe['vol_zscore'] = regime_df['vol_zscore']
-            
+
             # 3. Broad Market Trend (Informative BTC)
             if self.dp:
                 inf_btc = self.dp.get_pair_dataframe("BTC/USDT:USDT", "1h")
@@ -82,7 +86,7 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
             else:
                 dataframe['ml_prediction'] = 0.5
 
-        except Exception as e:
+        except Exception:
             if 'ml_prediction' not in dataframe.columns:
                 dataframe['ml_prediction'] = 0.5
         return dataframe
@@ -97,8 +101,8 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
             dataframe['ml_prediction'] = 0.5
         return dataframe
 
-    def confirm_trade_entry(self, pair: str, order_type: str, amount: float, rate: float, 
-                           time_in_force: str, current_time: datetime, entry_tag: Optional[str], 
+    def confirm_trade_entry(self, pair: str, order_type: str, amount: float, rate: float,
+                           time_in_force: str, current_time: datetime, entry_tag: str | None,
                            side: str, **kwargs) -> bool:
         # 1. Hybrid Safety Check
         if not self.check_market_safety(pair, side):
@@ -110,7 +114,7 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
             if self._executor:
                 try:
                     from src.order_manager.smart_order import ChaseLimitOrder
-                    
+
                     # Construct Smart Order
                     smart_order = ChaseLimitOrder(
                         symbol=pair,
@@ -119,10 +123,10 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
                         price=rate,
                         attribution_metadata={"strategy": self.get_strategy_name(), "tag": entry_tag}
                     )
-                    
+
                     # Submit to Async Executor
                     order_id = self.submit_smart_order(smart_order)
-                    
+
                     if order_id:
                         logger.info(f"⚡ MFT Order Submitted: {order_id} for {pair} {side}")
                         # Return False to prevent Freqtrade from placing a duplicate dumb order
@@ -134,7 +138,7 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
                     logger.critical(f"Error in MFT execution diversion: {e}", exc_info=True)
                     return False
 
-        return super().confirm_trade_entry(pair, order_type, amount, rate, time_in_force, 
+        return super().confirm_trade_entry(pair, order_type, amount, rate, time_in_force,
                                          current_time, entry_tag, side, **kwargs)
 
     def bot_start(self, **kwargs) -> None:

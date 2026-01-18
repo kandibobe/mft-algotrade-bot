@@ -4,19 +4,14 @@ Database Connector MCP Server
 ==============================
 
 MCP сервер для работы с PostgreSQL базой данных.
-
-Предоставляет инструменты:
-- execute_query: Выполнение SQL запроса
-- get_pool_status: Статус connection pool
-- health_check: Проверка подключения
-
-Author: Stoic Citadel Team
+Оптимизирован: быстрые таймауты для предотвращения фризов системы.
 """
 
 import asyncio
 import json
 import logging
 import os
+import socket
 import sys
 
 # MCP SDK
@@ -26,182 +21,100 @@ try:
     from mcp.server.models import InitializationOptions
     from mcp.server.stdio import stdio_server
 except ImportError:
-    print("Error: MCP SDK not installed. Run: pip install mcp", file=sys.stderr)
+    print("Error: MCP SDK not installed.", file=sys.stderr)
     sys.exit(1)
 
 # Project imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config.database import get_db_config, get_pool_status
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from config.database import get_db_config
 
 # Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
+logger = logging.getLogger("mcp-database-connector")
+
+def is_port_open(host, port):
+    """Быстрая проверка порта, чтобы не вешать систему."""
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            return True
+    except:
+        return False
 
 # Global database config
 db_config = None
 
-
 def initialize_db():
-    """Инициализация database."""
+    """Инициализация database с быстрой проверкой доступности."""
     global db_config
-    if db_config is None:
-        db_config = get_db_config(pool_size=10, max_overflow=20)
-        logger.info("Database connection initialized")
 
+    host = os.getenv("POSTGRES_HOST", "127.0.0.1")
+    port = int(os.getenv("POSTGRES_PORT", 5431))
+
+    if not is_port_open(host, port):
+        raise ConnectionError(f"Database at {host}:{port} is not reachable. Is Docker running?")
+
+    if db_config is None:
+        db_config = get_db_config()
 
 # Create MCP server
 server = Server("database-connector")
 
-
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
-    """Список доступных инструментов."""
     return [
         types.Tool(
             name="execute_query",
-            description="Выполнить SQL запрос (SELECT, INSERT, UPDATE, DELETE)",
+            description="SQL query execution",
             inputSchema={
                 "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "SQL запрос",
-                    },
-                    "params": {
-                        "type": "object",
-                        "description": "Параметры запроса (опционально)",
-                    },
-                },
+                "properties": {"query": {"type": "string"}},
                 "required": ["query"],
             },
         ),
         types.Tool(
-            name="get_pool_status",
-            description="Получить статус connection pool",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-            },
-        ),
-        types.Tool(
-            name="health_check",
-            description="Проверить подключение к базе данных",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-            },
+            name="list_tables",
+            description="Show all tables",
+            inputSchema={"type": "object", "properties": {}},
         ),
     ]
 
-
 @server.call_tool()
-async def handle_call_tool(
-    name: str, arguments: dict | None
-) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
-    """Обработка вызовов инструментов."""
-
-    initialize_db()
+async def handle_call_tool(name: str, arguments: dict | None) -> list[types.TextContent]:
+    try:
+        initialize_db()
+    except Exception as e:
+        return [types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))]
 
     try:
         if name == "execute_query":
             query = arguments.get("query", "")
-            params = arguments.get("params", {})
-
             with db_config.get_session() as session:
-                result_proxy = session.execute(query, params)
-
-                # Проверяем тип запроса
+                # Ограничиваем время выполнения запроса 2 секундами
+                session.execute("SET statement_timeout = 2000")
+                result_proxy = session.execute(query)
                 if query.strip().upper().startswith("SELECT"):
                     rows = result_proxy.fetchall()
-                    columns = result_proxy.keys()
-
-                    result = {
-                        "success": True,
-                        "rows": [dict(zip(columns, row)) for row in rows],
-                        "row_count": len(rows),
-                        "columns": list(columns),
-                    }
+                    result = {"success": True, "rows": [dict(zip(result_proxy.keys(), r, strict=False)) for r in rows]}
                 else:
-                    # INSERT, UPDATE, DELETE
-                    result = {
-                        "success": True,
-                        "affected_rows": result_proxy.rowcount,
-                        "message": "Query executed successfully",
-                    }
+                    result = {"success": True, "affected": result_proxy.rowcount}
+            return [types.TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
 
-            return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-
-        elif name == "get_pool_status":
-            status = get_pool_status()
-
-            result = {
-                "success": True,
-                "pool_status": status,
-            }
-
-            return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-
-        elif name == "health_check":
-            try:
-                with db_config.get_session() as session:
-                    session.execute("SELECT 1")
-
-                result = {
-                    "success": True,
-                    "status": "healthy",
-                    "message": "Database connection is working",
-                }
-            except Exception as e:
-                result = {
-                    "success": False,
-                    "status": "unhealthy",
-                    "error": str(e),
-                }
-
-            return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
-
-        else:
-            return [
-                types.TextContent(
-                    type="text",
-                    text=json.dumps({"success": False, "error": f"Unknown tool: {name}"}),
-                )
-            ]
+        elif name == "list_tables":
+            query = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+            with db_config.get_session() as session:
+                rows = session.execute(query).fetchall()
+                tables = [row[0] for row in rows]
+            return [types.TextContent(type="text", text=json.dumps({"success": True, "tables": tables}))]
 
     except Exception as e:
-        logger.error(f"Error in {name}: {e}", exc_info=True)
-        return [
-            types.TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "success": False,
-                        "error": str(e),
-                        "tool": name,
-                    }
-                ),
-            )
-        ]
-
+        return [types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))]
 
 async def main():
-    """Запуск MCP сервера."""
-    logger.info("Starting Database Connector MCP Server...")
-
     async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="database-connector",
-                server_version="1.0.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
-                ),
-            ),
-        )
-
+        await server.run(read_stream, write_stream, InitializationOptions(server_name="database-connector", server_version="1.2.0", capabilities=server.get_capabilities()))
 
 if __name__ == "__main__":
     asyncio.run(main())

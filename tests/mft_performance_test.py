@@ -1,10 +1,12 @@
 import asyncio
-import time
 import logging
+import time
+
 import numpy as np
-from src.websocket.aggregator import DataAggregator
-from src.order_manager.smart_order_executor import SmartOrderExecutor
+
 from src.config.unified_config import load_config
+from src.order_manager.smart_order_executor import SmartOrderExecutor
+from src.websocket.aggregator import DataAggregator
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("MFTPerformanceTest")
@@ -19,25 +21,25 @@ class MFTPerformanceTester:
     async def simulate_orderbook_update(self):
         """Simulate high-frequency orderbook updates."""
         start_time = time.perf_counter()
-        
+
         # Mock update logic
         # In real test, we would push to the aggregator's queue
         await asyncio.sleep(0.001) # Simulate network/processing delay
-        
+
         end_time = time.perf_counter()
         self.latencies.append((end_time - start_time) * 1000) # ms
 
     async def run_load_test(self, duration_seconds=10, updates_per_second=100):
         """Run the load test for a specified duration."""
         logger.info(f"Starting MFT Load Test: {updates_per_second} updates/sec for {duration_seconds}s")
-        
+
         start_test = time.time()
         count = 0
         while time.time() - start_test < duration_seconds:
             await self.simulate_orderbook_update()
             count += 1
             await asyncio.sleep(1.0 / updates_per_second)
-            
+
         self.report_results()
 
     def report_results(self):

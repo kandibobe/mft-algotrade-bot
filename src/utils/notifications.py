@@ -8,8 +8,8 @@ Handles multi-channel notifications (Telegram, Slack, Email).
 import logging
 import os
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import requests
 
@@ -23,7 +23,7 @@ class Notifier:
         # Telegram
         self.telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
         self.telegram_chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-        
+
         # Slack
         self.slack_webhook = os.environ.get("SLACK_WEBHOOK_URL")
 
@@ -81,7 +81,7 @@ class Notifier:
     def _send_telegram(self, message: str) -> bool:
         if not (self.telegram_token and self.telegram_chat_id):
             return False
-            
+
         try:
             url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
             payload = {
@@ -101,7 +101,7 @@ class Notifier:
     def _send_slack(self, message: str) -> bool:
         if not self.slack_webhook:
             return False
-            
+
         try:
             payload = {"text": message}
             response = requests.post(self.slack_webhook, json=payload, timeout=10)

@@ -52,6 +52,26 @@ class Rebalancer:
         for trade in trades_to_execute:
             self.order_executor.submit_order(trade)
 
+    def maintain_gas_token(self, symbol: str = "BNB/USDT", min_amount: float = 0.1, top_up_to: float = 0.5):
+        """
+        Maintains a minimum amount of a gas/fee token (like BNB) in the account.
+        """
+        logger.info(f"Checking {symbol} balance for fee coverage...")
+        try:
+            # Need a way to get real balance
+            # For now, we use a placeholder check
+            self.risk_manager.get_status().get("exchange_balances", {}).get("default", 0)
+            # This is a bit simplified, ideally we'd use the exchange connector
+
+            # Placeholder for actual balance check logic
+            current_bnb_balance = 0.0 # TODO: Get real balance
+
+            if current_bnb_balance < min_amount:
+                logger.warning(f"{symbol} balance low ({current_bnb_balance}). Top-up required.")
+                # Logic to create buy order...
+        except Exception as e:
+            logger.error(f"Failed to maintain gas token: {e}")
+
     def _calculate_rebalancing_trades(
         self,
         current_weights: dict[str, float],

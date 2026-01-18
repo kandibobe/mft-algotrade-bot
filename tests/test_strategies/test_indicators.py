@@ -8,11 +8,11 @@ Author: Stoic Citadel Team
 License: MIT
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-import sys
 import os
+import sys
+
+import numpy as np
+import pandas as pd
 
 # Add strategies to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../user_data/strategies"))
@@ -22,7 +22,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from conftest import (
     assert_column_exists,
-    assert_no_nan_in_column,
 )
 
 
@@ -138,7 +137,7 @@ class TestIndicatorEdgeCases:
         # Create minimal dataset
         n = 250  # Just above EMA200 requirement
         np.random.seed(42)
-        
+
         df = pd.DataFrame({
             "open": np.random.randn(n) * 10 + 100,
             "high": np.random.randn(n) * 10 + 101,
@@ -155,7 +154,7 @@ class TestIndicatorEdgeCases:
         """Test handling of zero volume candles."""
         np.random.seed(42)
         n = 300
-        
+
         df = pd.DataFrame({
             "open": np.random.randn(n) * 10 + 100,
             "high": np.random.randn(n) * 10 + 101,
@@ -171,7 +170,7 @@ class TestIndicatorEdgeCases:
     def test_flat_price_handling(self, stoic_strategy, strategy_metadata):
         """Test handling of flat price periods."""
         n = 300
-        
+
         df = pd.DataFrame({
             "open": [100.0] * n,
             "high": [100.5] * n,

@@ -18,10 +18,12 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+
 class MetaModel:
     """
     Wraps a secondary ML model for meta-labeling.
     """
+
     def __init__(self, model_obj: Any = None):
         self.model = model_obj
 
@@ -36,6 +38,7 @@ class MetaModel:
             return self.model.predict(X)
         else:
             return np.full(len(X), 0.5)
+
 
 class MetaLabeler:
     """
@@ -58,19 +61,22 @@ class MetaLabeler:
             Series of binary meta-labels (0 or 1)
         """
         # 1 if trade was profitable (hit take_profit), 0 otherwise
-        meta_labels = (trades_df['return_pct'] > 0).astype(int)
+        meta_labels = (trades_df["return_pct"] > 0).astype(int)
 
         # If we have barrier information, we can be more precise
-        if 'barrier_hit' in trades_df.columns:
-            meta_labels = (trades_df['barrier_hit'] == 'take_profit').astype(int)
+        if "barrier_hit" in trades_df.columns:
+            meta_labels = (trades_df["barrier_hit"] == "take_profit").astype(int)
 
-        logger.info(f"Created {len(meta_labels)} meta-labels. "
-                    f"Positive rate: {meta_labels.mean():.2%}")
+        logger.info(
+            f"Created {len(meta_labels)} meta-labels. Positive rate: {meta_labels.mean():.2%}"
+        )
 
         return meta_labels
 
     @staticmethod
-    def filter_signals(signals: pd.Series, meta_predictions: pd.Series, threshold: float = 0.5) -> pd.Series:
+    def filter_signals(
+        signals: pd.Series, meta_predictions: pd.Series, threshold: float = 0.5
+    ) -> pd.Series:
         """
         Filter primary signals using meta-model predictions.
 
@@ -87,7 +93,9 @@ class MetaLabeler:
         filtered[meta_predictions < threshold] = 0
 
         dropped_count = (signals != filtered).sum()
-        logger.info(f"Meta-labeling filtered out {dropped_count} signals "
-                    f"({dropped_count/max(1, len(signals)):.2%})")
+        logger.info(
+            f"Meta-labeling filtered out {dropped_count} signals "
+            f"({dropped_count / max(1, len(signals)):.2%})"
+        )
 
         return filtered

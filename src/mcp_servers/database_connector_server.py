@@ -35,6 +35,7 @@ from config.database import get_db_config
 logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
 logger = logging.getLogger("mcp-database-connector")
 
+
 def is_port_open(host, port):
     """Быстрая проверка порта, чтобы не вешать систему."""
     try:
@@ -43,8 +44,10 @@ def is_port_open(host, port):
     except:
         return False
 
+
 # Global database config
 db_config = None
+
 
 def initialize_db():
     """Инициализация database с быстрой проверкой доступности."""
@@ -59,8 +62,10 @@ def initialize_db():
     if db_config is None:
         db_config = get_db_config()
 
+
 # Create MCP server
 server = Server("database-connector")
+
 
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
@@ -81,12 +86,15 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
     ]
 
+
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: dict | None) -> list[types.TextContent]:
     try:
         initialize_db()
     except Exception as e:
-        return [types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))]
+        return [
+            types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))
+        ]
 
     try:
         if name == "execute_query":
@@ -97,7 +105,10 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
                 result_proxy = session.execute(query)
                 if query.strip().upper().startswith("SELECT"):
                     rows = result_proxy.fetchall()
-                    result = {"success": True, "rows": [dict(zip(result_proxy.keys(), r, strict=False)) for r in rows]}
+                    result = {
+                        "success": True,
+                        "rows": [dict(zip(result_proxy.keys(), r, strict=False)) for r in rows],
+                    }
                 else:
                     result = {"success": True, "affected": result_proxy.rowcount}
             return [types.TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
@@ -107,14 +118,28 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
             with db_config.get_session() as session:
                 rows = session.execute(query).fetchall()
                 tables = [row[0] for row in rows]
-            return [types.TextContent(type="text", text=json.dumps({"success": True, "tables": tables}))]
+            return [
+                types.TextContent(type="text", text=json.dumps({"success": True, "tables": tables}))
+            ]
 
     except Exception as e:
-        return [types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))]
+        return [
+            types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))
+        ]
+
 
 async def main():
     async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, InitializationOptions(server_name="database-connector", server_version="1.2.0", capabilities=server.get_capabilities()))
+        await server.run(
+            read_stream,
+            write_stream,
+            InitializationOptions(
+                server_name="database-connector",
+                server_version="1.2.0",
+                capabilities=server.get_capabilities(),
+            ),
+        )
+
 
 if __name__ == "__main__":
     asyncio.run(main())

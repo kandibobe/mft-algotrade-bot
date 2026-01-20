@@ -1,4 +1,3 @@
-
 import base64
 import logging
 import os
@@ -10,6 +9,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from src.utils.vault_client import VaultClient, is_vault_available
 
 logger = logging.getLogger(__name__)
+
 
 class SecretManager:
     """
@@ -31,12 +31,14 @@ class SecretManager:
         """
         if is_vault_available():
             try:
-                path, key = identifier.rsplit('/', 1)
+                path, key = identifier.rsplit("/", 1)
                 secret = VaultClient.get_secret(path, key)
                 if secret:
                     return secret
             except ValueError:
-                logger.warning(f"Identifier '{identifier}' is not in 'path/key' format for Vault. Falling back to local.")
+                logger.warning(
+                    f"Identifier '{identifier}' is not in 'path/key' format for Vault. Falling back to local."
+                )
 
         return cls._decrypt_local(identifier)
 
@@ -45,10 +47,12 @@ class SecretManager:
         if cls._fernet is None:
             master_key = os.getenv("STOIC_MASTER_KEY")
             if not master_key:
-                logger.warning("STOIC_MASTER_KEY not set. Using default development key. NOT SECURE FOR PRODUCTION!")
+                logger.warning(
+                    "STOIC_MASTER_KEY not set. Using default development key. NOT SECURE FOR PRODUCTION!"
+                )
                 master_key = "dev-secret-key-do-not-use-in-production"
 
-            salt = b'stoic_citadel_salt'
+            salt = b"stoic_citadel_salt"
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=32,

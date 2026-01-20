@@ -87,20 +87,20 @@ class StoicLogic:
         df["bb_width"] = bb["width"]
 
         # Stochastic (Legacy/Robustness)
-        low_min = df['low'].rolling(window=14).min()
-        high_max = df['high'].rolling(window=14).max()
-        df['slowk'] = 100 * (df['close'] - low_min) / (high_max - low_min)
-        df['slowd'] = df['slowk'].rolling(window=3).mean()
+        low_min = df["low"].rolling(window=14).min()
+        high_max = df["high"].rolling(window=14).max()
+        df["slowk"] = 100 * (df["close"] - low_min) / (high_max - low_min)
+        df["slowd"] = df["slowk"].rolling(window=3).mean()
 
         # Volume
-        df['volume_mean'] = df['volume'].rolling(window=20).mean()
+        df["volume_mean"] = df["volume"].rolling(window=20).mean()
 
         # 2. Aliases for backward compatibility and tests
-        df['bb_lowerband'] = df['bb_lower']
-        df['bb_upperband'] = df['bb_upper']
-        df['bb_middleband'] = df['bb_middle']
-        df['macdsignal'] = df['macd_signal']
-        df['macdhist'] = df['macd_hist']
+        df["bb_lowerband"] = df["bb_lower"]
+        df["bb_upperband"] = df["bb_upper"]
+        df["bb_middleband"] = df["bb_middle"]
+        df["macdsignal"] = df["macd_signal"]
+        df["macdhist"] = df["macd_hist"]
 
         return df
 
@@ -133,7 +133,9 @@ class StoicLogic:
 
         # 1. Trend Signal (Breakout/Momentum)
         # Condition: Price > EMA200 AND ML > Threshold
-        raw_trend_signal = (df["close"] > df["ema_200"]) & (df.get("ml_prediction", 0.5) > buy_threshold)
+        raw_trend_signal = (df["close"] > df["ema_200"]) & (
+            df.get("ml_prediction", 0.5) > buy_threshold
+        )
 
         # 2. Mean Reversion Signal (Dip Buy)
         # Condition: RSI < mean_rev_rsi AND Price < BB Lower

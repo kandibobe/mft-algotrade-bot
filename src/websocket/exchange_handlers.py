@@ -92,7 +92,7 @@ class BinanceHandler(ExchangeHandler):
             if "trade" in channels:
                 streams.append(f"{symbol_lower}@trade")
             if "orderbook" in channels:
-                streams.append(f"{symbol_lower}@depth5@100ms") # Top 5 levels, 100ms update
+                streams.append(f"{symbol_lower}@depth5@100ms")  # Top 5 levels, 100ms update
             if "kline" in channels:
                 streams.append(f"{symbol_lower}@kline_1m")
 
@@ -127,7 +127,7 @@ class BinanceHandler(ExchangeHandler):
                 bids=bids,
                 asks=asks,
                 timestamp=time.time(),
-                imbalance=imbalance
+                imbalance=imbalance,
             )
             for handler in orderbook_handlers:
                 await handler(ob)
@@ -430,7 +430,12 @@ class KrakenHandler(ExchangeHandler):
             return
 
         # Check if it's ticker data
-        if isinstance(data, list) and len(data) >= 4 and isinstance(data[1], dict) and "a" in data[1]:
+        if (
+            isinstance(data, list)
+            and len(data) >= 4
+            and isinstance(data[1], dict)
+            and "a" in data[1]
+        ):
             ticker_data = data[1]
             pair_name = data[3]
             symbol = self._parse_symbol(pair_name)

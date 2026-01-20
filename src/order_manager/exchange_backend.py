@@ -116,7 +116,9 @@ class CCXTBackend(IExchangeBackend):
                 return await func(*args, **kwargs)
             except (ccxt.DDoSProtection, ccxt.RateLimitExceeded) as e:
                 wait_time = (i + 1) * 2
-                logger.warning(f"Rate limit hit (429). Waiting {wait_time}s before retry {i+1}/{max_retries}. Error: {e}")
+                logger.warning(
+                    f"Rate limit hit (429). Waiting {wait_time}s before retry {i + 1}/{max_retries}. Error: {e}"
+                )
                 await asyncio.sleep(wait_time)
             except Exception as e:
                 if i == max_retries - 1:
@@ -198,7 +200,7 @@ class MockExchangeBackend(IExchangeBackend):
                 "entry_price": o["price"],
             }
             for o in self.orders.values()
-            if o["status"] == "open" # Simplification for mock
+            if o["status"] == "open"  # Simplification for mock
         ]
 
     async def fetch_order(self, order_id: str, symbol: str) -> dict:

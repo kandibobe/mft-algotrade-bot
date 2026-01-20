@@ -120,8 +120,8 @@ def setup_structured_logging(
                 # Capture trade executions and order updates for the trades log
                 msg_str = str(record.msg)
                 return hasattr(record, "msg") and (
-                    '"event_type": "trade_executed"' in msg_str or
-                    '"event_type": "order_update"' in msg_str
+                    '"event_type": "trade_executed"' in msg_str
+                    or '"event_type": "order_update"' in msg_str
                 )
 
         trades_handler.addFilter(TradeFilter())
@@ -138,7 +138,9 @@ def setup_structured_logging(
             integrations=[sentry_logging],
             traces_sample_rate=0.1,
             # Set environment and release if available
-            environment=getattr(sys, "frozen", "development") if not hasattr(sys, "frozen") else "production",
+            environment=getattr(sys, "frozen", "development")
+            if not hasattr(sys, "frozen")
+            else "production",
         )
 
     # Configure structlog processors
@@ -170,7 +172,9 @@ def setup_structured_logging(
     # This formatter is used by standard logging handlers
     formatter = structlog.stdlib.ProcessorFormatter(
         # These run on the message after it's been processed by shared_processors
-        processor=structlog.processors.JSONRenderer() if json_output else structlog.dev.ConsoleRenderer(),
+        processor=structlog.processors.JSONRenderer()
+        if json_output
+        else structlog.dev.ConsoleRenderer(),
         # These run on standard logging messages before they reach the processor
         foreign_pre_chain=shared_processors,
     )
@@ -311,7 +315,8 @@ def log_order(
         "quantity": quantity,
         "status": status,
         "event_type": "order_update",
-        "trace_id": additional_context.get("trace_id") or f"trc_{order_id.split('_')[-1] if '_' in order_id else order_id[:8]}",
+        "trace_id": additional_context.get("trace_id")
+        or f"trc_{order_id.split('_')[-1] if '_' in order_id else order_id[:8]}",
     }
     if price is not None:
         context["price"] = price

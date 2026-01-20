@@ -65,8 +65,8 @@ class Notifier:
 
         # 3. Email (Critical/Warning only to avoid spam)
         if level in ["critical", "warning"]:
-             if self._send_email(full_message, level):
-                 success = True
+            if self._send_email(full_message, level):
+                success = True
 
         # 4. Always Log
         if level == "critical":
@@ -112,16 +112,18 @@ class Notifier:
         return False
 
     def _send_email(self, message: str, level: str) -> bool:
-        if not (self.email_host and self.email_user and self.email_password and self.email_recipient):
+        if not (
+            self.email_host and self.email_user and self.email_password and self.email_recipient
+        ):
             return False
 
         try:
             msg = MIMEMultipart()
-            msg['From'] = self.email_user
-            msg['To'] = self.email_recipient
-            msg['Subject'] = f"Stoic Citadel Alert: {level.upper()}"
+            msg["From"] = self.email_user
+            msg["To"] = self.email_recipient
+            msg["Subject"] = f"Stoic Citadel Alert: {level.upper()}"
 
-            msg.attach(MIMEText(message, 'plain'))
+            msg.attach(MIMEText(message, "plain"))
 
             server = smtplib.SMTP(self.email_host, self.email_port)
             server.starttls()

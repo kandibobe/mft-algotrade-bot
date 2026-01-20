@@ -2,6 +2,7 @@
 """
 Adapter to bridge Stoic Citadel's unified config with the Telegram Bot's config structure.
 """
+
 import os
 
 from src.config.unified_config import load_config

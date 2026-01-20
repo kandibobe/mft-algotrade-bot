@@ -37,6 +37,7 @@ except ImportError:
 # Logging
 logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
 
+
 def is_port_open(host, port):
     try:
         with socket.create_connection((host, port), timeout=0.5):
@@ -44,8 +45,10 @@ def is_port_open(host, port):
     except:
         return False
 
+
 # Global redis client
 redis_client: RedisClient | None = None
+
 
 async def initialize_redis():
     global redis_client
@@ -61,8 +64,10 @@ async def initialize_redis():
         redis_client = RedisClient(host=host, port=port)
         await redis_client.connect()
 
+
 # Create MCP server
 server = Server("redis-connector")
+
 
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
@@ -70,7 +75,11 @@ async def handle_list_tools() -> list[types.Tool]:
         types.Tool(
             name="get_value",
             description="Get value from Redis",
-            inputSchema={"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]},
+            inputSchema={
+                "type": "object",
+                "properties": {"key": {"type": "string"}},
+                "required": ["key"],
+            },
         ),
         types.Tool(
             name="check_health",
@@ -79,12 +88,15 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
     ]
 
+
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: dict | None) -> list[types.TextContent]:
     try:
         await initialize_redis()
     except Exception as e:
-        return [types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))]
+        return [
+            types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))
+        ]
 
     try:
         if name == "get_value":
@@ -92,18 +104,43 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
             value = await redis_client.client.get(key)
             if value:
                 value = value.decode("utf-8") if isinstance(value, bytes) else value
-            return [types.TextContent(type="text", text=json.dumps({"success": True, "key": key, "value": value}))]
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps({"success": True, "key": key, "value": value})
+                )
+            ]
         elif name == "check_health":
             ping = await redis_client.client.ping()
-            return [types.TextContent(type="text", text=json.dumps({"success": True, "status": "healthy", "ping": ping}))]
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps({"success": True, "status": "healthy", "ping": ping}),
+                )
+            ]
         else:
-            return [types.TextContent(type="text", text=json.dumps({"success": False, "error": "Unknown tool"}))]
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps({"success": False, "error": "Unknown tool"})
+                )
+            ]
     except Exception as e:
-        return [types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))]
+        return [
+            types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))
+        ]
+
 
 async def main():
     async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, InitializationOptions(server_name="redis-connector", server_version="1.2.0", capabilities=server.get_capabilities()))
+        await server.run(
+            read_stream,
+            write_stream,
+            InitializationOptions(
+                server_name="redis-connector",
+                server_version="1.2.0",
+                capabilities=server.get_capabilities(),
+            ),
+        )
+
 
 if __name__ == "__main__":
     asyncio.run(main())

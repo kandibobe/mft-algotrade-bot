@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import river
+
     RIVER_AVAILABLE = True
 except ImportError:
     RIVER_AVAILABLE = False
@@ -68,8 +69,12 @@ class OnlineLearner:
     ):
         cfg = config_global()
         self.config = config or OnlineLearningConfig()
-        self.base_model_path = Path(base_model_path or cfg.paths.models_dir / "production_model.pkl")
-        self.online_model_path = Path(online_model_path or cfg.paths.models_dir / "online_model.pkl")
+        self.base_model_path = Path(
+            base_model_path or cfg.paths.models_dir / "production_model.pkl"
+        )
+        self.online_model_path = Path(
+            online_model_path or cfg.paths.models_dir / "online_model.pkl"
+        )
         self.model = None
         self.prod_model = None
         self.online_model = None
@@ -80,7 +85,7 @@ class OnlineLearner:
             "end_time": 100,
             "duration": 100,
             "total_samples": 100,
-            "error": None
+            "error": None,
         }
         self.drift_detector = "MockDetector" if self.config.enable_drift_detection else None
         self.prod_performance_history = []
@@ -102,6 +107,7 @@ class OnlineLearner:
             # Mock for tests that expect model to exist even if file doesn't
             if "dummy" in str(self.base_model_path) or "non_existent" in str(self.base_model_path):
                 from sklearn.linear_model import LogisticRegression
+
                 self.model = LogisticRegression()
                 # Pre-fit the mock model so predict works
                 # Need at least 2 classes for LogisticRegression
@@ -134,7 +140,7 @@ class OnlineLearner:
 
             # 1. Try river for streaming models
             if RIVER_AVAILABLE and hasattr(self.model, "learn_one"):
-                for xi, yi in zip(X.to_dict('records'), y, strict=False):
+                for xi, yi in zip(X.to_dict("records"), y, strict=False):
                     self.model.learn_one(xi, yi)
                 logger.info("Updated model using river learn_one")
 
@@ -157,7 +163,7 @@ class OnlineLearner:
                     logger.warning("Model does not support incremental updates")
                     return
 
-            self.update_count += 1 # Test expects +1 for a single sample update
+            self.update_count += 1  # Test expects +1 for a single sample update
             self.prod_performance_history.append(0.75)
             self.online_performance_history.append(0.82)
 
@@ -172,7 +178,7 @@ class OnlineLearner:
         """Batch update implementation."""
         # Test expects update_count += len(X_batch)
         X_arr = np.array(X)
-        self.update_count += len(X_arr) - 1 # One added by update_model
+        self.update_count += len(X_arr) - 1  # One added by update_model
         self.update_model(X, y)
 
     def predict(self, X: Any, use_ab_test: bool = False) -> Any:
@@ -218,19 +224,15 @@ class OnlineLearner:
                 "accuracy": 0.75,
                 "update_count": self.update_count,
                 "performance_history": [0.7, 0.75],
-                "avg_performance": 0.72
+                "avg_performance": 0.72,
             },
             "online_model": {
                 "accuracy": 0.82,
                 "update_count": self.update_count,
                 "performance_history": [0.8, 0.82],
-                "avg_performance": 0.81
+                "avg_performance": 0.81,
             },
-            "comparison": {
-                "improvement": 0.07,
-                "should_replace": False,
-                "drift_detected": False
-            }
+            "comparison": {"improvement": 0.07, "should_replace": False, "drift_detected": False},
         }
 
     def evaluate_on_batch(self, X: pd.DataFrame, y: pd.Series) -> dict:
@@ -241,7 +243,7 @@ class OnlineLearner:
             "online_accuracy": 0.82,
             "total_samples": len(X),
             "prod_correct": int(0.75 * len(X)),
-            "online_correct": int(0.82 * len(X))
+            "online_correct": int(0.82 * len(X)),
         }
 
     def reset_online_model(self):

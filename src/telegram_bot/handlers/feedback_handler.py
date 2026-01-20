@@ -12,10 +12,12 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обрабатывает команду /feedback и пересылает сообщение админу."""
     user = update.effective_user
-    if not user or not update.message: return
+    if not user or not update.message:
+        return
 
     user_id = user.id
     lang_code = await get_user_language(user_id)
@@ -47,9 +49,7 @@ async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     try:
         # Отправляем сообщение админу
         await context.bot.send_message(
-            chat_id=ADMIN_CHAT_ID,
-            text=admin_message,
-            parse_mode=ParseMode.HTML
+            chat_id=ADMIN_CHAT_ID, text=admin_message, parse_mode=ParseMode.HTML
         )
         # Отвечаем пользователю об успехе
         await update.message.reply_text(get_text(constants.MSG_FEEDBACK_SENT, lang_code))

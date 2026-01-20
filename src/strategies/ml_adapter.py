@@ -16,6 +16,7 @@ from src.ml.model_loader import get_production_model
 
 logger = logging.getLogger(__name__)
 
+
 class StrategyMLAdapter:
     """
     Adapter to handle ML operations for a strategy.
@@ -53,12 +54,12 @@ class StrategyMLAdapter:
 
         try:
             df_fe = dataframe.copy()
-            if 'date' in df_fe.columns and not isinstance(df_fe.index, pd.DatetimeIndex):
-                df_fe.set_index('date', inplace=True)
+            if "date" in df_fe.columns and not isinstance(df_fe.index, pd.DatetimeIndex):
+                df_fe.set_index("date", inplace=True)
 
             X = self.feature_engine.transform(df_fe)
 
-            if hasattr(self.model, 'predict_proba'):
+            if hasattr(self.model, "predict_proba"):
                 preds = self.model.predict_proba(X)[:, 1]
             else:
                 preds = self.model.predict(X)
@@ -68,8 +69,8 @@ class StrategyMLAdapter:
             if isinstance(dataframe.index, pd.DatetimeIndex):
                 aligned_preds = pred_series.reindex(dataframe.index, fill_value=0.5)
             else:
-                if 'date' in dataframe.columns:
-                    temp_df = dataframe.set_index('date')
+                if "date" in dataframe.columns:
+                    temp_df = dataframe.set_index("date")
                     aligned_preds = pred_series.reindex(temp_df.index, fill_value=0.5)
                     aligned_preds = aligned_preds.values
                 else:
@@ -77,7 +78,7 @@ class StrategyMLAdapter:
                         padding = np.full(len(dataframe) - len(preds), 0.5)
                         aligned_preds = np.concatenate([padding, preds])
                     else:
-                        aligned_preds = preds[-len(dataframe):]
+                        aligned_preds = preds[-len(dataframe) :]
                     aligned_preds = pd.Series(aligned_preds, index=dataframe.index)
 
             return aligned_preds
@@ -95,8 +96,8 @@ class StrategyMLAdapter:
 
         try:
             df_fe = dataframe.copy()
-            if 'date' in df_fe.columns and not isinstance(df_fe.index, pd.DatetimeIndex):
-                df_fe.set_index('date', inplace=True)
+            if "date" in df_fe.columns and not isinstance(df_fe.index, pd.DatetimeIndex):
+                df_fe.set_index("date", inplace=True)
 
             X = self.feature_engine.transform(df_fe)
             preds = self.meta_model.predict_proba(X)
@@ -106,8 +107,8 @@ class StrategyMLAdapter:
             if isinstance(dataframe.index, pd.DatetimeIndex):
                 aligned_preds = pred_series.reindex(dataframe.index, fill_value=0.5)
             else:
-                if 'date' in dataframe.columns:
-                    temp_df = dataframe.set_index('date')
+                if "date" in dataframe.columns:
+                    temp_df = dataframe.set_index("date")
                     aligned_preds = pred_series.reindex(temp_df.index, fill_value=0.5)
                     aligned_preds = aligned_preds.values
                 else:
@@ -115,7 +116,7 @@ class StrategyMLAdapter:
                         padding = np.full(len(dataframe) - len(preds), 0.5)
                         aligned_preds = np.concatenate([padding, preds])
                     else:
-                        aligned_preds = preds[-len(dataframe):]
+                        aligned_preds = preds[-len(dataframe) :]
                     aligned_preds = pd.Series(aligned_preds, index=dataframe.index)
 
             return aligned_preds

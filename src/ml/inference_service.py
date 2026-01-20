@@ -596,7 +596,9 @@ class OptimizedInferenceService(MLInferenceService):
             predictions = outputs[0].flatten()
 
             results = []
-            for i, (_features, prediction) in enumerate(zip(features_list, predictions, strict=False)):
+            for i, (_features, prediction) in enumerate(
+                zip(features_list, predictions, strict=False)
+            ):
                 probability = abs(prediction)
                 signal = "buy" if prediction > 0.6 else "sell" if prediction < 0.4 else "hold"
                 confidence = abs(prediction - 0.5) * 2

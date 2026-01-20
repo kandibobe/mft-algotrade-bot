@@ -14,6 +14,7 @@ from src.utils.logger import log
 
 logger = logging.getLogger(__name__)
 
+
 class HardStopLossService:
     """
     Independent monitor for open positions.
@@ -24,7 +25,7 @@ class HardStopLossService:
         self,
         backend: IExchangeBackend,
         poll_interval: float = 2.0,
-        max_drawdown_per_trade: float = 0.10, # 10% hard limit
+        max_drawdown_per_trade: float = 0.10,  # 10% hard limit
     ):
         self.backend = backend
         self.poll_interval = poll_interval
@@ -96,9 +97,13 @@ class HardStopLossService:
         log.warning(f"🚨 EMERGENCY CLOSING POSITION: {symbol} {size} {side}")
         try:
             if side.lower() == "long":
-                await self.backend.create_limit_sell_order(symbol, size, 0, params={"reduceOnly": True, "type": "market"})
+                await self.backend.create_limit_sell_order(
+                    symbol, size, 0, params={"reduceOnly": True, "type": "market"}
+                )
             else:
-                await self.backend.create_limit_buy_order(symbol, size, 0, params={"reduceOnly": True, "type": "market"})
+                await self.backend.create_limit_buy_order(
+                    symbol, size, 0, params={"reduceOnly": True, "type": "market"}
+                )
 
             log.info(f"✅ Emergency close order sent for {symbol}")
         except Exception as e:

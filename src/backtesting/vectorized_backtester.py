@@ -23,6 +23,7 @@ import pandas as pd
 try:
     import cudf
     from numba import jit
+
     CUDA_AVAILABLE = True
 except ImportError:
     CUDA_AVAILABLE = False
@@ -111,12 +112,35 @@ class VectorizedBacktester:
         if CUDA_AVAILABLE:
             run_backtest_numba = self._create_numba_backtester()
             trades, equity_curve, final_capital = run_backtest_numba(
-                opens, highs, lows, closes, sig_values,
-                self.config.initial_capital, self.config.fee_rate, self.config.slippage_rate,
-                self.config.take_profit, self.config.stop_loss, self.config.max_holding_bars,
-                self.config.position_size_pct
+                opens,
+                highs,
+                lows,
+                closes,
+                sig_values,
+                self.config.initial_capital,
+                self.config.fee_rate,
+                self.config.slippage_rate,
+                self.config.take_profit,
+                self.config.stop_loss,
+                self.config.max_holding_bars,
+                self.config.position_size_pct,
             )
-            trades = [Trade(pd.to_datetime(t[0]), pd.to_datetime(t[1]), t[2], t[3], t[4], t[5], t[6], t[7], t[8], t[9], t[10]) for t in trades]
+            trades = [
+                Trade(
+                    pd.to_datetime(t[0]),
+                    pd.to_datetime(t[1]),
+                    t[2],
+                    t[3],
+                    t[4],
+                    t[5],
+                    t[6],
+                    t[7],
+                    t[8],
+                    t[9],
+                    t[10],
+                )
+                for t in trades
+            ]
 
         else:
             n_bars = len(closes)
@@ -240,7 +264,20 @@ class VectorizedBacktester:
 
     def _create_numba_backtester(self):
         @jit(nopython=True)
-        def run_backtest_numba(opens, highs, lows, closes, sig_values, initial_capital, fee_rate, slippage_rate, take_profit, stop_loss, max_holding_bars, position_size_pct):
+        def run_backtest_numba(
+            opens,
+            highs,
+            lows,
+            closes,
+            sig_values,
+            initial_capital,
+            fee_rate,
+            slippage_rate,
+            take_profit,
+            stop_loss,
+            max_holding_bars,
+            position_size_pct,
+        ):
             n_bars = len(closes)
             trades = []
             equity_curve = np.full(n_bars, initial_capital)
@@ -280,7 +317,17 @@ class VectorizedBacktester:
                         net_pnl = gross_pnl - total_fees
                         trades.append(
                             (
-                                entry_idx, i, entry_price, exit_price, quantity, 1, gross_pnl, net_pnl, total_fees, exit_reason, i - entry_idx
+                                entry_idx,
+                                i,
+                                entry_price,
+                                exit_price,
+                                quantity,
+                                1,
+                                gross_pnl,
+                                net_pnl,
+                                total_fees,
+                                exit_reason,
+                                i - entry_idx,
                             )
                         )
                         in_position = False
@@ -320,10 +367,21 @@ class VectorizedBacktester:
                 net_pnl = gross_pnl - total_fees
                 trades.append(
                     (
-                        entry_idx, i, entry_price, exit_price, quantity, 1, gross_pnl, net_pnl, total_fees, "end_of_data", i - entry_idx
+                        entry_idx,
+                        i,
+                        entry_price,
+                        exit_price,
+                        quantity,
+                        1,
+                        gross_pnl,
+                        net_pnl,
+                        total_fees,
+                        "end_of_data",
+                        i - entry_idx,
                     )
                 )
                 equity_curve[i] = current_capital
 
             return trades, equity_curve, current_capital
+
         return run_backtest_numba

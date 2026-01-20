@@ -33,13 +33,14 @@ from src.data.async_fetcher import AsyncOrderExecutor, FetcherConfig
 # Logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    stream=sys.stderr
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stderr,
 )
 logger = logging.getLogger("mcp-exchange-connector")
 
 # Global executor instance
 executor: AsyncOrderExecutor = None
+
 
 async def initialize_executor():
     """Инициализация executor с использованием unified_config."""
@@ -53,7 +54,7 @@ async def initialize_executor():
         # Пытаемся найти config.json или использовать дефолтный путь
         config_path = os.getenv("CONFIG_PATH", "config/config.json")
         if not os.path.exists(config_path):
-            config_path = None # Будет загружено из переменных окружения
+            config_path = None  # Будет загружено из переменных окружения
 
         full_config = load_config(config_path)
 
@@ -66,15 +67,18 @@ async def initialize_executor():
             api_secret=full_config.exchange.api_secret,
             sandbox=full_config.exchange.sandbox,
             rate_limit=full_config.exchange.rate_limit,
-            timeout=full_config.exchange.timeout_ms
+            timeout=full_config.exchange.timeout_ms,
         )
 
         executor = AsyncOrderExecutor(config)
         await executor.connect()
-        logger.info(f"Exchange executor initialized for {exchange_name} (Sandbox: {full_config.exchange.sandbox})")
+        logger.info(
+            f"Exchange executor initialized for {exchange_name} (Sandbox: {full_config.exchange.sandbox})"
+        )
     except Exception as e:
         logger.error(f"Failed to initialize exchange executor: {e}")
         raise
+
 
 async def cleanup_executor():
     """Закрытие соединений."""
@@ -84,8 +88,10 @@ async def cleanup_executor():
         executor = None
         logger.info("Exchange executor closed")
 
+
 # Create MCP server
 server = Server("exchange-connector")
+
 
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
@@ -146,6 +152,7 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
     ]
 
+
 @server.call_tool()
 async def handle_call_tool(
     name: str, arguments: dict | None
@@ -155,7 +162,11 @@ async def handle_call_tool(
     try:
         await initialize_executor()
     except Exception as e:
-        return [types.TextContent(type="text", text=json.dumps({"success": False, "error": f"Init failed: {e}"}))]
+        return [
+            types.TextContent(
+                type="text", text=json.dumps({"success": False, "error": f"Init failed: {e}"})
+            )
+        ]
 
     try:
         if name == "get_balance":
@@ -173,7 +184,11 @@ async def handle_call_tool(
                 }
             else:
                 # Только непустые балансы
-                balances = {k: v for k, v in balance_data.items() if isinstance(v, dict) and v.get("total", 0) > 0}
+                balances = {
+                    k: v
+                    for k, v in balance_data.items()
+                    if isinstance(v, dict) and v.get("total", 0) > 0
+                }
                 result = {"success": True, "balances": balances}
 
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
@@ -188,7 +203,7 @@ async def handle_call_tool(
                 "bid": ticker.get("bid"),
                 "ask": ticker.get("ask"),
                 "volume": ticker.get("baseVolume"),
-                "timestamp": ticker.get("timestamp")
+                "timestamp": ticker.get("timestamp"),
             }
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
@@ -196,7 +211,11 @@ async def handle_call_tool(
             order_id = arguments.get("order_id")
             symbol = arguments.get("symbol")
             order = await executor.fetch_order(order_id, symbol)
-            return [types.TextContent(type="text", text=json.dumps({"success": True, "order": order}, indent=2))]
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps({"success": True, "order": order}, indent=2)
+                )
+            ]
 
         elif name == "get_connection_status":
             status = await executor.exchange.fetch_status()
@@ -205,16 +224,24 @@ async def handle_call_tool(
                 "status": status.get("status"),
                 "exchange": executor.config.exchange,
                 "sandbox": executor.config.sandbox,
-                "api_key_set": bool(executor.config.api_key)
+                "api_key_set": bool(executor.config.api_key),
             }
             return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
         else:
-            return [types.TextContent(type="text", text=json.dumps({"success": False, "error": f"Unknown tool: {name}"}))]
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps({"success": False, "error": f"Unknown tool: {name}"}),
+                )
+            ]
 
     except Exception as e:
         logger.error(f"Error in {name}: {e}")
-        return [types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))]
+        return [
+            types.TextContent(type="text", text=json.dumps({"success": False, "error": str(e)}))
+        ]
+
 
 async def main():
     """Запуск MCP сервера."""
@@ -234,6 +261,7 @@ async def main():
             )
     finally:
         await cleanup_executor()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

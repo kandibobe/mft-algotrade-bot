@@ -14,6 +14,7 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 async def explain_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     lang_code = await get_user_language(user_id)
@@ -25,17 +26,24 @@ async def explain_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     # Проверка, что localized_terms_collection действительно словарь
     if not isinstance(localized_terms_collection, dict):
-        logger.error(f"Explain terms for lang '{lang_code}' is not a dict. Received: {type(localized_terms_collection)}. Fallback to empty dict.")
+        logger.error(
+            f"Explain terms for lang '{lang_code}' is not a dict. Received: {type(localized_terms_collection)}. Fallback to empty dict."
+        )
         localized_terms_collection = {}
         # Можно отправить сообщение об ошибке пользователю или просто показать пустой список терминов
         # await update.message.reply_text(get_text(constants.MSG_ERROR_GENERAL, lang_code))
         # return
 
-    available_terms_list = ", ".join(f"<code>{term}</code>" for term in localized_terms_collection.keys())
+    available_terms_list = ", ".join(
+        f"<code>{term}</code>" for term in localized_terms_collection.keys()
+    )
 
     if not args:
         logger.debug(f"Команда /explain без аргументов user_id: {user_id}")
-        text = get_text(constants.MSG_EXPLAIN_PROMPT, lang_code) + f"\n\n<b>Доступные термины:</b>\n{available_terms_list}"
+        text = (
+            get_text(constants.MSG_EXPLAIN_PROMPT, lang_code)
+            + f"\n\n<b>Доступные термины:</b>\n{available_terms_list}"
+        )
         await update.message.reply_text(text, parse_mode=ParseMode.HTML)
         return
 
@@ -47,6 +55,11 @@ async def explain_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if explanation:
         text = explanation
     else:
-        text = get_text(constants.MSG_EXPLAIN_NOT_FOUND, lang_code, term=html.escape(term_query), available_terms=available_terms_list)
+        text = get_text(
+            constants.MSG_EXPLAIN_NOT_FOUND,
+            lang_code,
+            term=html.escape(term_query),
+            available_terms=available_terms_list,
+        )
 
     await update.message.reply_text(text, parse_mode=ParseMode.HTML)

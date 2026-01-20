@@ -36,13 +36,21 @@ except ImportError:
     ccxt_async = None
 
 try:
-    from tenacity import (
-        before_sleep_log,
-        retry,
-        retry_if_exception_type,
-        stop_after_attempt,
-        wait_exponential,
-    )
+        from tenacity import (
+            before_sleep_log,
+            retry,
+            retry_if_exception_type,
+            stop_after_attempt,
+            wait_exponential,
+        )
+
+        __all_tenacity__ = [
+            "before_sleep_log",
+            "retry",
+            "retry_if_exception_type",
+            "stop_after_attempt",
+            "wait_exponential",
+        ]
 
     TENACITY_AVAILABLE = True
 except ImportError:

@@ -16,6 +16,7 @@ from scipy.spatial.distance import squareform
 
 logger = logging.getLogger(__name__)
 
+
 def get_hrp_weights(prices: pd.DataFrame) -> dict[str, float]:
     """
     Calculate asset weights using Hierarchical Risk Parity.
@@ -27,7 +28,7 @@ def get_hrp_weights(prices: pd.DataFrame) -> dict[str, float]:
         Dictionary of {symbol: weight}
     """
     if prices.empty or prices.shape[1] < 2 or len(prices) < 10:
-        return {col: 1.0/max(1, prices.shape[1]) for col in prices.columns}
+        return {col: 1.0 / max(1, prices.shape[1]) for col in prices.columns}
 
     # 1. Calculate Returns and Covariance
     returns = prices.pct_change().dropna()
@@ -36,8 +37,8 @@ def get_hrp_weights(prices: pd.DataFrame) -> dict[str, float]:
 
     # 2. Cluster assets
     # Distance metric based on correlation
-    dist = ((1 - corr) / 2.0)**0.5
-    link = linkage(squareform(dist), method='single')
+    dist = ((1 - corr) / 2.0) ** 0.5
+    link = linkage(squareform(dist), method="single")
 
     # 3. Sort assets by clusters (Quasi-Diagonalization)
     sort_idx = _get_quasi_diag(link)
@@ -49,6 +50,7 @@ def get_hrp_weights(prices: pd.DataFrame) -> dict[str, float]:
 
     logger.info(f"HRP Weights calculated for {len(sorted_items)} assets.")
     return weights.to_dict()
+
 
 def _get_quasi_diag(link):
     """Sort items into hierarchical clusters."""
@@ -66,6 +68,7 @@ def _get_quasi_diag(link):
         sort_idx = sort_idx.sort_index()
         sort_idx.index = range(sort_idx.shape[0])
     return sort_idx.tolist()
+
 
 def _recursive_bisection(weights, items, cov):
     """Allocate weights based on variance parity."""
@@ -86,11 +89,12 @@ def _recursive_bisection(weights, items, cov):
 
     # Assign weights
     weights[c1] *= alpha
-    weights[c2] *= (1 - alpha)
+    weights[c2] *= 1 - alpha
 
     # Recurse
     _recursive_bisection(weights, c1, cov)
     _recursive_bisection(weights, c2, cov)
+
 
 def _get_cluster_var(items, cov):
     """Calculate variance of a cluster."""

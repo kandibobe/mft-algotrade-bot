@@ -365,7 +365,7 @@ class SystemConfig(BaseModel):
 
 class FeatureStoreConfig(BaseModel):
     """Feature Store configuration."""
-    
+
     enabled: bool = Field(default=False, description="Enable Feature Store")
     use_redis: bool = Field(default=False, description="Use Redis for online store")
     redis_url: str = Field(default="redis://localhost:6379", description="Redis connection URL")
@@ -638,16 +638,16 @@ def load_config(config_path: str | None = None) -> TradingConfig:
         TradingConfig instance
     """
     cache_key = config_path or "DEFAULT_ENV"
-    
-    # <Î Fast path: check cache without lock first
+
+    # <  Fast path: check cache without lock first
     if cache_key in _CONFIG_CACHE:
         return _CONFIG_CACHE[cache_key]
-        
+
     with _CONFIG_LOCK:
         # Double-check cache inside lock
         if cache_key in _CONFIG_CACHE:
             return _CONFIG_CACHE[cache_key]
-            
+
         if config_path:
             path = Path(config_path)
             if not path.exists():
@@ -662,7 +662,7 @@ def load_config(config_path: str | None = None) -> TradingConfig:
         else:
             # Load from environment variables only
             cfg = TradingConfig()
-            
+
         _CONFIG_CACHE[cache_key] = cfg
         return cfg
 

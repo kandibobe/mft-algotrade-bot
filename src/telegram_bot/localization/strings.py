@@ -5,7 +5,7 @@
 """
 
 STRINGS = {
-    'ru': {
+    "ru": {
         # =============================================================================
         # --- Общие и системные сообщения ---
         # =============================================================================
@@ -64,8 +64,7 @@ STRINGS = {
         "MSG_TIMEOUT_ERROR": "⏳ Сервер API не ответил вовремя. Попробуйте позже.",
         "MSG_DIALOG_CANCELLED_BY_COMMAND": "Действие отменено. Вызвана другая команда.",
         "TEXT_ASSET_DEFAULT": "актив",
-        "loading_data": "⏳ Загружаю данные...", # <-- ИСПРАВЛЕНО
-
+        "loading_data": "⏳ Загружаю данные...",  # <-- ИСПРАВЛЕНО
         # =============================================================================
         # --- Кнопки и Меню ---
         # =============================================================================
@@ -86,7 +85,6 @@ STRINGS = {
         "BTN_CANCEL": "Отмена",
         "BTN_YES": "Да",
         "BTN_NO": "Нет",
-
         # =============================================================================
         # --- Настройки ---
         # =============================================================================
@@ -99,13 +97,12 @@ STRINGS = {
         "MSG_LANG_SELECT": "Пожалуйста, выберите язык:",
         "MSG_LANG_SET": "✅ Язык успешно изменен.",
         "MSG_RESTART_NEEDED": "Для полного применения настроек, пожалуйста, отправьте /start.",
-        "settings_menu": "<b>⚙️ Меню настроек</b>\n\nЯзык: {lang}\nПериод анализа: {period} дн.\nУведомления об алертах: {alerts_status}\n\nСтатус подписки: {premium_status}", # <-- ИСПРАВЛЕНО
-        "settings_alerts_on": "Включены", # <-- ИСПРАВЛЕНО
-        "settings_alerts_off": "Выключены", # <-- ИСПРАВЛЕНО
-        "settings_alert_toggle_confirm": "Настройки уведомлений обновлены.", # <-- ИСПРАВЛЕНО
-        "premium_status_active": "<b>Активна</b> ✅", # <-- ИСПРАВЛЕНО
-        "premium_status_inactive": "<b>Неактивна</b> ❌", # <-- ИСПРАВЛЕНО
-
+        "settings_menu": "<b>⚙️ Меню настроек</b>\n\nЯзык: {lang}\nПериод анализа: {period} дн.\nУведомления об алертах: {alerts_status}\n\nСтатус подписки: {premium_status}",  # <-- ИСПРАВЛЕНО
+        "settings_alerts_on": "Включены",  # <-- ИСПРАВЛЕНО
+        "settings_alerts_off": "Выключены",  # <-- ИСПРАВЛЕНО
+        "settings_alert_toggle_confirm": "Настройки уведомлений обновлены.",  # <-- ИСПРАВЛЕНО
+        "premium_status_active": "<b>Активна</b> ✅",  # <-- ИСПРАВЛЕНО
+        "premium_status_inactive": "<b>Неактивна</b> ❌",  # <-- ИСПРАВЛЕНО
         # =============================================================================
         # --- Отчет (/report) ---
         # =============================================================================
@@ -150,7 +147,6 @@ STRINGS = {
         "MSG_INDEX_HEADER": "Индексы",
         "MSG_FOREX_HEADER": "Forex",
         "MSG_REPORT_ONCHAIN_HEADER": "On-Chain Метрики (BTC)",
-
         # =============================================================================
         # --- Графики ---
         # =============================================================================
@@ -163,7 +159,6 @@ STRINGS = {
         "TITLE_GRAPH_DXY_TREND": "Тренд индекса доллара (DXY)",
         "TITLE_GRAPH_CPI_TREND": "Тренд инфляции (CPI, США)",
         "TITLE_WATCHLIST": "<b>⭐️ Список наблюдения ({count}/{limit})</b>",
-
         # =============================================================================
         # --- Сигнал (/signal) ---
         # =============================================================================
@@ -180,34 +175,52 @@ STRINGS = {
         "SIGNAL_FACTOR_FNG": "Индекс F&G",
         "SIGNAL_FACTOR_CORR": "Корреляция BTC/DXY",
         "SIGNAL_FACTOR_BTC_DOMINANCE": "Тренд доминации BTC",
-        "SIGNAL_DETAIL_BTC_UP": "Растущий", "SIGNAL_DETAIL_BTC_DOWN": "Падающий", "SIGNAL_DETAIL_BTC_FLAT": "Боковой",
-        "SIGNAL_DETAIL_CPI_UP": "Растущий (негативно)", "SIGNAL_DETAIL_CPI_DOWN": "Падающий (позитивно)", "SIGNAL_DETAIL_CPI_FLAT": "Боковой",
-        "SIGNAL_DETAIL_CPI_NA": "Нет данных", "SIGNAL_DETAIL_CPI_ONE_POINT": "Только 1 точка",
-        "SIGNAL_DETAIL_CPI_ACCELERATES": "Рост продолжается", "SIGNAL_DETAIL_CPI_DECELERATES": "Падение продолжается",
-        "SIGNAL_DETAIL_DXY_UP": "Растущий (негативно)", "SIGNAL_DETAIL_DXY_DOWN": "Падающий (позитивно)", "SIGNAL_DETAIL_DXY_FLAT": "Боковой",
-        "SIGNAL_DETAIL_CORR_NEG_DXY_UP": "DXY растет (негативно)", "SIGNAL_DETAIL_CORR_NEG_DXY_DOWN": "DXY падает (позитивно)", "SIGNAL_DETAIL_CORR_NONE": "Нет сильной обратной корреляции",
-        "SIGNAL_DETAIL_FNG_EXTREME_FEAR": "Экстремальный страх (бычий фактор)", "SIGNAL_DETAIL_FNG_FEAR": "Страх", "SIGNAL_DETAIL_FNG_NEUTRAL": "Нейтрально",
-        "SIGNAL_DETAIL_FNG_GREED": "Жадность", "SIGNAL_DETAIL_FNG_EXTREME_GREED": "Экстремальная жадность (медвежий фактор)", "SIGNAL_DETAIL_FNG_NA": "Нет данных",
-        "SIGNAL_DETAIL_BTC_DOMINANCE_NA": "Нет данных", "SIGNAL_DETAIL_BTC_DOMINANCE_RISING": "Растет (хорошо для BTC)", "SIGNAL_DETAIL_BTC_DOMINANCE_FALLING": "Падает (хорошо для альтов)",
-        "SIGNAL_STRONG_BUY": "🔥 СИЛЬНАЯ ПОКУПКА", "SIGNAL_WEAK_BUY": "Покупка", "SIGNAL_HOLD": "Держать / Нейтрально",
-        "SIGNAL_WEAK_SELL": "Продажа", "SIGNAL_STRONG_SELL": "🔥 СИЛЬНАЯ ПРОДАЖА",
-        "signal_header": "<b>📡 Торговый сигнал (период: {period} дн.)</b>", # <-- ИСПРАВЛЕНО
-        "signal_weak_sell": "Продажа", # <-- ИСПРАВЛЕНО
-        "signal_final_signal": "Итоговый сигнал", # <-- ИСПРАВЛЕНО
-        "signal_details_header": "Детализация факторов (нажмите для графика)", # <-- ИСПРАВЛЕНО
-        "signal_factor_btc_trend": "Тренд BTC", # <-- ИСПРАВЛЕНО
-        "signal_detail_btc_down": "Падающий", # <-- ИСПРАВЛЕНО
-        "signal_factor_cpi_trend": "Тренд инфляции (CPI)", # <-- ИСПРАВЛЕНО
-        "signal_detail_cpi_up": "Растущий (негативно)", # <-- ИСПРАВЛЕНО
-        "signal_factor_dxy_trend": "Тренд индекса доллара (DXY)", # <-- ИСПРАВЛЕНО
-        "signal_detail_dxy_down": "Падающий (позитивно)", # <-- ИСПРАВЛЕНО
-        "signal_factor_corr": "Корреляция BTC/DXY", # <-- ИСПРАВЛЕНО
-        "signal_detail_corr_none": "Нет сильной обратной корреляции", # <-- ИСПРАВЛЕНО
-        "signal_factor_fng": "Индекс F&G", # <-- ИСПРАВЛЕНО
-        "signal_detail_fng_greed": "Жадность", # <-- ИСПРАВЛЕНО
-        "signal_factor_btc_dominance": "Тренд доминации BTC", # <-- ИСПРАВЛЕНО
-        "signal_detail_btc_dominance_na": "Нет данных", # <-- ИСПРАВЛЕНО
-
+        "SIGNAL_DETAIL_BTC_UP": "Растущий",
+        "SIGNAL_DETAIL_BTC_DOWN": "Падающий",
+        "SIGNAL_DETAIL_BTC_FLAT": "Боковой",
+        "SIGNAL_DETAIL_CPI_UP": "Растущий (негативно)",
+        "SIGNAL_DETAIL_CPI_DOWN": "Падающий (позитивно)",
+        "SIGNAL_DETAIL_CPI_FLAT": "Боковой",
+        "SIGNAL_DETAIL_CPI_NA": "Нет данных",
+        "SIGNAL_DETAIL_CPI_ONE_POINT": "Только 1 точка",
+        "SIGNAL_DETAIL_CPI_ACCELERATES": "Рост продолжается",
+        "SIGNAL_DETAIL_CPI_DECELERATES": "Падение продолжается",
+        "SIGNAL_DETAIL_DXY_UP": "Растущий (негативно)",
+        "SIGNAL_DETAIL_DXY_DOWN": "Падающий (позитивно)",
+        "SIGNAL_DETAIL_DXY_FLAT": "Боковой",
+        "SIGNAL_DETAIL_CORR_NEG_DXY_UP": "DXY растет (негативно)",
+        "SIGNAL_DETAIL_CORR_NEG_DXY_DOWN": "DXY падает (позитивно)",
+        "SIGNAL_DETAIL_CORR_NONE": "Нет сильной обратной корреляции",
+        "SIGNAL_DETAIL_FNG_EXTREME_FEAR": "Экстремальный страх (бычий фактор)",
+        "SIGNAL_DETAIL_FNG_FEAR": "Страх",
+        "SIGNAL_DETAIL_FNG_NEUTRAL": "Нейтрально",
+        "SIGNAL_DETAIL_FNG_GREED": "Жадность",
+        "SIGNAL_DETAIL_FNG_EXTREME_GREED": "Экстремальная жадность (медвежий фактор)",
+        "SIGNAL_DETAIL_FNG_NA": "Нет данных",
+        "SIGNAL_DETAIL_BTC_DOMINANCE_NA": "Нет данных",
+        "SIGNAL_DETAIL_BTC_DOMINANCE_RISING": "Растет (хорошо для BTC)",
+        "SIGNAL_DETAIL_BTC_DOMINANCE_FALLING": "Падает (хорошо для альтов)",
+        "SIGNAL_STRONG_BUY": "🔥 СИЛЬНАЯ ПОКУПКА",
+        "SIGNAL_WEAK_BUY": "Покупка",
+        "SIGNAL_HOLD": "Держать / Нейтрально",
+        "SIGNAL_WEAK_SELL": "Продажа",
+        "SIGNAL_STRONG_SELL": "🔥 СИЛЬНАЯ ПРОДАЖА",
+        "signal_header": "<b>📡 Торговый сигнал (период: {period} дн.)</b>",  # <-- ИСПРАВЛЕНО
+        "signal_weak_sell": "Продажа",  # <-- ИСПРАВЛЕНО
+        "signal_final_signal": "Итоговый сигнал",  # <-- ИСПРАВЛЕНО
+        "signal_details_header": "Детализация факторов (нажмите для графика)",  # <-- ИСПРАВЛЕНО
+        "signal_factor_btc_trend": "Тренд BTC",  # <-- ИСПРАВЛЕНО
+        "signal_detail_btc_down": "Падающий",  # <-- ИСПРАВЛЕНО
+        "signal_factor_cpi_trend": "Тренд инфляции (CPI)",  # <-- ИСПРАВЛЕНО
+        "signal_detail_cpi_up": "Растущий (негативно)",  # <-- ИСПРАВЛЕНО
+        "signal_factor_dxy_trend": "Тренд индекса доллара (DXY)",  # <-- ИСПРАВЛЕНО
+        "signal_detail_dxy_down": "Падающий (позитивно)",  # <-- ИСПРАВЛЕНО
+        "signal_factor_corr": "Корреляция BTC/DXY",  # <-- ИСПРАВЛЕНО
+        "signal_detail_corr_none": "Нет сильной обратной корреляции",  # <-- ИСПРАВЛЕНО
+        "signal_factor_fng": "Индекс F&G",  # <-- ИСПРАВЛЕНО
+        "signal_detail_fng_greed": "Жадность",  # <-- ИСПРАВЛЕНО
+        "signal_factor_btc_dominance": "Тренд доминации BTC",  # <-- ИСПРАВЛЕНО
+        "signal_detail_btc_dominance_na": "Нет данных",  # <-- ИСПРАВЛЕНО
         # =============================================================================
         # --- Портфель ---
         # =============================================================================
@@ -233,8 +246,7 @@ STRINGS = {
         "PROMPT_DELWATCH": "Укажите тикер для удаления. Например: /delwatch BTC",
         "MSG_DELWATCH_SUCCESS": "✅ <code>{asset_id}</code> удален из вашего списка.",
         "ERROR_DELWATCH_NOTFOUND": "⚠️ <code>{asset_id}</code> не найден в вашем списке.",
-        "watchlist_empty": "Ваш список наблюдения пуст.\nДобавьте актив командой: /addwatch <code>тикер</code>", # <-- ИСПРАВЛЕНО
-
+        "watchlist_empty": "Ваш список наблюдения пуст.\nДобавьте актив командой: /addwatch <code>тикер</code>",  # <-- ИСПРАВЛЕНО
         # =============================================================================
         # --- Алерты ---
         # =============================================================================
@@ -283,7 +295,6 @@ STRINGS = {
         "BTN_CONDITION_LT": "Цена <",
         "BTN_EDIT_CONDITION": "Условие",
         "BTN_EDIT_VALUE": "Значение",
-
         # =============================================================================
         # --- Технический Анализ (/ta) ---
         # =============================================================================
@@ -302,8 +313,7 @@ STRINGS = {
         "MSG_TA_BBANDS_DESC_ABOVE": "выше верхней границы (возможна перекупленность)",
         "MSG_TA_BBANDS_DESC_BELOW": "ниже нижней границы (возможна перепроданность)",
         "MSG_TA_BBANDS_DESC_INSIDE": "внутри канала",
-        "ta_prompt": "Пожалуйста, укажите тикер для анализа. Например: <code>/ta BTC</code>", # <-- ИСПРАВЛЕНО
-
+        "ta_prompt": "Пожалуйста, укажите тикер для анализа. Например: <code>/ta BTC</code>",  # <-- ИСПРАВЛЕНО
         # =============================================================================
         # --- Команды с рыночными данными (Misc) ---
         # =============================================================================
@@ -346,7 +356,6 @@ STRINGS = {
         "menu_cmd_tvl": "TVL",
         "menu_cmd_marketcap": "Капитализация",
         "menu_cmd_events": "События",
-
         # =============================================================================
         # --- Новости ---
         # =============================================================================
@@ -360,7 +369,6 @@ STRINGS = {
         "ERROR_NEWS_API_KEY_MISSING": "Функция новостей недоступна (ошибка конфигурации).",
         "MSG_NEWS_NO_RESULTS": "По вашему запросу «{query}» ничего не найдено.",
         "ERROR_NEWS_QUERY_TOO_SHORT": "Запрос должен содержать минимум 3 символа.",
-
         # =============================================================================
         # --- Прочие команды ---
         # =============================================================================
@@ -373,7 +381,7 @@ STRINGS = {
             "BOLLINGER BANDS": "<b>Bollinger Bands® (Полосы Боллинджера)</b> — индикатор, состоящий из трех линий: SMA и двух линий, отстоящих на стандартное отклонение. Показывает волатильность рынка. Выход цены за пределы полос может сигнализировать о возможной перекупленности или перепроданности.",
             "CPI": "<b>CPI (Consumer Price Index)</b> — Индекс потребительских цен. Ключевой показатель инфляции. Высокий CPI заставляет центробанки (ФРС) повышать ставки, что обычно негативно для рисковых активов, таких как криптовалюты.",
             "DXY": "<b>DXY (US Dollar Index)</b> — Индекс доллара США. Показывает силу доллара относительно корзины других валют. Исторически имеет обратную корреляцию с BTC: когда DXY растет, BTC часто падает, и наоборот.",
-            "TVL": "<b>TVL (Total Value Locked)</b> — Общая заблокированная стоимость. Это общая стоимость криптоактивов, заблокированных в смарт-контрактах DeFi протокола. Является ключевой метрикой для оценки популярности и доверия к проекту."
+            "TVL": "<b>TVL (Total Value Locked)</b> — Общая заблокированная стоимость. Это общая стоимость криптоактивов, заблокированных в смарт-контрактах DeFi протокола. Является ключевой метрикой для оценки популярности и доверия к проекту.",
         },
         "TITLE_PREMIUM_INFO": "<b>⭐️ Информация о Премиум-подписке</b>",
         "MSG_PREMIUM_STATUS_ACTIVE": "Статус: <b>Активна</b> ✅",
@@ -382,7 +390,6 @@ STRINGS = {
         "PROMPT_FEEDBACK": "Чтобы отправить отзыв, введите команду и ваше сообщение. Например:\n/feedback <i>предлагаю добавить новый индикатор</i>",
         "MSG_FEEDBACK_SENT": "✅ Спасибо! Ваш отзыв отправлен разработчику.",
         "ERROR_FEEDBACK": "⚠️ Не удалось отправить ваш отзыв. Попробуйте позже.",
-
         # =============================================================================
         # --- Аналитический Чат (/chat) ---
         # =============================================================================
@@ -396,7 +403,7 @@ STRINGS = {
         "ERROR_ANALYTICS_CHAT_NO_ASSET": "Пожалуйста, сначала укажите актив (напр., <code>BTC</code>), прежде чем задавать вопросы по нему.",
         "MSG_ANALYTICS_CHAT_ASSET_CHANGED": "Актив изменен на <b>{asset_ticker}</b>. Что вас интересует по нему?",
         "ERROR_ANALYTICS_CHAT_CMD_NOT_SUPPORTED": "Команда '{command}' не поддерживается для актива <b>{asset_ticker}</b> ({asset_type}).",
-        "analytics_chat_welcome": "<b>💬 Аналитический Чат</b>\n\nЯ готов отвечать на ваши вопросы по рынку...", # <-- ИСПРАВЛЕНО
+        "analytics_chat_welcome": "<b>💬 Аналитический Чат</b>\n\nЯ готов отвечать на ваши вопросы по рынку...",  # <-- ИСПРАВЛЕНО
         "analytics_chat_cmd_price": "Цена",
         "analytics_chat_cmd_ta": "ТА",
         "analytics_chat_cmd_chart": "График",
@@ -406,7 +413,6 @@ STRINGS = {
         "analytics_chat_cmd_alert": "Алерт",
         "analytics_chat_cmd_change_asset": "Сменить актив",
         "analytics_chat_cmd_cancel": "Отмена",
-
         # =============================================================================
         # --- Дайджест (Jobs) ---
         # =============================================================================
@@ -420,7 +426,7 @@ STRINGS = {
         "MSG_DIGEST_DOMINANCE_LINE": "📊 BTC Dominance: <code>{value:.2f}%</code>",
         "MSG_DIGEST_FOOTER": "\n<i>Хорошего дня!</i>",
     },
-    'en': {
+    "en": {
         # =============================================================================
         # --- General & System Messages ---
         # =============================================================================
@@ -479,7 +485,6 @@ STRINGS = {
         "MSG_TIMEOUT_ERROR": "⏳ The API server did not respond in time. Please try again later.",
         "MSG_DIALOG_CANCELLED_BY_COMMAND": "Action cancelled. Another command was called.",
         "TEXT_ASSET_DEFAULT": "asset",
-
         # =============================================================================
         # --- Buttons & Menus ---
         # =============================================================================
@@ -500,7 +505,6 @@ STRINGS = {
         "BTN_CANCEL": "Cancel",
         "BTN_YES": "Yes",
         "BTN_NO": "No",
-
         # =============================================================================
         # --- Settings ---
         # =============================================================================
@@ -513,7 +517,6 @@ STRINGS = {
         "MSG_LANG_SELECT": "Please select a language:",
         "MSG_LANG_SET": "✅ Language successfully changed.",
         "MSG_RESTART_NEEDED": "To apply all settings, please send /start.",
-
         # =============================================================================
         # --- Report (/report) ---
         # =============================================================================
@@ -545,7 +548,6 @@ STRINGS = {
         "MSG_REPORT_TA_PRICE_BELOW_SMA": "Price is below SMA {sma_period}",
         "MSG_REPORT_TA_PRICE_BETWEEN_SMAS": "Price is between SMA 50 and 200",
         "MSG_REPORT_TA_NOT_ENOUGH_DATA": "not enough data for TA",
-
         # =============================================================================
         # --- Graphs ---
         # =============================================================================
@@ -557,7 +559,6 @@ STRINGS = {
         "TITLE_GRAPH_BTC_TREND": "BTC Price Trend",
         "TITLE_GRAPH_DXY_TREND": "US Dollar Index (DXY) Trend",
         "TITLE_GRAPH_CPI_TREND": "Inflation Trend (CPI, USA)",
-
         # =============================================================================
         # --- Signal (/signal) ---
         # =============================================================================
@@ -574,18 +575,36 @@ STRINGS = {
         "SIGNAL_FACTOR_FNG": "F&G Index",
         "SIGNAL_FACTOR_CORR": "BTC/DXY Correlation",
         "SIGNAL_FACTOR_BTC_DOMINANCE": "BTC Dominance Trend",
-        "SIGNAL_DETAIL_BTC_UP": "Rising", "SIGNAL_DETAIL_BTC_DOWN": "Falling", "SIGNAL_DETAIL_BTC_FLAT": "Sideways",
-        "SIGNAL_DETAIL_CPI_UP": "Rising (negative)", "SIGNAL_DETAIL_CPI_DOWN": "Falling (positive)", "SIGNAL_DETAIL_CPI_FLAT": "Sideways",
-        "SIGNAL_DETAIL_CPI_NA": "No data", "SIGNAL_DETAIL_CPI_ONE_POINT": "Only 1 data point",
-        "SIGNAL_DETAIL_CPI_ACCELERATES": "Rise continues", "SIGNAL_DETAIL_CPI_DECELERATES": "Fall continues",
-        "SIGNAL_DETAIL_DXY_UP": "Rising (negative)", "SIGNAL_DETAIL_DXY_DOWN": "Falling (positive)", "SIGNAL_DETAIL_DXY_FLAT": "Sideways",
-        "SIGNAL_DETAIL_CORR_NEG_DXY_UP": "DXY is rising (negative)", "SIGNAL_DETAIL_CORR_NEG_DXY_DOWN": "DXY is falling (positive)", "SIGNAL_DETAIL_CORR_NONE": "No strong inverse correlation",
-        "SIGNAL_DETAIL_FNG_EXTREME_FEAR": "Extreme Fear (bullish factor)", "SIGNAL_DETAIL_FNG_FEAR": "Fear", "SIGNAL_DETAIL_FNG_NEUTRAL": "Neutral",
-        "SIGNAL_DETAIL_FNG_GREED": "Greed", "SIGNAL_DETAIL_FNG_EXTREME_GREED": "Extreme Greed (bearish factor)", "SIGNAL_DETAIL_FNG_NA": "No data",
-        "SIGNAL_DETAIL_BTC_DOMINANCE_NA": "No data", "SIGNAL_DETAIL_BTC_DOMINANCE_RISING": "Rising (good for BTC)", "SIGNAL_DETAIL_BTC_DOMINANCE_FALLING": "Falling (good for Alts)",
-        "SIGNAL_STRONG_BUY": "🔥 STRONG BUY", "SIGNAL_WEAK_BUY": "Buy", "SIGNAL_HOLD": "Hold / Neutral",
-        "SIGNAL_WEAK_SELL": "Sell", "SIGNAL_STRONG_SELL": "🔥 STRONG SELL",
-
+        "SIGNAL_DETAIL_BTC_UP": "Rising",
+        "SIGNAL_DETAIL_BTC_DOWN": "Falling",
+        "SIGNAL_DETAIL_BTC_FLAT": "Sideways",
+        "SIGNAL_DETAIL_CPI_UP": "Rising (negative)",
+        "SIGNAL_DETAIL_CPI_DOWN": "Falling (positive)",
+        "SIGNAL_DETAIL_CPI_FLAT": "Sideways",
+        "SIGNAL_DETAIL_CPI_NA": "No data",
+        "SIGNAL_DETAIL_CPI_ONE_POINT": "Only 1 data point",
+        "SIGNAL_DETAIL_CPI_ACCELERATES": "Rise continues",
+        "SIGNAL_DETAIL_CPI_DECELERATES": "Fall continues",
+        "SIGNAL_DETAIL_DXY_UP": "Rising (negative)",
+        "SIGNAL_DETAIL_DXY_DOWN": "Falling (positive)",
+        "SIGNAL_DETAIL_DXY_FLAT": "Sideways",
+        "SIGNAL_DETAIL_CORR_NEG_DXY_UP": "DXY is rising (negative)",
+        "SIGNAL_DETAIL_CORR_NEG_DXY_DOWN": "DXY is falling (positive)",
+        "SIGNAL_DETAIL_CORR_NONE": "No strong inverse correlation",
+        "SIGNAL_DETAIL_FNG_EXTREME_FEAR": "Extreme Fear (bullish factor)",
+        "SIGNAL_DETAIL_FNG_FEAR": "Fear",
+        "SIGNAL_DETAIL_FNG_NEUTRAL": "Neutral",
+        "SIGNAL_DETAIL_FNG_GREED": "Greed",
+        "SIGNAL_DETAIL_FNG_EXTREME_GREED": "Extreme Greed (bearish factor)",
+        "SIGNAL_DETAIL_FNG_NA": "No data",
+        "SIGNAL_DETAIL_BTC_DOMINANCE_NA": "No data",
+        "SIGNAL_DETAIL_BTC_DOMINANCE_RISING": "Rising (good for BTC)",
+        "SIGNAL_DETAIL_BTC_DOMINANCE_FALLING": "Falling (good for Alts)",
+        "SIGNAL_STRONG_BUY": "🔥 STRONG BUY",
+        "SIGNAL_WEAK_BUY": "Buy",
+        "SIGNAL_HOLD": "Hold / Neutral",
+        "SIGNAL_WEAK_SELL": "Sell",
+        "SIGNAL_STRONG_SELL": "🔥 STRONG SELL",
         # =============================================================================
         # --- Portfolio ---
         # =============================================================================
@@ -600,7 +619,6 @@ STRINGS = {
         "MSG_P_DEL_PROMPT": "<b>Usage:</b> <code>/p_del <TICKER></code>\nExample: <code>/p_del BTC</code>",
         "MSG_P_DEL_SUCCESS": "✅ {ticker} has been removed from your portfolio.",
         "ERROR_P_DEL_NOT_FOUND": "⚠️ {ticker} not found in your portfolio.",
-
         # =============================================================================
         # --- Watchlist ---
         # =============================================================================
@@ -615,7 +633,6 @@ STRINGS = {
         "PROMPT_DELWATCH": "Enter the ticker to remove. Example: /delwatch BTC",
         "MSG_DELWATCH_SUCCESS": "✅ <code>{asset_id}</code> has been removed from your watchlist.",
         "ERROR_DELWATCH_NOTFOUND": "⚠️ <code>{asset_id}</code> was not found in your watchlist.",
-
         # =============================================================================
         # --- Alerts ---
         # =============================================================================
@@ -664,7 +681,6 @@ STRINGS = {
         "BTN_CONDITION_LT": "Price <",
         "BTN_EDIT_CONDITION": "Condition",
         "BTN_EDIT_VALUE": "Value",
-
         # =============================================================================
         # --- Technical Analysis (/ta) ---
         # =============================================================================
@@ -683,7 +699,6 @@ STRINGS = {
         "MSG_TA_BBANDS_DESC_ABOVE": "above the upper band (possible overbought)",
         "MSG_TA_BBANDS_DESC_BELOW": "below the lower band (possible oversold)",
         "MSG_TA_BBANDS_DESC_INSIDE": "within the channel",
-
         # =============================================================================
         # --- Market Data Commands (Misc) ---
         # =============================================================================
@@ -726,7 +741,6 @@ STRINGS = {
         "menu_cmd_tvl": "TVL",
         "menu_cmd_marketcap": "Market Cap",
         "menu_cmd_events": "Events",
-
         # =============================================================================
         # --- News ---
         # =============================================================================
@@ -740,7 +754,6 @@ STRINGS = {
         "ERROR_NEWS_API_KEY_MISSING": "News feature is unavailable (configuration error).",
         "MSG_NEWS_NO_RESULTS": "No results found for your query “{query}”.",
         "ERROR_NEWS_QUERY_TOO_SHORT": "The query must be at least 3 characters long.",
-
         # =============================================================================
         # --- Other Commands ---
         # =============================================================================
@@ -753,7 +766,7 @@ STRINGS = {
             "BOLLINGER BANDS": "<b>Bollinger Bands®</b> are a volatility indicator consisting of three lines: an SMA and two outer bands that are standard deviations away. They show market volatility. A price move outside the bands can signal overbought or oversold conditions.",
             "CPI": "<b>CPI (Consumer Price Index)</b> is a key measure of inflation. High CPI leads central banks (like the Fed) to raise interest rates, which is typically negative for risk assets like cryptocurrencies.",
             "DXY": "<b>DXY (US Dollar Index)</b> shows the strength of the US dollar against a basket of other currencies. It historically has an inverse correlation with BTC: when DXY rises, BTC often falls, and vice versa.",
-            "TVL": "<b>TVL (Total Value Locked)</b> is the overall value of crypto assets deposited in a decentralized finance (DeFi) protocol's smart contracts. It's a key metric for gauging the popularity and user trust in a project."
+            "TVL": "<b>TVL (Total Value Locked)</b> is the overall value of crypto assets deposited in a decentralized finance (DeFi) protocol's smart contracts. It's a key metric for gauging the popularity and user trust in a project.",
         },
         "TITLE_PREMIUM_INFO": "<b>⭐️ Premium Subscription Info</b>",
         "MSG_PREMIUM_STATUS_ACTIVE": "Status: <b>Active</b> ✅",
@@ -762,7 +775,6 @@ STRINGS = {
         "PROMPT_FEEDBACK": "To send feedback, type the command and your message. Example:\n/feedback <i>I suggest adding a new indicator</i>",
         "MSG_FEEDBACK_SENT": "✅ Thank you! Your feedback has been sent to the developer.",
         "ERROR_FEEDBACK": "⚠️ Could not send your feedback. Please try again later.",
-
         # =============================================================================
         # --- Analytics Chat (/chat) ---
         # =============================================================================
@@ -785,7 +797,6 @@ STRINGS = {
         "analytics_chat_cmd_alert": "Alert",
         "analytics_chat_cmd_change_asset": "Change asset",
         "analytics_chat_cmd_cancel": "Cancel",
-
         # =============================================================================
         # --- Digest (Jobs) ---
         # =============================================================================
@@ -800,6 +811,6 @@ STRINGS = {
         "MSG_DIGEST_FOOTER": "\n<i>Have a great day!</i>",
         "TITLE_WATCHLIST": "<b>⭐️ Список наблюдения ({count}/{limit})</b>",
         "error_general": "⚠️ Произошла ошибка.",
-        "loading_data": "⏳ Загружаю данные..."
-    }
+        "loading_data": "⏳ Загружаю данные...",
+    },
 }

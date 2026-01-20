@@ -159,7 +159,9 @@ class TradingFeatureStore:
             msg = "Feast is not available. Please install with: pip install feast"
             if is_prod:
                 logger.critical(f"PROD ERROR: {msg}")
-                raise RuntimeError(f"CRITICAL: Feature Store cannot start in PRODUCTION without Feast! {msg}")
+                raise RuntimeError(
+                    f"CRITICAL: Feature Store cannot start in PRODUCTION without Feast! {msg}"
+                )
             else:
                 logger.error(msg)
                 raise ImportError(msg)
@@ -443,9 +445,7 @@ class TradingFeatureStore:
             # Return empty DataFrame as fallback
             return pd.DataFrame()
 
-    def materialize_features(
-        self, start_date: str | datetime, end_date: str | datetime
-    ):
+    def materialize_features(self, start_date: str | datetime, end_date: str | datetime):
         """
         Materialize features from offline to online store.
 
@@ -817,7 +817,9 @@ class RedisFeatureStore(MockFeatureStore):
             raise ImportError("Redis is not available. Please install with: pip install redis")
 
         # Initialize Redis connection
-        self.redis = redis.Redis(host=host, port=port, db=db, password=password, decode_responses=False)
+        self.redis = redis.Redis(
+            host=host, port=port, db=db, password=password, decode_responses=False
+        )
         self.pickle = pickle
         self.ttl = cache_ttl_hours * 3600  # Convert hours to seconds
 
@@ -876,10 +878,13 @@ class RedisFeatureStore(MockFeatureStore):
         try:
             # 1. Get the last known features from store/cache
             # (In a real implementation, we'd fetch the latest timestamp from Redis)
-            logger.info(f"Performing incremental update for {symbol} with {len(new_ohlcv)} new candles")
+            logger.info(
+                f"Performing incremental update for {symbol} with {len(new_ohlcv)} new candles"
+            )
 
             # 🛡️ Production Check
             import os
+
             if os.getenv("ENV") == "production":
                 logger.error("Incremental update not yet implemented for PRODUCTION Feast store.")
                 return
@@ -889,7 +894,7 @@ class RedisFeatureStore(MockFeatureStore):
             # that support incremental updates (e.g., EMA)
             for idx, row in new_ohlcv.iterrows():
                 # Simulate feature calculation
-                feat_dict = {"close": float(row['close']), "volume": float(row['volume'])}
+                feat_dict = {"close": float(row["close"]), "volume": float(row["volume"])}
                 self.write_features(symbol, idx, feat_dict)
 
             logger.info(f"Successfully updated {len(new_ohlcv)} feature sets incrementally.")
@@ -1020,6 +1025,7 @@ def create_feature_store(
     """
     # 🛡️ Production Safety: Check environment
     import os
+
     is_prod = os.getenv("ENV", "development").lower() == "production"
 
     if is_prod and use_mock:
@@ -1031,8 +1037,8 @@ def create_feature_store(
         return RedisFeatureStore(**kwargs)
     elif use_mock or not FEAST_AVAILABLE:
         if is_prod and not FEAST_AVAILABLE:
-             logger.critical("PROD ERROR: Feast not available in PRODUCTION!")
-             raise RuntimeError("CRITICAL: Feature Store must have Feast in PRODUCTION!")
+            logger.critical("PROD ERROR: Feast not available in PRODUCTION!")
+            raise RuntimeError("CRITICAL: Feature Store must have Feast in PRODUCTION!")
 
         logger.info("Creating MockFeatureStore (Feast not available or mock requested)")
         return MockFeatureStore(**kwargs)

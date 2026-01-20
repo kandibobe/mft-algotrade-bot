@@ -9,12 +9,13 @@
  |_____/ \__\___|\__,_|_|\__,_|_|\__,_|\__,_|\__|
 ```
 
-**Institutional-Grade Mid-Frequency Trading (MFT) System**
-*Engineered for Reliability, Speed, and Risk Management.*
+**Institutional-Grade Hybrid MFT System (V7)**
+*Engineered for Reliability, Speed, and Adaptive Intelligence.*
 
 <p align="center">
   <img src="https://img.shields.io/badge/Architecture-Hybrid%20Async-blueviolet?style=for-the-badge" alt="Architecture">
-  <img src="https://img.shields.io/badge/Risk-Institutional-red?style=for-the-badge" alt="Risk Management">
+  <img src="https://img.shields.io/badge/AI-Online%20Meta--Learning-FF6F00?style=for-the-badge" alt="AI">
+  <img src="https://img.shields.io/badge/Risk-Prop--Guardian-red?style=for-the-badge" alt="Risk Management">
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
@@ -28,13 +29,16 @@
 
 ## **Introduction**
 
-**Stoic Citadel** is a high-performance, hybrid trading framework designed to bridge the gap between retail algorithmic bots and institutional HFT systems. 
+**Stoic Citadel V7** is a high-performance, hybrid trading framework designed to bridge the gap between retail algorithmic bots and institutional HFT systems. 
 
 Unlike traditional bots that run on a single synchronous loop, Stoic Citadel employs a **Dual-Layer Architecture**:
-1.  **Macro Layer (Strategy):** Uses Freqtrade for robust trend analysis, regime detection, and signal generation.
+1.  **Macro Layer (Strategy):** Uses Freqtrade & ML for robust trend analysis, regime detection, and signal generation.
 2.  **Micro Layer (Execution):** Uses a custom `AsyncIO` engine for millisecond-latency order management, smart execution algorithms (Iceberg, Chase), and real-time risk checks.
+3.  **Meta-Learning Layer:** Continuously adapts to market drift using online learning (River) and explainable AI (SHAP).
 
-> **Status:** Soft Launch (Running V6 Strategy)
+> **Status:** Institutional Grade (Prop Firm Ready)
+
+> **🚀 Now featuring "Prop-Guardian" Risk Engine for FTMO/Funding Pips challenges.**
 
 ---
 
@@ -73,17 +77,24 @@ Most bots are slow because they process everything in one loop. Stoic Citadel de
 *   *Strategy* runs every 1m/5m/1h to find setups.
 *   *Execution* runs in microseconds to fill orders at the best price.
 
-### **2. Institutional Risk Engine**
-We don't just use Stop Loss. We use:
-*   **HRP (Hierarchical Risk Parity):** Mathematically optimal portfolio rebalancing.
-*   **Volatility Targeting:** Adjusts size based on market turbulence.
-*   **Circuit Breakers:** Hard stops that trigger if daily drawdown exceeds limits.
+### **2. Adaptive AI (V7)**
+*   **Online Meta-Learning:** The system learns from its own execution outcomes in real-time.
+*   **Explainability:** Every trade comes with a SHAP analysis explaining *why* it was taken.
+*   **Feature Store:** Centralized management of alpha factors with offline/online consistency.
 
-### **3. Smart Execution Router**
+### **3. Institutional Risk Engine (Prop-Guardian)**
+Designed to pass Prop Firm challenges (FTMO, Funding Pips) by strictly enforcing:
+*   **Equity-Based Daily Drawdown:** Tracks real-time floating PnL to prevent soft-breaches.
+*   **HRP (Hierarchical Risk Parity):** Mathematically optimal portfolio rebalancing.
+*   **News Filter:** Automatically halts trading before High Impact events (Non-Farm Payrolls, FOMC).
+*   **Circuit Breakers:** Multi-level stops for rapid market crashes.
+
+### **4. Smart Execution Router (MFT)**
 Never market buy blindly. The `SmartOrderExecutor` uses:
 *   **ChaseLimit:** Places limit orders and updates them dynamically to avoid spread costs.
 *   **Iceberg:** Splits large orders to hide intent.
 *   **Pegged:** Floats orders relative to the spread.
+*   **Multi-Backend:** Support for both Crypto (CCXT) and Forex/Indices (MetaTrader 5).
 
 ---
 
@@ -100,7 +111,8 @@ graph TD
 
     subgraph "Macro Layer (Sync / Robust)"
     FT[Freqtrade Strategy] -->|Signals| HC[Hybrid Connector]
-    ML[Feature Store] -->|Predicitons| FT
+    ML[Feature Store] -->|Predictions| FT
+    OL[Online Learner] -->|Adaptation| ML
     end
 
     subgraph "Safety & Governance"
@@ -142,10 +154,10 @@ make dev-install
 
 ## **📂 Project Structure**
 
-*   `src/strategies/` - Hybrid Strategies & Connector Logic.
-*   `src/order_manager/` - Async Execution Engine.
-*   `src/risk/` - HRP, Circuit Breakers, and Sizing.
-*   `src/ml/` - Feature Store & Model Registry.
+*   `src/strategies/` - Hybrid Strategies & Connector Logic (Macro Layer).
+*   `src/order_manager/` - Async Smart Execution Engine (Micro Layer).
+*   `src/risk/` - **Prop-Guardian** Risk Engine (Equity Drawdown, HRP).
+*   `src/ml/` - Feature Store, Online Learner & Model Registry.
 *   `src/websocket/` - Real-time Data Streamers.
 *   `deploy/` - Docker & Kubernetes configurations.
 

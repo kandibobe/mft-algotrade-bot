@@ -364,7 +364,9 @@ class ExperimentTracker:
 
 
 # Helper function for easy tracking
-def track_training(project: str = "stoic-citadel-ml", name: str | None = None, config: dict | None = None):
+def track_training(
+    project: str = "stoic-citadel-ml", name: str | None = None, config: dict | None = None
+):
     """
     Decorator to track training function.
 

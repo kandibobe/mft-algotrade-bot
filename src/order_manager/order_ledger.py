@@ -38,7 +38,7 @@ import json
 import logging
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -46,8 +46,9 @@ try:
     from src.order_manager.models import Order, OrderSide, OrderStatus, OrderType
 except ImportError:
     # Fallback for testing
-    Order = Any
-    OrderStatus = Any
+    pass
+    Order = Any  # type: ignore
+    OrderStatus = Any  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -442,7 +443,7 @@ class OrderLedger:
         Args:
             days: Keep orders from last N days
         """
-        cutoff_date = datetime.now() - timedelta(days=days)
+        cutoff_date = datetime.now() - timedelta(days=days)  # type: ignore
 
         with self._get_connection() as conn:
             cursor = conn.execute(

@@ -29,7 +29,7 @@ class LiquidationConfig:
     """Configuration for liquidation guard."""
 
     # ADL Protection
-    max_adl_score: int = 3 # Trigger reduction if ADL score >= 3 (out of 5)
+    max_adl_score: int = 3  # Trigger reduction if ADL score >= 3 (out of 5)
 
     # Safety buffer: Stop loss must be this much closer to entry than liq price
     # e.g. 0.20 means SL must be at 80% of the distance to liquidation
@@ -234,11 +234,11 @@ class LiquidationGuard:
         with liquidation zones or 'stop-hunting' levels.
         """
         clusters = []
-        if not orderbook or 'bids' not in orderbook or 'asks' not in orderbook:
+        if not orderbook or "bids" not in orderbook or "asks" not in orderbook:
             return clusters
 
         # Logic: Find levels where volume is significantly higher than average
-        for side in ['bids', 'asks']:
+        for side in ["bids", "asks"]:
             levels = orderbook[side]
             if not levels:
                 continue
@@ -270,11 +270,7 @@ class LiquidationGuard:
         return current_price <= 90
 
     def calculate_smart_stop(
-        self,
-        entry_price: float,
-        stop_loss_price: float,
-        side: str,
-        orderbook: dict | None = None
+        self, entry_price: float, stop_loss_price: float, side: str, orderbook: dict | None = None
     ) -> float:
         """
         Adjust stop loss to avoid liquidation clusters.
@@ -298,17 +294,19 @@ class LiquidationGuard:
             if abs(cluster_price - stop_loss_price) < threshold:
                 # If cluster is between Entry and SL (for Long) or just beyond SL
                 # we want to be OUTSIDE the cluster.
-                if side == 'long':
+                if side == "long":
                     # Move SL below the cluster
-                    new_sl = cluster_price * 0.995 # 0.5% buffer
+                    new_sl = cluster_price * 0.995  # 0.5% buffer
                     adjusted_sl = min(adjusted_sl, new_sl)
                 else:
                     # Move SL above the cluster
-                    new_sl = cluster_price * 1.005 # 0.5% buffer
+                    new_sl = cluster_price * 1.005  # 0.5% buffer
                     adjusted_sl = max(adjusted_sl, new_sl)
 
         if adjusted_sl != stop_loss_price:
-            logger.info(f"Smart Stop: Adjusted {side} SL from {stop_loss_price:.2f} to {adjusted_sl:.2f} "
-                        f"to avoid liquidation clusters.")
+            logger.info(
+                f"Smart Stop: Adjusted {side} SL from {stop_loss_price:.2f} to {adjusted_sl:.2f} "
+                f"to avoid liquidation clusters."
+            )
 
         return adjusted_sl

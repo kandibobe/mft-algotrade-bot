@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stoic Citadel Live Status</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #0d1117; color: #c9d1d9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: #161b22; padding: 2rem; border-radius: 6px; border: 1px solid #30363d; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 300px; text-align: center; }
+        .status { font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; }
+        .online { color: #238636; }
+        .offline { color: #da3633; }
+        .metric { display: flex; justify-content: space-between; margin: 0.5rem 0; font-size: 0.9rem; }
+        .label { color: #8b949e; }
+        .value { font-weight: 600; }
+        .footer { margin-top: 1.5rem; font-size: 0.75rem; color: #8b949e; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div id="status-indicator" class="status">Loading...</div>
+        <div class="metric">
+            <span class="label">Uptime</span>
+            <span id="uptime" class="value">-</span>
+        </div>
+        <div class="metric">
+            <span class="label">Risk Checks</span>
+            <span id="risk-checks" class="value">-</span>
+        </div>
+        <div class="metric">
+            <span class="label">Last Update</span>
+            <span id="last-update" class="value">-</span>
+        </div>
+        <div class="footer">Stoic Citadel MFT Engine</div>
+    </div>
+
+    <script>
+        async function fetchStatus() {
+            try {
+                const response = await fetch('status.json');
+                const data = await response.json();
+                
+                const statusEl = document.getElementById('status-indicator');
+                statusEl.textContent = data.status;
+                if (data.status === 'System Online') {
+                    statusEl.className = 'status online';
+                } else {
+                    statusEl.className = 'status offline';
+                }
+
+                document.getElementById('uptime').textContent = data.uptime;
+                document.getElementById('risk-checks').textContent = data.risk_checks;
+                document.getElementById('last-update').textContent = new Date(data.timestamp).toLocaleTimeString();
+            } catch (error) {
+                document.getElementById('status-indicator').textContent = 'System Offline';
+                document.getElementById('status-indicator').className = 'status offline';
+            }
+        }
+
+        fetchStatus();
+        setInterval(fetchStatus, 60000);
+    </script>
+</body>
+</html>

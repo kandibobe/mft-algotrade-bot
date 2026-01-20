@@ -15,6 +15,7 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 async def watchlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показывает список наблюдения с кнопками удаления и добавления алерта."""
     user_id = update.effective_user.id
@@ -24,7 +25,9 @@ async def watchlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     watchlist = user_manager.get_user_watchlist(user_id)
     limits = user_manager.get_user_limits(user_id)
 
-    header_text = get_text(constants.TITLE_WATCHLIST, lang_code, count=len(watchlist), limit=limits['watchlist'])
+    header_text = get_text(
+        constants.TITLE_WATCHLIST, lang_code, count=len(watchlist), limit=limits["watchlist"]
+    )
 
     if not watchlist:
         reply_text = header_text + "\n" + get_text(constants.MSG_WATCHLIST_EMPTY, lang_code)
@@ -33,25 +36,44 @@ async def watchlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_text = header_text + "\n"
         keyboard = []
         for item in watchlist:
-            ticker = constants.REVERSE_ASSET_MAP.get(item['asset_id'], item['asset_id'])
+            ticker = constants.REVERSE_ASSET_MAP.get(item["asset_id"], item["asset_id"])
             button_row = [
-                InlineKeyboardButton(f"🔔 {ticker}", callback_data=f"{constants.CB_ACTION_QUICK_ADD_ALERT}{ticker}"),
-                InlineKeyboardButton("❌", callback_data=f"{constants.CB_ACTION_DEL_WATCH}{ticker}")
+                InlineKeyboardButton(
+                    f"🔔 {ticker}", callback_data=f"{constants.CB_ACTION_QUICK_ADD_ALERT}{ticker}"
+                ),
+                InlineKeyboardButton(
+                    "❌", callback_data=f"{constants.CB_ACTION_DEL_WATCH}{ticker}"
+                ),
             ]
             keyboard.append(button_row)
-            reply_text += get_text(constants.MSG_WATCHLIST_ITEM, lang_code, asset_id=ticker, asset_type=item['asset_type']) + "\n"
+            reply_text += (
+                get_text(
+                    constants.MSG_WATCHLIST_ITEM,
+                    lang_code,
+                    asset_id=ticker,
+                    asset_type=item["asset_type"],
+                )
+                + "\n"
+            )
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-    effective_message = update.message or (update.callback_query.message if update.callback_query else None)
-    if not effective_message: return
+    effective_message = update.message or (
+        update.callback_query.message if update.callback_query else None
+    )
+    if not effective_message:
+        return
 
     if update.callback_query:
         try:
-            await update.callback_query.edit_message_text(reply_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            await update.callback_query.edit_message_text(
+                reply_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML
+            )
         except Exception as e:
             logger.error(f"Ошибка обновления сообщения watchlist: {e}")
     else:
-        await effective_message.reply_text(reply_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+        await effective_message.reply_text(
+            reply_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup
+        )
 
 
 async def delwatch_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -62,10 +84,11 @@ async def delwatch_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     try:
-        ticker_to_delete = query.data[len(constants.CB_ACTION_DEL_WATCH):]
+        ticker_to_delete = query.data[len(constants.CB_ACTION_DEL_WATCH) :]
     except IndexError:
         logger.error(f"Не удалось извлечь тикер из callback_data: {query.data}")
-        await query.edit_message_text(get_text(constants.MSG_ERROR_GENERAL, lang_code)); return
+        await query.edit_message_text(get_text(constants.MSG_ERROR_GENERAL, lang_code))
+        return
 
     logger.info(f"Попытка удалить '{ticker_to_delete}' из watchlist user_id {user_id} через кнопку")
     result_code = user_manager.remove_asset_from_watchlist(user_id, ticker_to_delete)
@@ -77,7 +100,9 @@ async def delwatch_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         msg_key = constants.ERROR_DELWATCH_NOTFOUND
 
-    await context.bot.send_message(chat_id=user_id, text=get_text(msg_key, lang_code, asset_id=ticker_to_delete))
+    await context.bot.send_message(
+        chat_id=user_id, text=get_text(msg_key, lang_code, asset_id=ticker_to_delete)
+    )
 
 
 async def addwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -87,7 +112,8 @@ async def addwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = await get_user_language(user_id)
 
     if not args:
-        await update.message.reply_text(get_text(constants.PROMPT_ADDWATCH, lang_code)); return
+        await update.message.reply_text(get_text(constants.PROMPT_ADDWATCH, lang_code))
+        return
 
     ticker = args[0].upper()
     logger.info(f"Попытка добавить '{ticker}' в watchlist user_id {user_id}")
@@ -100,11 +126,18 @@ async def addwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif result_code == user_manager.OPERATION_FAILED_LIMIT:
         limits = user_manager.get_user_limits(user_id)
         premium_ad_text = get_text(constants.MSG_PREMIUM_AD_TEXT, lang_code, default="")
-        reply_text = get_text(constants.ERROR_ADDWATCH_LIMIT, lang_code, limit=limits['watchlist'], premium_ad=premium_ad_text)
+        reply_text = get_text(
+            constants.ERROR_ADDWATCH_LIMIT,
+            lang_code,
+            limit=limits["watchlist"],
+            premium_ad=premium_ad_text,
+        )
     elif result_code == user_manager.OPERATION_FAILED_EXISTS:
         reply_text = get_text(constants.ERROR_ADDWATCH_EXISTS, lang_code, asset_id=ticker)
     elif result_code == user_manager.OPERATION_FAILED_INVALID:
-        reply_text = get_text(constants.ERROR_ADDWATCH_INVALID, lang_code, ticker=html.escape(ticker))
+        reply_text = get_text(
+            constants.ERROR_ADDWATCH_INVALID, lang_code, ticker=html.escape(ticker)
+        )
     else:
         reply_text = get_text(constants.MSG_ERROR_DB, lang_code)
         logger.error(f"Ошибка добавления '{ticker}' в watchlist user {user_id}, код: {result_code}")
@@ -121,15 +154,20 @@ async def delwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not args:
         watchlist = user_manager.get_user_watchlist(user_id)
         limits = user_manager.get_user_limits(user_id)
-        header_text = get_text(constants.TITLE_WATCHLIST, lang_code, count=len(watchlist), limit=limits['watchlist'])
+        header_text = get_text(
+            constants.TITLE_WATCHLIST, lang_code, count=len(watchlist), limit=limits["watchlist"]
+        )
         prompt_text = get_text(constants.PROMPT_DELWATCH, lang_code)
 
         reply_text = prompt_text
         if watchlist:
-             items = [f"• <code>{constants.REVERSE_ASSET_MAP.get(item['asset_id'], item['asset_id'])}</code>" for item in watchlist]
-             reply_text += f"\n\n{header_text}\n" + "\n".join(items)
+            items = [
+                f"• <code>{constants.REVERSE_ASSET_MAP.get(item['asset_id'], item['asset_id'])}</code>"
+                for item in watchlist
+            ]
+            reply_text += f"\n\n{header_text}\n" + "\n".join(items)
         else:
-             reply_text += "\n" + get_text(constants.MSG_WATCHLIST_EMPTY, lang_code)
+            reply_text += "\n" + get_text(constants.MSG_WATCHLIST_EMPTY, lang_code)
 
         await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
         return
@@ -144,10 +182,13 @@ async def delwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message_key = constants.ERROR_DELWATCH_NOTFOUND
     else:
         message_key = constants.MSG_ERROR_DB
-        logger.error(f"Ошибка удаления '{ticker}' из watchlist user {user_id} по команде, код: {result_code}")
+        logger.error(
+            f"Ошибка удаления '{ticker}' из watchlist user {user_id} по команде, код: {result_code}"
+        )
 
     reply_text = get_text(message_key, lang_code, asset_id=ticker)
     await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
+
 
 async def quick_add_alert_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -155,12 +196,13 @@ async def quick_add_alert_callback(update: Update, context: ContextTypes.DEFAULT
     Перенаправляет на основной обработчик /addalert.
     """
     query = update.callback_query
-    if not query: return
+    if not query:
+        return
 
     await query.answer()
 
     try:
-        ticker = query.data[len(constants.CB_ACTION_QUICK_ADD_ALERT):]
+        ticker = query.data[len(constants.CB_ACTION_QUICK_ADD_ALERT) :]
     except IndexError:
         logger.error(f"Не удалось извлечь тикер из callback_data для быстрого алерта: {query.data}")
         return
@@ -181,6 +223,7 @@ async def quick_add_alert_callback(update: Update, context: ContextTypes.DEFAULT
             self.text = text
             self.chat_id = chat_id
             self._bot = bot
+
         async def reply_text(self, *args, **kwargs):
             return await self._bot.send_message(chat_id=self.chat_id, *args, **kwargs)
 

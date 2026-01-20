@@ -13,11 +13,13 @@ import pandas as pd
 
 try:
     import shap
+
     SHAP_AVAILABLE = True
 except ImportError:
     SHAP_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
 
 class FeatureSelectorSHAP:
     """
@@ -50,7 +52,9 @@ class FeatureSelectorSHAP:
                 importance = np.abs(shap_values).mean(0)
 
             feature_importance = pd.Series(importance, index=X.columns)
-            self.selected_features = feature_importance.sort_values(ascending=False).head(top_n).index.tolist()
+            self.selected_features = (
+                feature_importance.sort_values(ascending=False).head(top_n).index.tolist()
+            )
 
             logger.info(f"Selected top {len(self.selected_features)} features using SHAP.")
             return X[self.selected_features]

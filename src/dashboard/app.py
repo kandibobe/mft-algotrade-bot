@@ -16,9 +16,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from src.analysis.monte_carlo import MonteCarloSimulator
-from src.database.db_manager import DatabaseManager
-from src.database.models import ExecutionRecord, SignalRecord, TradeRecord
+try:
+    from src.analysis.monte_carlo import MonteCarloSimulator
+    from src.database.db_manager import DatabaseManager
+    from src.database.models import ExecutionRecord, SignalRecord, TradeRecord
+except ImportError:
+    # Handle missing dependencies if needed or just let it fail later properly
+    pass
 
 # --- Configuration ---
 st.set_page_config(
@@ -251,7 +255,7 @@ def main():
                 x="exit_time",
                 y="equity",
                 title="Portfolio Equity Curve (USD)",
-                markers=True
+                markers=True,
             )
             fig_equity.update_traces(line_color="#4CAF50")
             st.plotly_chart(fig_equity, use_container_width=True)
@@ -285,7 +289,9 @@ def main():
                 idx = trade_options[trade_options == selected_trade_str].index[0]
                 trade_data = df.iloc[idx]
 
-                st.markdown(f"### Trade Analysis: {trade_data['symbol']} ({trade_data['side'].upper()})")
+                st.markdown(
+                    f"### Trade Analysis: {trade_data['symbol']} ({trade_data['side'].upper()})"
+                )
 
                 # Layout
                 col_attr_1, col_attr_2, col_attr_3 = st.columns(3)
@@ -298,14 +304,14 @@ def main():
                     # Feature Importance (if available in metadata)
                     attr_data = trade_data.get("attribution", {})
                     if attr_data and isinstance(attr_data, dict):
-                         strategy_name = attr_data.get("strategy_name", "Unknown")
-                         st.info(f"Strategy: {strategy_name}")
-                         # Potentially more details here if we logged them
+                        strategy_name = attr_data.get("strategy_name", "Unknown")
+                        st.info(f"Strategy: {strategy_name}")
+                        # Potentially more details here if we logged them
 
                 with col_attr_2:
                     st.markdown("#### 🛡️ Risk Parameters")
                     # Assuming we can calculate or get these
-                    entry = trade_data['entry_price']
+                    entry = trade_data["entry_price"]
                     # We might need stop loss from metadata if not in main columns,
                     # but let's just show what we have
                     st.metric("Entry Price", f"{entry:.4f}")
@@ -375,7 +381,7 @@ def main():
                         trades_df=sim_df,
                         iterations=iterations,
                         initial_capital=initial_capital,
-                        max_drawdown_limit=max_dd_limit
+                        max_drawdown_limit=max_dd_limit,
                     )
                     simulator.run()
                     summary = simulator.get_summary()
@@ -394,13 +400,15 @@ def main():
                     import matplotlib.pyplot as plt
                     import numpy as np
 
-                    subset_indices = np.random.choice(len(simulator.all_equity_curves), size=min(100, iterations), replace=False)
+                    subset_indices = np.random.choice(
+                        len(simulator.all_equity_curves), size=min(100, iterations), replace=False
+                    )
                     for i in subset_indices:
-                        plt.plot(simulator.all_equity_curves[i], color='gray', alpha=0.1)
+                        plt.plot(simulator.all_equity_curves[i], color="gray", alpha=0.1)
 
                     # Plot median
                     median_curve = np.median(simulator.all_equity_curves, axis=0)
-                    plt.plot(median_curve, color='blue', linewidth=2, label='Median')
+                    plt.plot(median_curve, color="blue", linewidth=2, label="Median")
 
                     plt.title("Projected Equity Paths")
                     plt.grid(True, alpha=0.3)

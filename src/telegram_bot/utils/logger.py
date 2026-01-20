@@ -5,8 +5,9 @@ import sys
 
 # Определяем уровень логирования из переменной окружения или по умолчанию INFO
 # Это позволяет легко менять уровень детализации логов без изменения кода
-log_level_name = os.getenv('LOG_LEVEL', 'INFO').upper()
+log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
 log_level = getattr(logging, log_level_name, logging.INFO)
+
 
 def get_logger(name: str | None = None) -> logging.Logger:
     """
@@ -14,7 +15,7 @@ def get_logger(name: str | None = None) -> logging.Logger:
     Логгер выводит сообщения в stdout с заданным форматом и уровнем.
     Предотвращает дублирование обработчиков.
     """
-    logger_name = name or __name__ # Используем имя модуля, если имя не передано
+    logger_name = name or __name__  # Используем имя модуля, если имя не передано
     logger = logging.getLogger(logger_name)
 
     # Предотвращаем дублирование обработчиков, если логгер уже настроен
@@ -32,8 +33,8 @@ def get_logger(name: str | None = None) -> logging.Logger:
 
     # Создаем форматтер
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S' # Формат даты и времени
+        "%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",  # Формат даты и времени
     )
 
     # Присваиваем форматтер обработчику
@@ -49,6 +50,7 @@ def get_logger(name: str | None = None) -> logging.Logger:
     # logger.propagate = False # Обычно не требуется для корневых логгеров или при простой настройке
 
     return logger
+
 
 # Пример использования в других модулях:
 # from src.utils.logger import get_logger

@@ -2,6 +2,22 @@
 
 All notable changes to the **Stoic Citadel** project will be documented in this file.
 
+## [2.1.0] - 2026-01-20
+
+### 🚀 Major Feature Release: V7 Core
+- **Hybrid Online Learning:** Integrated `River` library for real-time model adaptation. The system now learns from live trade outcomes (Profit/Loss, slippage) to adjust confidence scores dynamically.
+- **Explainable AI (XAI):** Added `SHAP` and `Lime` integration. Every trade signal now carries an explanation vector (e.g., "RSI < 30 contributed +0.4 to confidence").
+- **Multi-Exchange Execution:** Added `MT5Backend` to support Forex and Indices via MetaTrader 5, alongside the existing crypto `CCXT` backend.
+- **News Filter:** New `NewsFilter` component that parses ForexFactory/Investing.com calendars and automatically halts trading before high-impact events.
+
+### 📱 User Experience
+- **Telegram Bot Overhaul:** Complete rewrite of the bot interface with inline keyboards, pagination, and a new "Business Metrics" dashboard.
+- **Performance Dashboard:** Real-time visualization of Sharpe Ratio, Sortino Ratio, and Max Drawdown in the web interface.
+
+### 🛡️ Risk & Stability
+- **Enhanced HRP:** Hierarchical Risk Parity now supports clustering constraints to prevent over-concentration in correlated assets.
+- **Liquidation Engine:** Improved `LiquidationService` with "Chase-to-Close" logic for faster position exiting during stress events.
+
 ## [2.0.1] - 2026-01-09
 
 ### 🔧 Critical Fixes & Stability

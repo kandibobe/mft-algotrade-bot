@@ -1,4 +1,3 @@
-
 """
 Hyperopt Automation Utility
 ===========================
@@ -11,6 +10,7 @@ import logging
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
 
 def update_config_from_hyperopt(hyperopt_results_path: str, target_config_path: str):
     """
@@ -35,11 +35,13 @@ def update_config_from_hyperopt(hyperopt_results_path: str, target_config_path: 
         # Freqtrade hyperopt results are usually in a specific format
         # For simplicity, we assume we're reading a JSON export or a simplified format
         with open(results_path) as f:
-            if results_path.suffix == '.json':
+            if results_path.suffix == ".json":
                 results = json.load(f)
             else:
                 # Placeholder for parsing MD or other formats
-                logger.warning("Only JSON hyperopt results are supported for automatic updates currently.")
+                logger.warning(
+                    "Only JSON hyperopt results are supported for automatic updates currently."
+                )
                 return
 
         # Load existing config
@@ -47,17 +49,17 @@ def update_config_from_hyperopt(hyperopt_results_path: str, target_config_path: 
             config_data = json.load(f)
 
         # Update strategy parameters
-        if 'params' in results:
-            strategy_params = results['params']
-            if 'strategy' not in config_data:
-                config_data['strategy'] = {}
+        if "params" in results:
+            strategy_params = results["params"]
+            if "strategy" not in config_data:
+                config_data["strategy"] = {}
 
             for key, value in strategy_params.items():
-                config_data['strategy'][key] = value
+                config_data["strategy"][key] = value
                 logger.info(f"Updated {key} to {value}")
 
         # Save updated config
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             json.dump(config_data, f, indent=2)
 
         logger.info(f"Successfully updated config at {target_config_path}")
@@ -65,8 +67,10 @@ def update_config_from_hyperopt(hyperopt_results_path: str, target_config_path: 
     except Exception as e:
         logger.error(f"Failed to update config from hyperopt: {e}")
 
+
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) < 3:
         print("Usage: python -m src.ops.hyperopt_update <results_json> <target_config_json>")
     else:

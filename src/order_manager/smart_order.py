@@ -74,14 +74,14 @@ class ChaseLimitOrder(LimitOrder, SmartOrder):
         dynamic_offset = self.chase_offset
 
         if self.is_buy:
-            if imbalance < -0.3: # Selling pressure, price might drop or we might get front-run
-                dynamic_offset += 0.00001 # Micro-increase to be first in line
+            if imbalance < -0.3:  # Selling pressure, price might drop or we might get front-run
+                dynamic_offset += 0.00001  # Micro-increase to be first in line
 
             target_price = best_bid + dynamic_offset
             new_price = min(target_price, self.max_chase_price)
 
-        else: # Sell
-            if imbalance > 0.3: # Buying pressure, price might rise
+        else:  # Sell
+            if imbalance > 0.3:  # Buying pressure, price might rise
                 dynamic_offset += 0.00001
 
             target_price = best_ask - dynamic_offset
@@ -126,6 +126,7 @@ class VWAPOrder(SmartOrder):
         super().__post_init__()
         self.order_type = OrderType.VWAP
 
+
 @dataclass
 class PeggedOrder(SmartOrder):
     """
@@ -139,7 +140,7 @@ class PeggedOrder(SmartOrder):
     """
 
     offset: float = 0.0
-    peg_side: str = "primary" # 'primary' (same side) or 'opposite' (crossing spread)
+    peg_side: str = "primary"  # 'primary' (same side) or 'opposite' (crossing spread)
 
     def __post_init__(self):
         super().__post_init__()
@@ -161,11 +162,13 @@ class PeggedOrder(SmartOrder):
         if self.is_buy:
             reference = best_bid if self.peg_side == "primary" else best_ask
             new_price = reference + self.offset
-        else: # Sell
+        else:  # Sell
             reference = best_ask if self.peg_side == "primary" else best_bid
             new_price = reference - self.offset
 
         # Update if changed significantly
         if abs(new_price - self.price) > 0.0000001:
-            logger.info(f"PeggedOrder {self.order_id}: Adjusting price {self.price} -> {new_price} (Ref: {reference})")
+            logger.info(
+                f"PeggedOrder {self.order_id}: Adjusting price {self.price} -> {new_price} (Ref: {reference})"
+            )
             self.price = new_price

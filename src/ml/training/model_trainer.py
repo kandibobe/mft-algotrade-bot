@@ -146,7 +146,9 @@ class ModelTrainer:
 
         # Wrap with calibration if requested
         if self.config.use_calibration:
-            logger.info(f"Wrapping model with CalibratedClassifierCV ({self.config.calibration_method})")
+            logger.info(
+                f"Wrapping model with CalibratedClassifierCV ({self.config.calibration_method})"
+            )
 
             if X_val is not None and y_val is not None:
                 # If we have validation data, we fit the base model first,
@@ -156,15 +158,13 @@ class ModelTrainer:
                 self.model = CalibratedClassifierCV(
                     estimator=FrozenEstimator(self.model),
                     method=self.config.calibration_method,
-                    cv=None # Uses all provided data for calibration because estimator is frozen
+                    cv=None,  # Uses all provided data for calibration because estimator is frozen
                 )
                 self.model.fit(X_val, y_val)
             else:
                 # If no validation data, let CalibratedClassifierCV handle cross-validation
                 self.model = CalibratedClassifierCV(
-                    estimator=self.model,
-                    method=self.config.calibration_method,
-                    cv=5
+                    estimator=self.model, method=self.config.calibration_method, cv=5
                 )
                 self.model.fit(X, y)
         else:
@@ -337,6 +337,7 @@ class ModelTrainer:
         }
         if len(y_val.unique()) == 2 and y_pred_proba is not None:
             from sklearn.metrics import roc_auc_score
+
             metrics["roc_auc"] = roc_auc_score(y_val, y_pred_proba)
         logger.info("Validation metrics:")
         for metric, value in metrics.items():
@@ -383,7 +384,10 @@ class ModelTrainer:
         logger.info(f"Running {self.config.n_splits}-fold cross-validation...")
         tscv = TimeSeriesSplit(n_splits=self.config.n_splits)
         cv_metrics: dict[str, list[float]] = {
-            "accuracy": [], "precision": [], "recall": [], "f1": []
+            "accuracy": [],
+            "precision": [],
+            "recall": [],
+            "f1": [],
         }
         for fold, (train_idx, val_idx) in enumerate(tscv.split(X), 1):
             logger.info(f"Fold {fold}/{self.config.n_splits}")
@@ -393,9 +397,7 @@ class ModelTrainer:
             model = self._create_model()
             if self.config.use_calibration:
                 model = CalibratedClassifierCV(
-                    estimator=model,
-                    method=self.config.calibration_method,
-                    cv=5
+                    estimator=model, method=self.config.calibration_method, cv=5
                 )
             model.fit(X_train, y_train)
             y_pred = model.predict(X_val)

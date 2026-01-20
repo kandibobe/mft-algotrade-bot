@@ -23,9 +23,10 @@ from src.utils.regime_detection import calculate_regime
 
 logger = logging.getLogger(__name__)
 
+
 class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
     INTERFACE_VERSION = 3
-    timeframe = '5m'
+    timeframe = "5m"
     startup_candle_count = 500
 
     # Common Parameters (Hyperoptable)
@@ -38,7 +39,9 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
     max_equity_drawdown = DecimalParameter(0.05, 0.20, default=0.10, space="sell")
 
     # Liquidity Filter Parameters
-    min_volume_1h = DecimalParameter(100000.0, 1000000.0, default=500000.0, space="buy", optimize=True)
+    min_volume_1h = DecimalParameter(
+        100000.0, 1000000.0, default=500000.0, space="buy", optimize=True
+    )
     max_spread_pct = DecimalParameter(0.01, 0.2, default=0.05, space="buy", optimize=True)
 
     def __init__(self, config: dict) -> None:
@@ -58,58 +61,72 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
             dataframe = StoicLogic.populate_indicators(dataframe)
 
             # 1b. Liquidity Metrics
-            dataframe['rolling_volume_1h'] = dataframe['volume'].rolling(window=12).sum() # 12 * 5m = 1h
+            dataframe["rolling_volume_1h"] = (
+                dataframe["volume"].rolling(window=12).sum()
+            )  # 12 * 5m = 1h
 
             # 2. Regime Detection
             regime_df = calculate_regime(
-                dataframe['high'], dataframe['low'], dataframe['close'], dataframe['volume'],
+                dataframe["high"],
+                dataframe["low"],
+                dataframe["close"],
+                dataframe["volume"],
                 vol_threshold=float(self.regime_vol_threshold.value),
                 adx_threshold=float(self.regime_adx_threshold.value),
-                hurst_threshold=float(self.regime_hurst_threshold.value)
+                hurst_threshold=float(self.regime_hurst_threshold.value),
             )
-            dataframe['regime'] = regime_df['regime']
-            dataframe['hurst'] = regime_df['hurst']
-            dataframe['adx'] = regime_df['adx']
-            dataframe['vol_zscore'] = regime_df['vol_zscore']
+            dataframe["regime"] = regime_df["regime"]
+            dataframe["hurst"] = regime_df["hurst"]
+            dataframe["adx"] = regime_df["adx"]
+            dataframe["vol_zscore"] = regime_df["vol_zscore"]
 
             # 3. Broad Market Trend (Informative BTC)
             if self.dp:
                 inf_btc = self.dp.get_pair_dataframe("BTC/USDT:USDT", "1h")
                 if not inf_btc.empty:
-                    inf_btc['ema_200'] = StoicLogic.calculate_ema(inf_btc['close'], 200)
+                    inf_btc["ema_200"] = StoicLogic.calculate_ema(inf_btc["close"], 200)
                     dataframe = merge_informative_pair(dataframe, inf_btc, self.timeframe, "1h")
 
             # 4. ML Predictions
             # Skip ML in hyperopt to avoid pickling issues
-            if self.config.get('runmode') != 'hyperopt':
+            if self.config.get("runmode") != "hyperopt":
                 dataframe = self._calculate_ml_predictions(dataframe, metadata)
             else:
-                dataframe['ml_prediction'] = 0.5
+                dataframe["ml_prediction"] = 0.5
 
         except Exception:
-            if 'ml_prediction' not in dataframe.columns:
-                dataframe['ml_prediction'] = 0.5
+            if "ml_prediction" not in dataframe.columns:
+                dataframe["ml_prediction"] = 0.5
         return dataframe
 
     def _calculate_ml_predictions(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         try:
-            pair = metadata['pair']
+            pair = metadata["pair"]
             if pair not in self._ml_adapters:
                 self._ml_adapters[pair] = StrategyMLAdapter(pair)
-            dataframe['ml_prediction'] = self._ml_adapters[pair].get_predictions(dataframe)
+            dataframe["ml_prediction"] = self._ml_adapters[pair].get_predictions(dataframe)
         except Exception:
-            dataframe['ml_prediction'] = 0.5
+            dataframe["ml_prediction"] = 0.5
         return dataframe
 
-    def confirm_trade_entry(self, pair: str, order_type: str, amount: float, rate: float,
-                           time_in_force: str, current_time: datetime, entry_tag: str | None,
-                           side: str, **kwargs) -> bool:
+    def confirm_trade_entry(
+        self,
+        pair: str,
+        order_type: str,
+        amount: float,
+        rate: float,
+        time_in_force: str,
+        current_time: datetime,
+        entry_tag: str | None,
+        side: str,
+        **kwargs,
+    ) -> bool:
         # 1. Hybrid Safety Check
         if not self.check_market_safety(pair, side):
             return False
 
         # 2. MFT Execution Diversion (Live/Dry Run Only)
-        if self.config.get('runmode') in ('live', 'dry_run'):
+        if self.config.get("runmode") in ("live", "dry_run"):
             # Double check if we have a connection
             if self._executor:
                 try:
@@ -121,7 +138,10 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
                         side=side,
                         quantity=amount,
                         price=rate,
-                        attribution_metadata={"strategy": self.get_strategy_name(), "tag": entry_tag}
+                        attribution_metadata={
+                            "strategy": self.get_strategy_name(),
+                            "tag": entry_tag,
+                        },
                     )
 
                     # Submit to Async Executor
@@ -138,17 +158,19 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
                     logger.critical(f"Error in MFT execution diversion: {e}", exc_info=True)
                     return False
 
-        return super().confirm_trade_entry(pair, order_type, amount, rate, time_in_force,
-                                         current_time, entry_tag, side, **kwargs)
+        return super().confirm_trade_entry(
+            pair, order_type, amount, rate, time_in_force, current_time, entry_tag, side, **kwargs
+        )
 
     def bot_start(self, **kwargs) -> None:
-        runmode = self.config.get('runmode')
-        if runmode in ('live', 'dry_run'):
+        runmode = self.config.get("runmode")
+        if runmode in ("live", "dry_run"):
             from src.config.manager import ConfigurationManager
+
             ConfigurationManager.initialize()
             super().bot_start(**kwargs)
             config_obj = ConfigurationManager.get_config()
-            pairs = config_obj.pairs if hasattr(config_obj, 'pairs') else []
+            pairs = config_obj.pairs if hasattr(config_obj, "pairs") else []
             self.initialize_hybrid_connector(pairs=pairs, risk_manager=self.risk_manager)
             stoic_log.info("base_strategy_initialized", runmode=runmode)
 

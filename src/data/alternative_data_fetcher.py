@@ -24,6 +24,7 @@ from src.config.unified_config import load_config
 
 logger = logging.getLogger(__name__)
 
+
 class AlternativeDataFetcher:
     """
     Asynchronous fetcher for alternative data sources.
@@ -66,17 +67,17 @@ class AlternativeDataFetcher:
             async with session.get(self.fng_api_url, params={"limit": 1}) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    item = data['data'][0]
+                    item = data["data"][0]
                     return {
-                        "value": int(item['value']),
-                        "classification": item['value_classification'],
-                        "timestamp": int(item['timestamp'])
+                        "value": int(item["value"]),
+                        "classification": item["value_classification"],
+                        "timestamp": int(item["timestamp"]),
                     }
                 logger.warning(f"Failed to fetch FnG Index: {resp.status}")
         except Exception as e:
             logger.error(f"Error fetching FnG: {e}")
 
-        return {"value": 50, "classification": "Neutral", "timestamp": 0} # Fallback
+        return {"value": 50, "classification": "Neutral", "timestamp": 0}  # Fallback
 
     async def fetch_coingecko_global(self) -> dict[str, Any]:
         """
@@ -84,17 +85,14 @@ class AlternativeDataFetcher:
         """
         try:
             loop = asyncio.get_event_loop()
-            global_data = await loop.run_in_executor(
-                None,
-                self._coingecko.get_global
-            )
+            global_data = await loop.run_in_executor(None, self._coingecko.get_global)
 
-            data = global_data.get('data', {})
+            data = global_data.get("data", {})
             return {
-                "active_cryptocurrencies": data.get('active_cryptocurrencies', 0),
-                "btc_dominance": data.get('market_cap_percentage', {}).get('btc', 50.0),
-                "eth_dominance": data.get('market_cap_percentage', {}).get('eth', 20.0),
-                "total_market_cap_usd": data.get('total_market_cap', {}).get('usd', 0)
+                "active_cryptocurrencies": data.get("active_cryptocurrencies", 0),
+                "btc_dominance": data.get("market_cap_percentage", {}).get("btc", 50.0),
+                "eth_dominance": data.get("market_cap_percentage", {}).get("eth", 20.0),
+                "total_market_cap_usd": data.get("total_market_cap", {}).get("usd", 0),
             }
         except Exception as e:
             logger.error(f"Error fetching CoinGecko global: {e}")
@@ -114,20 +112,37 @@ class AlternativeDataFetcher:
                 "q": query,
                 "sortBy": "publishedAt",
                 "pageSize": 20,
-                "apiKey": self.news_api_key
+                "apiKey": self.news_api_key,
             }
             async with session.get(self.news_api_url, params=params) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    articles = data.get('articles', [])
+                    articles = data.get("articles", [])
 
                     # Basic sentiment heuristic (can be replaced with TextBlob/VADER)
-                    positive_words = ['bullish', 'surge', 'growth', 'gain', 'breakout', 'success', 'adoption']
-                    negative_words = ['bearish', 'crash', 'drop', 'loss', 'hack', 'scam', 'ban', 'regulation']
+                    positive_words = [
+                        "bullish",
+                        "surge",
+                        "growth",
+                        "gain",
+                        "breakout",
+                        "success",
+                        "adoption",
+                    ]
+                    negative_words = [
+                        "bearish",
+                        "crash",
+                        "drop",
+                        "loss",
+                        "hack",
+                        "scam",
+                        "ban",
+                        "regulation",
+                    ]
 
                     scores = []
                     for art in articles:
-                        text = (art.get('title', '') + ' ' + art.get('description', '')).lower()
+                        text = (art.get("title", "") + " " + art.get("description", "")).lower()
                         pos = sum(1 for w in positive_words if w in text)
                         neg = sum(1 for w in negative_words if w in text)
                         if pos + neg > 0:
@@ -151,12 +166,12 @@ class AlternativeDataFetcher:
             async with session.get(f"{self.defi_api_url}/v2/chains") as resp:
                 if resp.status == 200:
                     chains = await resp.json()
-                    total_tvl = sum(c.get('tvl', 0) for c in chains)
-                    return {'total_tvl': total_tvl}
+                    total_tvl = sum(c.get("tvl", 0) for c in chains)
+                    return {"total_tvl": total_tvl}
         except Exception as e:
             logger.error(f"Error fetching DefiLlama stats: {e}")
 
-        return {'total_tvl': 0}
+        return {"total_tvl": 0}
 
     async def get_alpha_signals(self, symbol: str = "BTC/USDT") -> dict[str, Any]:
         """
@@ -166,18 +181,18 @@ class AlternativeDataFetcher:
             self.fetch_fear_and_greed(),
             self.fetch_coingecko_global(),
             self.fetch_defillama_metrics(),
-            self.fetch_news_sentiment()
+            self.fetch_news_sentiment(),
         )
 
-        fng_val = fng.get('value', 50)
-        btc_dom = global_m.get('btc_dominance', 50.0)
-        news_sent = news.get('sentiment', 0.5)
+        fng_val = fng.get("value", 50)
+        btc_dom = global_m.get("btc_dominance", 50.0)
+        news_sent = news.get("sentiment", 0.5)
 
         # Composite Alpha Score (0-100)
         # Weights: FnG (40%), News (40%), BTC Dom (20%)
 
         # 1. FnG contribution (contrarian: low FnG is positive)
-        fng_score = (100 - fng_val)
+        fng_score = 100 - fng_val
 
         # 2. News contribution
         news_score = news_sent * 100
@@ -185,9 +200,9 @@ class AlternativeDataFetcher:
         # 3. BTC Dominance (Flight to quality is neutral/positive for BTC, negative for alts)
         dom_score = 50
         if symbol.startswith("BTC"):
-            dom_score = 50 + (btc_dom - 50) * 2 # Rising dominance is good for BTC
+            dom_score = 50 + (btc_dom - 50) * 2  # Rising dominance is good for BTC
         else:
-            dom_score = 50 - (btc_dom - 50) * 2 # Rising dominance is bad for Alts
+            dom_score = 50 - (btc_dom - 50) * 2  # Rising dominance is bad for Alts
 
         alpha_score = (fng_score * 0.4) + (news_score * 0.4) + (dom_score * 0.2)
 
@@ -198,10 +213,11 @@ class AlternativeDataFetcher:
                 "fng": fng_val,
                 "news_sentiment": news_sent,
                 "btc_dominance": btc_dom,
-                "total_tvl": defi.get('total_tvl')
+                "total_tvl": defi.get("total_tvl"),
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
+
 
 async def main_demo():
     """Demo for alternative data fetcher."""
@@ -209,10 +225,12 @@ async def main_demo():
     try:
         signals = await fetcher.get_alpha_signals()
         import json
+
         print("--- Alpha Signal Report ---")
         print(json.dumps(signals, indent=2))
     finally:
         await fetcher.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main_demo())

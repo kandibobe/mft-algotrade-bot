@@ -1,4 +1,3 @@
-
 import logging
 import os
 
@@ -7,10 +6,12 @@ from hvac.exceptions import Forbidden, InvalidPath
 
 logger = logging.getLogger(__name__)
 
+
 class VaultClient:
     """
     A client for interacting with HashiCorp Vault.
     """
+
     _client = None
 
     @classmethod
@@ -35,7 +36,7 @@ class VaultClient:
                 logger.info(f"Successfully connected to Vault at {vault_addr}")
             except Exception as e:
                 logger.error(f"Failed to initialize Vault client: {e}")
-                cls._client = None # Ensure client is None on failure
+                cls._client = None  # Ensure client is None on failure
 
         return cls._client
 
@@ -60,7 +61,7 @@ class VaultClient:
             # Defaulting to 'kv' mount point, which is standard
             response = client.secrets.kv.v2.read_secret_version(path=path)
 
-            secret_value = response['data']['data'].get(key)
+            secret_value = response["data"]["data"].get(key)
 
             if secret_value:
                 logger.debug(f"Successfully retrieved secret from path: {path}")
@@ -74,6 +75,7 @@ class VaultClient:
         except Exception as e:
             logger.error(f"Failed to retrieve secret from Vault at path {path}: {e}")
             return None
+
 
 def is_vault_available() -> bool:
     """

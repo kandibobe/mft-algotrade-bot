@@ -393,8 +393,8 @@ class ModelRegistry:
         try:
             df = pd.read_csv(importance_path)
             # Assuming columns 'feature' and 'importance'
-            if 'feature' in df.columns and 'importance' in df.columns:
-                return dict(zip(df['feature'], df['importance'], strict=False))
+            if "feature" in df.columns and "importance" in df.columns:
+                return dict(zip(df["feature"], df["importance"], strict=False))
             return {}
         except Exception as e:
             logger.error(f"Failed to load feature importance: {e}")

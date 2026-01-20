@@ -46,7 +46,7 @@ class AggregatedTicker:
     total_volume_24h: float
     timestamp: float
     imbalance: float = 0.0  # L2 Imbalance metric
-    trade_flow_imbalance: float = 0.0 # Trade flow (buy vol - sell vol)
+    trade_flow_imbalance: float = 0.0  # Trade flow (buy vol - sell vol)
     is_reliable: bool = True
     reliability_reason: str | None = None
 
@@ -110,7 +110,7 @@ class DataAggregator:
         # Configuration
         self._volume_window_seconds = 60
         self._max_recent_trades = 1000
-        
+
         # Background tasks
         self._background_tasks = set()
 
@@ -119,7 +119,9 @@ class DataAggregator:
     ):
         """Add exchange stream to aggregator."""
         config = StreamConfig(
-            exchange=exchange, symbols=symbols, channels=channels or ["ticker", "trade", "orderbook"]
+            exchange=exchange,
+            symbols=symbols,
+            channels=channels or ["ticker", "trade", "orderbook"],
         )
         stream = WebSocketDataStream(config)
 
@@ -147,15 +149,15 @@ class DataAggregator:
     async def start(self):
         """Start all streams and aggregation."""
         self._running = True
-        
+
         task = asyncio.create_task(self._aggregation_loop())
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
-        
+
         task2 = asyncio.create_task(self._volume_cleanup_loop())
         self._background_tasks.add(task2)
         task2.add_done_callback(self._background_tasks.discard)
-        
+
         tasks = [asyncio.create_task(stream.start()) for stream in self._streams.values()]
         logger.info(f"Started aggregator with {len(self._streams)} exchanges")
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -174,7 +176,9 @@ class DataAggregator:
             # Check for extreme outliers against current state
             if exchange_data := self._tickers.get(symbol, {}).get(ticker.exchange):
                 if abs(ticker.last - exchange_data.last) / exchange_data.last > 0.4:  # 40% jump
-                    logger.warning(f"Rejected outlier ticker for {symbol} on {ticker.exchange}: {ticker.last} vs {exchange_data.last}")
+                    logger.warning(
+                        f"Rejected outlier ticker for {symbol} on {ticker.exchange}: {ticker.last} vs {exchange_data.last}"
+                    )
                     return
 
             self._tickers[symbol][ticker.exchange] = ticker
@@ -241,6 +245,7 @@ class DataAggregator:
 
         # Outlier Detection (Median-based)
         import statistics
+
         reliability_issues = []
 
         valid_bids = []
@@ -296,7 +301,9 @@ class DataAggregator:
 
         now = time.time()
 
-        latest_update = max(t.timestamp for t in exchange_tickers.values()) if exchange_tickers else 0
+        latest_update = (
+            max(t.timestamp for t in exchange_tickers.values()) if exchange_tickers else 0
+        )
         if now - latest_update >= 5.0:
             reliability_issues.append("Stale data")
 
@@ -326,7 +333,7 @@ class DataAggregator:
             imbalance=avg_imbalance,
             trade_flow_imbalance=trade_flow,
             is_reliable=is_reliable,
-            reliability_reason=reliability_reason
+            reliability_reason=reliability_reason,
         )
 
     def _is_data_valid(self, ticker: TickerData) -> bool:

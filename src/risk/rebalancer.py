@@ -52,7 +52,9 @@ class Rebalancer:
         for trade in trades_to_execute:
             self.order_executor.submit_order(trade)
 
-    def maintain_gas_token(self, symbol: str = "BNB/USDT", min_amount: float = 0.1, top_up_to: float = 0.5):
+    def maintain_gas_token(
+        self, symbol: str = "BNB/USDT", min_amount: float = 0.1, top_up_to: float = 0.5
+    ):
         """
         Maintains a minimum amount of a gas/fee token (like BNB) in the account.
         """
@@ -64,7 +66,7 @@ class Rebalancer:
             # This is a bit simplified, ideally we'd use the exchange connector
 
             # Placeholder for actual balance check logic
-            current_bnb_balance = 0.0 # TODO: Get real balance
+            current_bnb_balance = 0.0  # TODO: Get real balance
 
             if current_bnb_balance < min_amount:
                 logger.warning(f"{symbol} balance low ({current_bnb_balance}). Top-up required.")

@@ -12,7 +12,6 @@ Author: Stoic Citadel Team
 License: MIT
 """
 
-
 import pandas as pd
 import talib.abstract as ta
 

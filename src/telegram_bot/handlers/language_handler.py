@@ -17,6 +17,7 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 async def language_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Отображает кнопки для выбора языка."""
     user_id = update.effective_user.id
@@ -28,15 +29,21 @@ async def language_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lang_name = "Русский" if lang == "ru" else "English"
         # Добавляем галочку к текущему языку
         prefix = "✅ " if lang == lang_code else ""
-        keyboard.append([InlineKeyboardButton(
-            f"{prefix}{lang_name}",
-            callback_data=f"{constants.CB_ACTION_SET_LANG}{lang}" # Префикс + код языка
-        )])
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"{prefix}{lang_name}",
+                    callback_data=f"{constants.CB_ACTION_SET_LANG}{lang}",  # Префикс + код языка
+                )
+            ]
+        )
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     prompt_text = get_text(constants.MSG_LANG_SELECT, lang_code)
 
-    effective_message = update.message or (update.callback_query.message if update.callback_query else None)
+    effective_message = update.message or (
+        update.callback_query.message if update.callback_query else None
+    )
     if not effective_message:
         logger.warning("Не удалось найти сообщение для ответа в language_command")
         return
@@ -48,14 +55,18 @@ async def language_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.warning(f"Не удалось отредактировать сообщение для выбора языка: {e}")
             # Если редактирование не удалось, отправим новое сообщение
-            await context.bot.send_message(chat_id=user_id, text=prompt_text, reply_markup=reply_markup)
+            await context.bot.send_message(
+                chat_id=user_id, text=prompt_text, reply_markup=reply_markup
+            )
     else:
         await effective_message.reply_text(prompt_text, reply_markup=reply_markup)
+
 
 async def set_language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обрабатывает выбор языка и обновляет настройки."""
     query = update.callback_query
-    if not query: return
+    if not query:
+        return
 
     user_id = update.effective_user.id
 
@@ -65,7 +76,7 @@ async def set_language_callback(update: Update, context: ContextTypes.DEFAULT_TY
         callback_prefix = constants.CB_ACTION_SET_LANG
         if not query.data or not query.data.startswith(callback_prefix):
             raise ValueError("Некорректный callback_data для языка")
-        new_lang_code = query.data[len(callback_prefix):]
+        new_lang_code = query.data[len(callback_prefix) :]
 
         # <<< ИСПРАВЛЕНО: Проверка языка ПЕРЕМЕЩЕНА внутрь try >>>
         if new_lang_code not in SUPPORTED_LANGUAGES:
@@ -83,32 +94,38 @@ async def set_language_callback(update: Update, context: ContextTypes.DEFAULT_TY
     success = user_manager.set_language(user_id, new_lang_code)
 
     if success:
-        reply_text = get_text(constants.MSG_LANG_SET, new_lang_code) # Сообщение на НОВОМ языке
-        await query.answer(reply_text) # Краткий ответ на callback
+        reply_text = get_text(constants.MSG_LANG_SET, new_lang_code)  # Сообщение на НОВОМ языке
+        await query.answer(reply_text)  # Краткий ответ на callback
 
         # Редактируем исходное сообщение, добавляя напоминание о /start
-        final_text = reply_text + f"\n\n<i>{get_text(constants.MSG_RESTART_NEEDED, new_lang_code)}</i>"
+        final_text = (
+            reply_text + f"\n\n<i>{get_text(constants.MSG_RESTART_NEEDED, new_lang_code)}</i>"
+        )
         try:
             await query.edit_message_text(final_text, parse_mode=ParseMode.HTML)
             # Отправляем новое сообщение с обновленной клавиатурой
             await context.bot.send_message(
-                 chat_id=user_id,
-                 text=f"✅ {reply_text}", # Добавим галочку для ясности
-                 reply_markup=get_main_keyboard(new_lang_code) # Обновляем ReplyKeyboard
-             )
+                chat_id=user_id,
+                text=f"✅ {reply_text}",  # Добавим галочку для ясности
+                reply_markup=get_main_keyboard(new_lang_code),  # Обновляем ReplyKeyboard
+            )
         except Exception as e:
-            logger.warning(f"Не удалось отредактировать сообщение/отправить клавиатуру после смены языка: {e}")
+            logger.warning(
+                f"Не удалось отредактировать сообщение/отправить клавиатуру после смены языка: {e}"
+            )
             # Если не удалось, все равно обновим клавиатуру новым сообщением
             try:
-                 await context.bot.send_message(
-                     chat_id=user_id,
-                     text=f"✅ {reply_text}",
-                     reply_markup=get_main_keyboard(new_lang_code)
-                 )
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=f"✅ {reply_text}",
+                    reply_markup=get_main_keyboard(new_lang_code),
+                )
             except Exception as send_err:
-                 logger.error(f"Не удалось отправить сообщение с новой клавиатурой user {user_id}: {send_err}")
+                logger.error(
+                    f"Не удалось отправить сообщение с новой клавиатурой user {user_id}: {send_err}"
+                )
 
     else:
         # Если ошибка БД при сохранении
-        error_db_text = get_text(constants.MSG_ERROR_DB, new_lang_code) # Сообщение на НОВОМ языке
+        error_db_text = get_text(constants.MSG_ERROR_DB, new_lang_code)  # Сообщение на НОВОМ языке
         await query.answer(error_db_text, show_alert=True)

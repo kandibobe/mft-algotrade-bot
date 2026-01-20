@@ -21,31 +21,35 @@ from src.utils.logger import log
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class OrchestratorConfig:
     """Configuration for the retraining orchestrator."""
 
     # Performance Thresholds
     min_accuracy: float = 0.55
-    max_drawdown_window: float = 0.10 # Retrain if model causes >10% drawdown
+    max_drawdown_window: float = 0.10  # Retrain if model causes >10% drawdown
 
     # Drift Detection
     drift_check_interval_minutes: int = 60
-    performance_window_trades: int = 50 # Number of trades to calculate rolling performance
+    performance_window_trades: int = 50  # Number of trades to calculate rolling performance
 
     # Retraining
     enable_auto_retraining: bool = False
-    cooldown_minutes: int = 360 # Minimum time between retraining
+    cooldown_minutes: int = 360  # Minimum time between retraining
 
     # Model Registry
     model_registry_dir: str | None = None
+
 
 class TrainingOrchestrator:
     """
     Orchestrates the ML lifecycle.
     """
 
-    def __init__(self, config_obj: OrchestratorConfig | None = None, online_learning_enabled: bool = False):
+    def __init__(
+        self, config_obj: OrchestratorConfig | None = None, online_learning_enabled: bool = False
+    ):
         self.config = config_obj or OrchestratorConfig()
 
         # State
@@ -101,26 +105,32 @@ class TrainingOrchestrator:
         # Simplified accuracy: count trades with positive PnL as "correct"
         # (Assuming model predicts profitable opportunities)
         # In a real classifier, we'd compare predicted_class vs actual_class
-        wins = sum(1 for t in self.trade_history if t.get('pnl', 0) > 0)
+        wins = sum(1 for t in self.trade_history if t.get("pnl", 0) > 0)
         self.rolling_accuracy = wins / len(self.trade_history)
 
-        self.rolling_profit = sum(t.get('pnl_pct', 0) for t in self.trade_history)
+        self.rolling_profit = sum(t.get("pnl_pct", 0) for t in self.trade_history)
 
-        log.info(f"Model Performance: Accuracy={self.rolling_accuracy:.2%}, Profit={self.rolling_profit:.2%}")
+        log.info(
+            f"Model Performance: Accuracy={self.rolling_accuracy:.2%}, Profit={self.rolling_profit:.2%}"
+        )
 
     def _check_for_drift(self):
         """Check if performance has degraded enough to trigger action."""
         if len(self.trade_history) < self.config.performance_window_trades:
-            return # Not enough data
+            return  # Not enough data
 
         # 1. Accuracy Drift
         if self.rolling_accuracy < self.config.min_accuracy:
-            log.warning(f"📉 Concept Drift Detected: Accuracy {self.rolling_accuracy:.2%} < {self.config.min_accuracy:.2%}")
+            log.warning(
+                f"📉 Concept Drift Detected: Accuracy {self.rolling_accuracy:.2%} < {self.config.min_accuracy:.2%}"
+            )
             self.trigger_retraining("accuracy_drop")
 
         # 2. Profit Drift (Drawdown logic could be more complex)
         if self.rolling_profit < -self.config.max_drawdown_window:
-            log.warning(f"📉 Performance Drop: Rolling PnL {self.rolling_profit:.2%} < -{self.config.max_drawdown_window:.2%}")
+            log.warning(
+                f"📉 Performance Drop: Rolling PnL {self.rolling_profit:.2%} < -{self.config.max_drawdown_window:.2%}"
+            )
             self.trigger_retraining("profit_drop")
 
     def trigger_retraining(self, reason: str):
@@ -154,7 +164,7 @@ class TrainingOrchestrator:
 
     def _execute_retraining_mock(self):
         """Simulate the heavy lifting of retraining."""
-        time.sleep(0.1) # Simulate work
+        time.sleep(0.1)  # Simulate work
         pass
 
     def log_current_feature_importance(self, model_name: str, version: str):
@@ -182,5 +192,7 @@ class TrainingOrchestrator:
             "rolling_accuracy": self.rolling_accuracy,
             "rolling_profit": self.rolling_profit,
             "trades_in_window": len(self.trade_history),
-            "last_retrain": self.last_retrain_time.isoformat() if self.last_retrain_time != datetime.min else None
+            "last_retrain": self.last_retrain_time.isoformat()
+            if self.last_retrain_time != datetime.min
+            else None,
         }

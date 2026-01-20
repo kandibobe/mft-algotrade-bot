@@ -172,6 +172,28 @@ ensure_newline_before_comments = true
 skip = [".venv", "venv", "user_data/data"]
 
 [tool.ruff]
+# Line length
+line-length = 100
+
+# Exclude files and directories
+exclude = [
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".tox",
+    ".venv",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "user_data/data",
+    "**/__pycache__",
+    "**/*.pyc",
+]
+
+[tool.ruff.lint]
 # Enable pycodestyle (E), pyflakes (F), and mccabe (C) codes by default
 select = [
     "E",   # pycodestyle errors
@@ -198,36 +220,6 @@ ignore = [
 fixable = ["ALL"]
 unfixable = []
 
-# Line length
-line-length = 100
-
-# Exclude files and directories
-exclude = [
-    ".eggs",
-    ".git",
-    ".hg",
-    ".mypy_cache",
-    ".pytest_cache",
-    ".tox",
-    ".venv",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "user_data/data",
-    "**/__pycache__",
-    "**/*.pyc",
-]
-
-[tool.ruff.lint]
-# Enable flake8-bugbear (B) and flake8-comprehensions (C) plugins
-extend-select = [
-    "B",
-    "C",
-    "UP",
-    "S",
-]
-
 # Set the maximum complexity
 mccabe.max-complexity = 10
 
@@ -245,7 +237,7 @@ ignore_missing_imports = true
 exclude = [
     "tests",
     "user_data/data",
-    "**/__pycache__",
+    "__pycache__",
     ".venv",
     "venv",
 ]

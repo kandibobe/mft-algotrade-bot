@@ -461,11 +461,13 @@ class TrailingStopOrder(Order):
             f"stop_price={self.stop_price:.2f}, current={current_price:.2f}"
         )
 
+
 @dataclass
 class IcebergOrder(Order):
     """
     Iceberg order - splits a large order into smaller visible and hidden parts.
     """
+
     display_quantity: float = 0.0
 
     def __post_init__(self):
@@ -474,11 +476,13 @@ class IcebergOrder(Order):
         if self.display_quantity <= 0:
             raise ValueError("Iceberg order requires positive display_quantity")
 
+
 @dataclass
 class PeggedOrder(Order):
     """
     Pegged order - price is pegged to a reference price (e.g., best bid/ask).
     """
+
     offset: float = 0.0
     peg_side: str = "primary"  # 'primary' or 'opposite'
 

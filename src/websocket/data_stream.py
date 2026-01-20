@@ -99,7 +99,7 @@ class WebSocketDataStream:
 
         # Subscribed symbols tracking
         self._subscribed: set[str] = set()
-        
+
         # Background tasks
         self._background_tasks = set()
 
@@ -221,6 +221,7 @@ class WebSocketDataStream:
             # Check if we should use watchdog based on last_message_time
             # For some markets/timeframes, 5s might be too short during low liquidity
             from src.config.unified_config import load_config
+
             u_cfg = load_config()
             watchdog_timeout = u_cfg.system.ws_watchdog_timeout
 
@@ -231,15 +232,19 @@ class WebSocketDataStream:
                         message = await asyncio.wait_for(self._ws.recv(), timeout=watchdog_timeout)
                         await self._handle_incoming_message(message)
                     except asyncio.TimeoutError:
-                        logger.warning(f"Websocket Watchdog: No data for {watchdog_timeout} seconds. Reconnecting...")
-                        break # Exit _listen to trigger reconnect in start() loop
+                        logger.warning(
+                            f"Websocket Watchdog: No data for {watchdog_timeout} seconds. Reconnecting..."
+                        )
+                        break  # Exit _listen to trigger reconnect in start() loop
             else:
                 while self._running:
                     try:
                         message = await asyncio.wait_for(self._ws.recv(), timeout=watchdog_timeout)
                         await self._handle_incoming_message(message)
                     except asyncio.TimeoutError:
-                        logger.warning(f"Websocket Watchdog: No data for {watchdog_timeout} seconds. Reconnecting...")
+                        logger.warning(
+                            f"Websocket Watchdog: No data for {watchdog_timeout} seconds. Reconnecting..."
+                        )
                         break
 
         except ConnectionClosed as e:

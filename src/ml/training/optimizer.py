@@ -36,12 +36,8 @@ class HyperparameterOptimizer:
         """Run optimization study."""
         logger.info(f"Starting optimization study: {self.study_name}")
 
-        optuna.create_study(
-            direction="maximize",
-            study_name=self.study_name,
-            load_if_exists=True
-        )
+        optuna.create_study(direction="maximize", study_name=self.study_name, load_if_exists=True)
 
         # Optimization logic...
 
-        return {} # Mock return for now
+        return {}  # Mock return for now

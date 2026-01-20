@@ -22,10 +22,12 @@ from src.utils.logger import log
 
 logger = logging.getLogger(__name__)
 
+
 class ModelExplainer:
     """
     Wrapper for SHAP explainability.
     """
+
     def __init__(self, model: Any, X_train: pd.DataFrame):
         self.model = model
         self.X_train = X_train
@@ -37,8 +39,8 @@ class ModelExplainer:
         try:
             # Tree-based models (XGBoost, LightGBM, CatBoost, RandomForest)
             if hasattr(self.model, "predict_proba"):
-                 # General case, but TreeExplainer is faster for trees
-                 # Here we try TreeExplainer first as most used models are trees
+                # General case, but TreeExplainer is faster for trees
+                # Here we try TreeExplainer first as most used models are trees
                 try:
                     self.explainer = shap.TreeExplainer(self.model)
                 except Exception:
@@ -65,15 +67,17 @@ class ModelExplainer:
             # Handle classification (prob for class 0, 1)
             # shap_values.values shape might be (N, features, 2) for binary classifier
             vals = shap_values.values
-            if len(vals.shape) == 3: # (N, features, classes)
-                vals = vals[:, :, 1] # Take SHAP for class 1 (positive/buy)
+            if len(vals.shape) == 3:  # (N, features, classes)
+                vals = vals[:, :, 1]  # Take SHAP for class 1 (positive/buy)
 
             return pd.DataFrame(vals, columns=X_instance.columns)
         except Exception as e:
             logger.error(f"Error calculating local SHAP values: {e}")
             return None
 
-    def plot_summary(self, X_test: pd.DataFrame, save_path: str = "user_data/plots/shap_summary.png"):
+    def plot_summary(
+        self, X_test: pd.DataFrame, save_path: str = "user_data/plots/shap_summary.png"
+    ):
         """
         Generate global feature importance summary plot.
         """
@@ -96,14 +100,17 @@ class ModelExplainer:
             # Ensure directory exists
             Path(save_path).parent.mkdir(parents=True, exist_ok=True)
 
-            plt.savefig(save_path, bbox_inches='tight')
+            plt.savefig(save_path, bbox_inches="tight")
             plt.close()
             log.info("shap_summary_plot_saved", path=save_path)
 
         except Exception as e:
             logger.error(f"Error generating SHAP summary plot: {e}")
 
-def generate_shap_report(model: Any, X_train: pd.DataFrame, X_test: pd.DataFrame, output_dir: str = "user_data/reports"):
+
+def generate_shap_report(
+    model: Any, X_train: pd.DataFrame, X_test: pd.DataFrame, output_dir: str = "user_data/reports"
+):
     """
     Convenience function to generate full SHAP report.
     """
@@ -120,6 +127,7 @@ def generate_shap_report(model: Any, X_train: pd.DataFrame, X_test: pd.DataFrame
         shap_csv = f"{output_dir}/recent_shap_values.csv"
         shap_vals.to_csv(shap_csv)
         log.info("shap_values_saved", path=shap_csv)
+
 
 if __name__ == "__main__":
     # Test stub

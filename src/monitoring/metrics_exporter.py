@@ -108,6 +108,18 @@ class TradingMetricsExporter:
 
         self.daily_pnl_pct = Gauge(f"{self.namespace}_daily_pnl_pct", "Daily PnL percentage")
 
+        self.current_drawdown_pct = Gauge(
+            f"{self.namespace}_current_drawdown_pct", "Current Daily Drawdown percentage (Equity based)"
+        )
+
+        self.total_exposure_usd = Gauge(
+            f"{self.namespace}_total_exposure_usd", "Total open exposure in USD"
+        )
+
+        self.rolling_sharpe = Gauge(
+            f"{self.namespace}_rolling_sharpe", "Rolling Sharpe Ratio Estimate"
+        )
+
         self.circuit_breaker_status = Gauge(
             f"{self.namespace}_circuit_breaker_status", "Circuit breaker status (0=off, 1=on)"
         )
@@ -234,7 +246,15 @@ class TradingMetricsExporter:
         if self.trading_metrics:
             self.trading_metrics.record_order(order_type, filled)
 
-    def update_portfolio_metrics(self, value: float, positions: list, pnl_pct: float) -> None:
+    def update_portfolio_metrics(
+        self,
+        value: float,
+        positions: list,
+        pnl_pct: float,
+        drawdown_pct: float = 0.0,
+        exposure: float = 0.0,
+        sharpe: float = 0.0,
+    ) -> None:
         """
         Update portfolio metrics.
 
@@ -242,6 +262,9 @@ class TradingMetricsExporter:
             value: Current portfolio value in USD
             positions: List of open positions
             pnl_pct: Daily PnL percentage
+            drawdown_pct: Current drawdown percentage
+            exposure: Total exposure in USD
+            sharpe: Rolling Sharpe ratio
         """
         if not self._enabled:
             return
@@ -249,6 +272,9 @@ class TradingMetricsExporter:
         self.portfolio_value.set(value)
         self.open_positions.set(len(positions))
         self.daily_pnl_pct.set(pnl_pct)
+        self.current_drawdown_pct.set(drawdown_pct)
+        self.total_exposure_usd.set(exposure)
+        self.rolling_sharpe.set(sharpe)
 
         if self.trading_metrics:
             self.trading_metrics.update_account(value, value, 0.0)

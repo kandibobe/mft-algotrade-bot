@@ -32,7 +32,7 @@ class HybridConnectorMixin:
     def __getstate__(self):
         """Custom pickling to avoid unpicklable objects."""
         state = self.__dict__.copy()
-        for key in ('_loop', '_thread', '_cache_lock', '_aggregator', '_executor'):
+        for key in ("_loop", "_thread", "_cache_lock", "_aggregator", "_executor"):
             if key in state:
                 del state[key]
         return state
@@ -46,7 +46,7 @@ class HybridConnectorMixin:
         pairs: list[str],
         exchange_name: str | None = None,
         shadow_mode: bool = False,
-        risk_manager: "RiskManager | None" = None
+        risk_manager: "RiskManager | None" = None,
     ) -> None:
         """
         Initialize the Hybrid Connector and start the Websocket Aggregator in a background thread.
@@ -100,7 +100,9 @@ class HybridConnectorMixin:
             dry_run = config.dry_run
             target_exchange = exchange_name or config.exchange.name
         except Exception as e:
-            logger.critical(f"Failed to load configuration for Hybrid Connector: {e}", exc_info=True)
+            logger.critical(
+                f"Failed to load configuration for Hybrid Connector: {e}", exc_info=True
+            )
             # Re-raising is appropriate here as the system cannot function without config
             raise
 
@@ -111,7 +113,7 @@ class HybridConnectorMixin:
             additional_exchanges=additional_exchanges,
             dry_run=dry_run,
             shadow_mode=shadow_mode,
-            risk_manager=risk_manager
+            risk_manager=risk_manager,
         )
 
         # 6. Add Exchange and Pairs to Aggregator
@@ -119,8 +121,10 @@ class HybridConnectorMixin:
             exch_enum = Exchange(target_exchange.lower())
             self._aggregator.add_exchange(exch_enum, pairs)
         except ValueError:
-            logger.error(f"Exchange '{target_exchange}' is not supported by the Aggregator. "
-                         f"Supported exchanges: {[e.value for e in Exchange]}")
+            logger.error(
+                f"Exchange '{target_exchange}' is not supported by the Aggregator. "
+                f"Supported exchanges: {[e.value for e in Exchange]}"
+            )
             return
 
         # 7. Register callback to update local cache
@@ -130,7 +134,9 @@ class HybridConnectorMixin:
                 self._metrics_cache[ticker.symbol] = ticker
 
         # 8. Start the AsyncIO loop in a separate daemon thread
-        self._thread = threading.Thread(target=self._run_async_loop, daemon=True, name="HybridConnectorThread")
+        self._thread = threading.Thread(
+            target=self._run_async_loop, daemon=True, name="HybridConnectorThread"
+        )
         self._thread.start()
         logger.info("Hybrid Connector started successfully.")
 
@@ -138,6 +144,7 @@ class HybridConnectorMixin:
         """Internal method to run the asyncio loop."""
         try:
             import uvloop
+
             asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
             logger.info("Using uvloop for high-performance AsyncIO")
         except ImportError:
@@ -180,7 +187,7 @@ class HybridConnectorMixin:
         ticker = self.get_realtime_metrics(pair)
         if not ticker:
             return 0.0
-        return getattr(ticker, 'imbalance', 0.0)
+        return getattr(ticker, "imbalance", 0.0)
 
     def submit_smart_order(self, order: "SmartOrder", exchange: str | None = None) -> str | None:
         """
@@ -196,8 +203,7 @@ class HybridConnectorMixin:
         if self._loop and self._loop.is_running():
             # Schedule the coroutine in the background loop
             future = asyncio.run_coroutine_threadsafe(
-                self._executor.submit_order(order, exchange),
-                self._loop
+                self._executor.submit_order(order, exchange), self._loop
             )
             try:
                 # Wait for the order ID to be returned (with timeout)

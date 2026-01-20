@@ -91,18 +91,14 @@ class WFOEngine:
             )
 
             # 1. Train the model on the training data for this fold
-            pipeline = MLTrainingPipeline(
-                quick_mode=self.wfo_config.quick_mode
-            )
+            pipeline = MLTrainingPipeline(quick_mode=self.wfo_config.quick_mode)
 
             if self.wfo_config.optimize_hyperparams:
                 pipeline.config.training.hyperopt_trials = self.wfo_config.n_trials
 
             # Use the new train_on_data API
             train_result = pipeline.train_on_data(
-                train_data,
-                pair,
-                optimize=self.wfo_config.optimize_hyperparams
+                train_data, pair, optimize=self.wfo_config.optimize_hyperparams
             )
 
             # CRITICAL: Mark feature engineer as fitted for the next steps
@@ -113,7 +109,9 @@ class WFOEngine:
             pipeline.engineer._is_fitted = True
 
             if not train_result.get("success"):
-                logger.warning(f"Skipping fold due to training failure for {pair}: {train_result.get('reason')}")
+                logger.warning(
+                    f"Skipping fold due to training failure for {pair}: {train_result.get('reason')}"
+                )
                 fold_start += pd.Timedelta(days=self.wfo_config.step_days)
                 continue
 
@@ -135,7 +133,9 @@ class WFOEngine:
                 prepared_test_data = feature_engineer.prepare_data(test_data.copy())
                 # Note: transform_scaler_and_selector requires fitting.
                 # train_on_data fits it. So we can transform here.
-                processed_test_data = feature_engineer.transform_scaler_and_selector(prepared_test_data)
+                processed_test_data = feature_engineer.transform_scaler_and_selector(
+                    prepared_test_data
+                )
 
                 # Align indexes to avoid mismatches
                 common_index = test_data.index.intersection(processed_test_data.index)
@@ -243,7 +243,8 @@ class WFOEngine:
 
         # Sharpe Ratio
         sharpe_ratio = (
-            (daily_returns.mean() / daily_returns.std()) * np.sqrt(365 * 288) # Assuming 5m candles -> 288 per day
+            (daily_returns.mean() / daily_returns.std())
+            * np.sqrt(365 * 288)  # Assuming 5m candles -> 288 per day
             if daily_returns.std() > 0
             else 0
         )
@@ -278,5 +279,6 @@ class WFOEngine:
                 else "inf"
             ),
         }
+
 
 WalkForwardEngine = WFOEngine

@@ -16,6 +16,7 @@ from src.config import config
 
 logger = logging.getLogger(__name__)
 
+
 class DataLoader:
     """Unified data loader for trading data."""
 
@@ -65,7 +66,9 @@ class DataLoader:
         return df
 
 
-def get_ohlcv(pair: str, timeframe: str, exchange: str = "binance", format: str = "feather") -> pd.DataFrame:
+def get_ohlcv(
+    pair: str, timeframe: str, exchange: str = "binance", format: str = "feather"
+) -> pd.DataFrame:
     """
     Standalone function to get OHLCV data.
     Wraps DataLoader for backward compatibility.
@@ -87,6 +90,7 @@ def load_feather(path: str) -> pd.DataFrame:
 def get_data_hash(df: pd.DataFrame) -> str:
     """Get hash of dataframe content."""
     import hashlib
+
     return hashlib.md5(pd.util.hash_pandas_object(df).values).hexdigest()
 
 
@@ -100,7 +104,9 @@ def get_data_metadata(df: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def get_ohlcv(pair: str, timeframe: str, exchange: str = "binance", format: str = "feather") -> pd.DataFrame:
+def get_ohlcv(
+    pair: str, timeframe: str, exchange: str = "binance", format: str = "feather"
+) -> pd.DataFrame:
     """
     Standalone function to get OHLCV data.
     Wraps DataLoader for backward compatibility.

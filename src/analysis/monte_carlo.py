@@ -14,6 +14,7 @@ import numpy as np
 
 try:
     import cupy as cp
+
     GPU_AVAILABLE = True
 except ImportError:
     GPU_AVAILABLE = False
@@ -22,16 +23,14 @@ from src.utils.logger import log
 
 logger = logging.getLogger(__name__)
 
+
 class GPUMonteCarloSimulator:
     """
     GPU-accelerated Monte Carlo simulator for strategy backtest results.
     """
 
     def __init__(
-        self,
-        profits: np.ndarray,
-        iterations: int = 10000,
-        initial_capital: float = 10000.0
+        self, profits: np.ndarray, iterations: int = 10000, initial_capital: float = 10000.0
     ):
         self.profits = profits
         self.iterations = iterations
@@ -74,9 +73,9 @@ class GPUMonteCarloSimulator:
         self.returns = cp.asnumpy(returns)
 
         duration = time.time() - start_time
-        log.info("monte_carlo_gpu_complete",
-                 iterations=self.iterations,
-                 duration_sec=f"{duration:.4f}s")
+        log.info(
+            "monte_carlo_gpu_complete", iterations=self.iterations, duration_sec=f"{duration:.4f}s"
+        )
 
         return self._format_results()
 
@@ -109,9 +108,9 @@ class GPUMonteCarloSimulator:
         self.returns = np.array(all_returns)
 
         duration = time.time() - start_time
-        log.info("monte_carlo_cpu_complete",
-                 iterations=self.iterations,
-                 duration_sec=f"{duration:.4f}s")
+        log.info(
+            "monte_carlo_cpu_complete", iterations=self.iterations, duration_sec=f"{duration:.4f}s"
+        )
 
         return self._format_results()
 
@@ -122,5 +121,5 @@ class GPUMonteCarloSimulator:
             "99th_drawdown": float(np.percentile(self.max_drawdowns, 99)),
             "mean_return": float(np.mean(self.returns)),
             "std_return": float(np.std(self.returns)),
-            "prob_ruin": float(np.mean(self.max_drawdowns > 0.5)) * 100
+            "prob_ruin": float(np.mean(self.max_drawdowns > 0.5)) * 100,
         }

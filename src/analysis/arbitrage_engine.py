@@ -15,10 +15,12 @@ from src.websocket.aggregator import AggregatedTicker
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class ArbitrageOpportunity:
     """Details of a detected arbitrage opportunity."""
-    type: str # 'cross_exchange' or 'triangular'
+
+    type: str  # 'cross_exchange' or 'triangular'
     symbol: str
     buy_exchange: str
     sell_exchange: str
@@ -29,12 +31,13 @@ class ArbitrageOpportunity:
     timestamp: float
     is_actionable: bool = True
 
+
 class ArbitrageEngine:
     """
     Engine to analyze market data for arbitrage opportunities.
     """
 
-    def __init__(self, min_profit_threshold: float = 0.002): # 0.2% threshold
+    def __init__(self, min_profit_threshold: float = 0.002):  # 0.2% threshold
         self.min_profit_threshold = min_profit_threshold
         self._last_opportunities: dict[str, ArbitrageOpportunity] = {}
 
@@ -56,24 +59,28 @@ class ArbitrageEngine:
                 buy_price=ticker.best_ask,
                 sell_price=ticker.best_bid,
                 profit_pct=profit_pct,
-                expected_profit_abs=0.0, # Needs position size info
-                timestamp=time.time()
+                expected_profit_abs=0.0,  # Needs position size info
+                timestamp=time.time(),
             )
 
             # Actionability check (e.g., volume check)
             # In a real system, we'd check if top of book volume is sufficient
 
-            log.info("arbitrage_detected",
-                     symbol=ticker.symbol,
-                     profit_pct=f"{profit_pct:.4%}",
-                     buy=ticker.best_ask_exchange,
-                     sell=ticker.best_bid_exchange)
+            log.info(
+                "arbitrage_detected",
+                symbol=ticker.symbol,
+                profit_pct=f"{profit_pct:.4%}",
+                buy=ticker.best_ask_exchange,
+                sell=ticker.best_bid_exchange,
+            )
 
             return opportunity
 
         return None
 
-    def analyze_triangular(self, tickers: dict[str, AggregatedTicker]) -> list[ArbitrageOpportunity]:
+    def analyze_triangular(
+        self, tickers: dict[str, AggregatedTicker]
+    ) -> list[ArbitrageOpportunity]:
         """
         Detect triangular arbitrage (e.g., BTC/USDT -> ETH/BTC -> ETH/USDT).
         Placeholder for Q2 2026 implementation.

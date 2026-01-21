@@ -81,6 +81,7 @@ RUN ls -la /freqtrade/user_data/config
 # Add /freqtrade to PYTHONPATH so we can import src.xxx and run manage.py
 ENV PYTHONPATH=/freqtrade:${PYTHONPATH}
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONIOENCODING=utf-8
 ENV FREQTRADE__USER_DATA_PATH=/freqtrade/user_data
 
 # Create non-root user for security

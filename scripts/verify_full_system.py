@@ -16,7 +16,13 @@ Usage:
 import logging
 import subprocess
 import sys
+import codecs
 from pathlib import Path
+
+# Force UTF-8 for Windows console
+if sys.platform == 'win32':
+    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
+    sys.stderr = codecs.getwriter("utf-8")(sys.stderr.detach())
 
 import pandas as pd
 import numpy as np

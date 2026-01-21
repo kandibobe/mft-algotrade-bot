@@ -90,11 +90,12 @@ nav:
       - Walk-Forward Optimization: guides/wfo.md
       - Advanced Pipeline: guides/advanced_pipeline.md
       - Risk Management: guides/risk_management.md
-  - Concepts:
-      - Hybrid MFT Architecture: architecture/hybrid_mft.md
+  - Architecture:
+      - Hybrid MFT: architecture/hybrid_mft.md
       - Overview: architecture/overview.md
       - MFT Layer: architecture/mft_layer.md
       - Project Structure: architecture/project_structure.md
+  - Concepts:
       - Health Check System: concepts/health_check.md
       - Structured Logging: concepts/structured_logging.md
   - Operations:
@@ -106,11 +107,13 @@ nav:
   - Reference:
       - API: reference/api_overview.md
       - Config API: api/config.md
-      - Testing: reference/testing.md
+      - Testing: TESTING.md
   - Community:
-      - Contributing: CONTRIBUTING.md
-      - Code of Conduct: CODE_OF_CONDUCT.md
-      - Security: SECURITY.md
+      - Roadmap: ROADMAP.md
+      - Changelog: CHANGELOG.md
+      - Contributing: ../CONTRIBUTING.md
+      - Code of Conduct: ../CODE_OF_CONDUCT.md
+      - Security: ../SECURITY.md
   - Archive (RU):
       - Архитектура: ru/architecture_overview.md
       - ML конвейер: ru/ml_pipeline.md

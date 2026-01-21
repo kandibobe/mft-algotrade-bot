@@ -2,10 +2,8 @@
 
 from .calibration import ProbabilityCalibrator
 from .feature_store import (
-    MockFeatureStore,
     RedisFeatureStore,
-    TradingFeatureStore,
-    create_feature_store,
+    get_feature_store,
 )
 from .inference_service import (
     MLInferenceService,
@@ -23,7 +21,6 @@ __all__ = [
     "MLModelConfig",
     "MetaLearningConfig",
     "MetaLearningEnsemble",
-    "MockFeatureStore",
     "OnlineLearner",
     "OnlineLearningConfig",
     "OptimizedInferenceService",
@@ -32,8 +29,7 @@ __all__ = [
     "ProbabilityCalibrator",
     "RedisFeatureStore",
     "RedisMLClient",
-    "TradingFeatureStore",
-    "create_feature_store",
+    "get_feature_store",
     "load_model",
     "save_model",
 ]

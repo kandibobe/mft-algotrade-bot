@@ -5,7 +5,7 @@ param (
 $COMPOSE_FILE = "deploy/docker-compose.yml"
 
 switch ($command) {
-    "up" { docker-compose -f $COMPOSE_FILE up -d }
+    "up" { docker-compose -f $COMPOSE_FILE up -d --build }
     "down" { docker-compose -f $COMPOSE_FILE down }
     "logs" { docker-compose -f $COMPOSE_FILE logs -f freqtrade }
     "restart" { 

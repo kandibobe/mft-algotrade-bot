@@ -51,15 +51,23 @@ class MLPipeline:
         logger.info(f"Starting ML Pipeline for {pair} ({timeframe})")
 
         try:
-            data_path = self.data_dir / f"{pair_slug}-{timeframe}.feather"
-            if not data_path.exists():
-                logger.error(f"Data file not found: {data_path}")
-                return None
-
-            df = pd.read_feather(data_path)
+            # TRY PARQUET FIRST (Production Standard)
+            data_path = Path("user_data/data/parquet") / f"{pair_slug}_{timeframe}.parquet"
+            
+            if data_path.exists():
+                logger.info(f"Loading Parquet data from {data_path}")
+                df = pd.read_parquet(data_path)
+            else:
+                # Fallback to Feather (Legacy)
+                data_path = self.data_dir / f"{pair_slug}-{timeframe}.feather"
+                if not data_path.exists():
+                    logger.error(f"Data file not found (checked Parquet and Feather): {data_path}")
+                    return None
+                logger.info(f"Loading Feather data from {data_path}")
+                df = pd.read_feather(data_path)
 
             # Freqtrade feather data uses 'date' column, labeling expects 'timestamp' or DatetimeIndex
-            if 'date' in df.columns:
+            if 'date' in df.columns and 'timestamp' not in df.columns:
                 df['timestamp'] = df['date']
 
             # Ensure it's sorted

@@ -526,10 +526,13 @@ class SmartOrderExecutor:
             return
 
         # Arbitrage requires atomic or near-atomic cross-exchange execution which is complex.
-        raise NotImplementedError(
-            "Multi-exchange atomic arbitrage is not yet fully implemented in the Execution Layer. "
-            "Requires implementing atomic rollback or compensation logic."
+        # Currently we just log the opportunity for analysis.
+        log.warning(
+            f"Arbitrage opportunity detected but EXECUTION IS DISABLED in current version. "
+            f"Symbol: {ticker.symbol}, Spread: {ticker.spread_pct:.2f}%"
         )
+        # TODO: Implement atomic rollback or compensation logic for Phase 2
+        return
 
     async def _place_initial_order(self, order: SmartOrder):
         """Place the initial order on the exchange."""
@@ -563,6 +566,12 @@ class SmartOrderExecutor:
         # Update Risk Manager with real-time price for Equity Tracking
         if ticker.last > 0:
             self.risk_manager.update_market_price(ticker.symbol, ticker.last)
+
+        # 🛡️ Emergency Check: If Risk Manager flagged emergency exit, liquidate everything
+        if self.risk_manager.emergency_exit and self._running:
+            log.critical(f"EMERGENCY EXIT DETECTED via Risk Manager for {ticker.symbol}")
+            await self.emergency_liquidate_all()
+            return
 
         async with self._lock:
             orders_to_update = [

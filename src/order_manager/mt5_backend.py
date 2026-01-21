@@ -16,10 +16,16 @@ import asyncio
 import logging
 from datetime import datetime
 
+# ISOLATION: Import wrapped in try-except to prevent crashes on non-Windows/no-MT5 envs
 try:
     import MetaTrader5 as mt5
     MT5_AVAILABLE = True
 except ImportError:
+    mt5 = None
+    MT5_AVAILABLE = False
+except Exception as e:
+    # Catch platform specific errors (like dll load fail on linux)
+    logging.getLogger(__name__).warning(f"MetaTrader5 import failed: {e}")
     mt5 = None
     MT5_AVAILABLE = False
 
@@ -41,14 +47,16 @@ class MT5Backend(IExchangeBackend):
         self.server = exchange_config.get("server", "")
         self.path = exchange_config.get("path", "")  # Path to terminal.exe if needed
         self.name = "mt5"
-        self._check_dependency()
-
-    def _check_dependency(self):
+        
+        # We don't raise error in init anymore to allow loading the class safely
         if not MT5_AVAILABLE:
-            raise ImportError("MetaTrader5 package is not installed.")
+            logger.warning("MetaTrader5 package not available. MT5Backend will not function.")
 
     async def initialize(self):
         """Initialize connection to MT5 terminal."""
+        if not MT5_AVAILABLE:
+            raise ImportError("MetaTrader5 package is not installed or failed to load.")
+
         logger.info(f"Initializing MT5 Backend for account {self.login} on {self.server}...")
         
         def _init_sync():
@@ -81,11 +89,14 @@ class MT5Backend(IExchangeBackend):
 
     async def close(self):
         """Shutdown MT5 connection."""
-        await asyncio.to_thread(mt5.shutdown)
+        if MT5_AVAILABLE:
+            await asyncio.to_thread(mt5.shutdown)
         logger.info("MT5 Backend closed.")
 
     async def _execute_order(self, symbol: str, action_type, quantity: float, price: float = 0.0, sl: float = 0.0, tp: float = 0.0) -> dict:
         """Internal helper to execute order."""
+        if not MT5_AVAILABLE:
+             raise RuntimeError("MT5 not available")
         
         def _send():
             # Check symbol
@@ -156,6 +167,8 @@ class MT5Backend(IExchangeBackend):
         return await self._execute_order(symbol, mt5.ORDER_TYPE_SELL, quantity, price, params.get("stop_loss", 0), params.get("take_profit", 0))
 
     async def cancel_order(self, order_id: str, symbol: str) -> dict:
+        if not MT5_AVAILABLE:
+             raise RuntimeError("MT5 not available")
         
         def _cancel():
             request = {
@@ -171,6 +184,9 @@ class MT5Backend(IExchangeBackend):
         return await asyncio.to_thread(_cancel)
 
     async def fetch_order(self, order_id: str, symbol: str) -> dict:
+        if not MT5_AVAILABLE:
+             raise RuntimeError("MT5 not available")
+
         # Check open orders first, then history
         def _fetch():
             orders = mt5.orders_get(ticket=int(order_id))
@@ -209,6 +225,8 @@ class MT5Backend(IExchangeBackend):
         return await asyncio.to_thread(_fetch)
 
     async def fetch_positions(self) -> list[dict]:
+        if not MT5_AVAILABLE:
+             return []
         
         def _get_positions():
             positions = mt5.positions_get()
@@ -234,6 +252,9 @@ class MT5Backend(IExchangeBackend):
         Fetch account balance and equity.
         Returns dict compatible with CCXT structure usually, but we need Equity.
         """
+        if not MT5_AVAILABLE:
+             return {}
+
         def _get_account():
             info = mt5.account_info()
             if info is None:

@@ -18,11 +18,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 # Try to import metrics exporter
 try:
     from src.monitoring.metrics_exporter import get_exporter
-
     METRICS_AVAILABLE = True
 except ImportError:
     METRICS_AVAILABLE = False
@@ -32,18 +32,14 @@ from src.utils.notifications import get_notifier
 
 logger = logging.getLogger(__name__)
 
-
 class CircuitState(Enum):
     """Circuit breaker states."""
-
     CLOSED = "closed"  # Normal operation
     OPEN = "open"  # Trading halted
     HALF_OPEN = "half_open"  # Testing recovery
 
-
 class TripReason(Enum):
     """Reasons for circuit breaker trip."""
-
     DAILY_LOSS_LIMIT = "daily_loss_limit"
     CONSECUTIVE_LOSSES = "consecutive_losses"
     MAX_DRAWDOWN = "max_drawdown"
@@ -53,11 +49,9 @@ class TripReason(Enum):
     API_ERRORS = "api_errors"
     MANUAL_STOP = "manual_stop"
 
-
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for circuit breaker."""
-
     # Market protections
     flash_crash_threshold_pct: float = 0.20
     flash_crash_symbol: str = "BTC/USDT"
@@ -87,41 +81,38 @@ class CircuitBreakerConfig:
 
     # Adaptive thresholds
     enable_adaptive_thresholds: bool = True
-    baseline_volatility: float | None = None
+    baseline_volatility: Optional[float] = None
     max_volatility_multiplier: float = 2.0
 
     # Persistence
-    state_file_path: Path | None = None
-
+    state_file_path: Optional[Path] = None
 
 @dataclass
 class TradingSession:
     """Track current trading session metrics."""
-
     start_time: datetime = field(default_factory=datetime.utcnow)
     
     # Balance (Closed Trades)
     initial_balance: float = 0.0
     current_balance: float = 0.0
+    peak_balance: float = 0.0
     
     # Equity (Balance + Floating PnL) - CRITICAL FOR PROP FIRMS
     initial_equity: float = 0.0
     current_equity: float = 0.0
     peak_equity: float = 0.0 # High Water Mark for Trailing Drawdown
     
-    trades: list[dict] = field(default_factory=list)
+    trades: List[Dict] = field(default_factory=list)
     consecutive_losses: int = 0
-    api_errors: list[datetime] = field(default_factory=list)
+    api_errors: List[datetime] = field(default_factory=list)
 
     @property
     def daily_pnl_pct(self) -> float:
         """Daily PnL based on Equity (Prop Firm Standard)."""
         if self.initial_equity <= 0:
-            # Fallback to balance if equity not initialized
             if self.initial_balance <= 0:
                 return 0.0
             return (self.current_balance - self.initial_balance) / self.initial_balance
-            
         return (self.current_equity - self.initial_equity) / self.initial_equity
 
     @property
@@ -131,31 +122,29 @@ class TradingSession:
              if self.peak_balance <= 0:
                  return 0.0
              return (self.peak_balance - self.current_balance) / self.peak_balance
-             
         return (self.peak_equity - self.current_equity) / self.peak_equity
-
 
 class CircuitBreaker:
     """
     Circuit breaker for trading risk management.
     """
 
-    def __init__(self, config_obj: CircuitBreakerConfig | None = None):
+    def __init__(self, config_obj: Optional[CircuitBreakerConfig] = None):
         self.config = config_obj or CircuitBreakerConfig()
         if self.config.state_file_path is None:
             self.config.state_file_path = (
                 config().paths.user_data_dir / "circuit_breaker_state.json"
             )
         self.state = CircuitState.CLOSED
-        self.trip_reason: TripReason | None = None
-        self.trip_time: datetime | None = None
+        self.trip_reason: Optional[TripReason] = None
+        self.trip_time: Optional[datetime] = None
         self.session = TradingSession()
         self.recovery_trades: int = 0
         self._lock = threading.RLock()
-        self._callbacks: list[callable] = []
+        self._callbacks: List[Callable] = []
         self.load_state()
 
-    def initialize_session(self, initial_balance: float, initial_equity: float | None = None) -> None:
+    def initialize_session(self, initial_balance: float, initial_equity: Optional[float] = None) -> None:
         """Initialize or reset trading session."""
         equity = initial_equity if initial_equity is not None else initial_balance
         with self._lock:
@@ -178,7 +167,6 @@ class CircuitBreaker:
     def update_metrics(self, balance: float, equity: float) -> None:
         """Update risk metrics with latest balance and equity."""
         with self._lock:
-            # Check for day rollover (Daily Drawdown Reset)
             if self.session.start_time.date() != datetime.utcnow().date():
                 self.initialize_session(balance, equity)
                 return
@@ -195,12 +183,7 @@ class CircuitBreaker:
             self.save_state()
             self._check_conditions()
 
-    def update_balance(self, new_balance: float) -> None:
-        """Legacy compatibility wrapper."""
-        # Assume equity = balance if not provided (no open positions)
-        self.update_metrics(new_balance, new_balance)
-
-    def record_trade(self, trade: dict, profit_pct: float) -> None:
+    def record_trade(self, trade: Dict, profit_pct: float) -> None:
         with self._lock:
             self.session.trades.append(trade)
             if profit_pct < 0:
@@ -213,34 +196,7 @@ class CircuitBreaker:
                     self.recovery_trades += 1
                     if self.recovery_trades >= self.config.recovery_trades_required:
                         self._reset()
-
-            # Note: We don't update balance here anymore, as it comes from update_metrics
             self._check_conditions()
-
-    def check_volatility(self, current_volatility: float) -> None:
-        threshold = self._get_adaptive_volatility_threshold(current_volatility)
-        if current_volatility > threshold:
-            logger.warning(
-                f"High volatility: {current_volatility:.2%} (threshold: {threshold:.2%})"
-            )
-            self._trip(TripReason.HIGH_VOLATILITY)
-
-    def check_market_crash(self, symbol: str, price_change_pct: float) -> None:
-        if (
-            symbol == self.config.flash_crash_symbol
-            and price_change_pct <= -self.config.flash_crash_threshold_pct
-        ):
-            logger.critical(f"🚨 FLASH CRASH on {symbol}: {price_change_pct:.2%} drop!")
-            self._trip(TripReason.FLASH_CRASH)
-
-    def check_contagion(self, asset_changes: dict[str, float]) -> None:
-        if len(asset_changes) < self.config.min_assets_for_contagion:
-            return
-        dropping = [a for a, c in asset_changes.items() if c < -0.05]
-        ratio = len(dropping) / len(asset_changes)
-        if ratio >= 0.7:
-            logger.critical(f"🚨 MARKET CONTAGION: {ratio:.0%} assets dropping!")
-            self._trip(TripReason.MARKET_CONTAGION)
 
     def _check_conditions(self) -> None:
         if self.session.daily_pnl_pct <= -self.config.daily_loss_limit_pct:
@@ -296,23 +252,13 @@ class CircuitBreaker:
         else:
             return 0.0
 
-    def get_status(self) -> dict:
+    def get_status(self) -> Dict:
         return {
             "state": self.state.value,
             "trip_reason": self.trip_reason.value if self.trip_reason else None,
             "can_trade": self.can_trade(),
             "position_multiplier": self.get_position_multiplier(),
         }
-
-    def _get_adaptive_volatility_threshold(self, current_volatility: float) -> float:
-        base = self.config.max_volatility_threshold
-        if not self.config.enable_adaptive_thresholds or self.config.baseline_volatility is None:
-            return base
-        multiplier = min(
-            current_volatility / self.config.baseline_volatility,
-            self.config.max_volatility_multiplier,
-        )
-        return max(base * multiplier, base)
 
     def _should_auto_reset(self) -> bool:
         if not self.trip_time:
@@ -334,7 +280,7 @@ class CircuitBreaker:
     def manual_reset(self) -> None:
         self._reset()
 
-    def register_callback(self, cb: callable) -> None:
+    def register_callback(self, cb: Callable) -> None:
         self._callbacks.append(cb)
 
     def save_state(self) -> None:

@@ -26,8 +26,9 @@ endif
 DOCKER_COMPOSE_BASE := docker-compose -f deploy/docker-compose.yml
 DOCKER_COMPOSE_PROD := docker-compose -f deploy/docker-compose.prod.yml
 DOCKER_COMPOSE_TEST := docker-compose -f deploy/docker-compose.test.yml
+DOCKER_COMPOSE_AB := docker-compose -f deploy/docker-compose.ab_test.yml
 
-STRATEGY := StoicEnsembleStrategyV6
+STRATEGY := StoicEnsembleStrategyV7
 CONFIG := user_data/config/config_paper.json
 TIMEFRAME := 5m
 

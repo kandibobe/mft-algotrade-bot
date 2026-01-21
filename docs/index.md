@@ -30,9 +30,9 @@ Ready to dive deeper? These guides cover the core concepts and workflows.
 
 <div class="grid cards" markdown>
 
--   [**Architecture Deep Dive**](concepts/hybrid_mft.md)
--   [**Strategy Development**](tutorials/strategy_development.md)
+-   [**Architecture Deep Dive**](architecture/hybrid_mft.md)
+-   [**Strategy Development**](guides/strategy_development.md)
 -   [**API Reference**](reference/api_overview.md)
--   [**Contributing**](community/contributing.md)
+-   [**Contributing**](../CONTRIBUTING.md)
 
 </div>

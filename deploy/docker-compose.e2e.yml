@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # ==============================================================================
+  # MOCK EXCHANGE SERVICE
+  # ==============================================================================
+  mock_exchange:
+    build:
+      context: ../
+      dockerfile: deploy/docker/Dockerfile.test
+    container_name: stoic_e2e_mock_exchange
+    command: >
+      sh -c "
+      pip install fastapi uvicorn &&
+      python tests/mocks/exchange_mock.py
+      "
+    ports:
+      - "8888:8888"
+    networks:
+      - e2e_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ==============================================================================
+  # E2E TEST RUNNER
+  # ==============================================================================
+  e2e_runner:
+    build:
+      context: ../
+      dockerfile: deploy/docker/Dockerfile.test
+    container_name: stoic_e2e_runner
+    environment:
+      - PYTHONPATH=/app
+      - TESTING=1
+      - MOCK_EXCHANGE_URL=http://mock_exchange:8888
+    volumes:
+      - ../tests:/app/tests:ro
+      - ../src:/app/src:ro
+      - ../user_data:/app/user_data:ro
+    command: >
+      pytest tests/e2e/test_docker_hybrid.py
+      --verbose
+      --tb=short
+    networks:
+      - e2e_network
+    depends_on:
+      mock_exchange:
+        condition: service_healthy
+
+networks:
+  e2e_network:
+    driver: bridge

@@ -181,6 +181,13 @@ def setup_structured_logging(
 
     # Apply formatter to all handlers and add to root logger
     root_logger = logging.getLogger()
+
+    # Intercept Freqtrade's standard logging by removing existing handlers
+    # This prevents duplicate logs and ensures everything goes through structlog
+    if root_logger.handlers:
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+
     for handler in handlers:
         handler.setFormatter(formatter)
         root_logger.addHandler(handler)
@@ -274,6 +281,10 @@ def log_trade(
         context["strategy"] = strategy
     if order_id is not None:
         context["order_id"] = order_id
+        # Auto-generate trace_id from order_id if not provided
+        if "trace_id" not in additional_context:
+            context["trace_id"] = f"trc_{order_id.split('_')[-1] if '_' in order_id else order_id[:8]}"
+            
     if exchange is not None:
         context["exchange"] = exchange
     context.update(additional_context)

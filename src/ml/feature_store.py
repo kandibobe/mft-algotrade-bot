@@ -144,3 +144,7 @@ def get_feature_store() -> RedisFeatureStore:
         redis_url=cfg.feature_store.redis_url,
         use_mock=not cfg.feature_store.enabled
     )
+
+def create_feature_store() -> RedisFeatureStore:
+    """Legacy alias for get_feature_store."""
+    return get_feature_store()

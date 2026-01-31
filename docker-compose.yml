@@ -19,6 +19,7 @@ services:
       retries: 3
       start_period: 60s
     command: >
+      bash /freqtrade/scripts/dev_entrypoint.sh
       freqtrade trade 
       --logfile /freqtrade/user_data/logs/freqtrade.log 
       --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite 
@@ -113,6 +114,20 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: stoic_redis_commander
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - stoic_network
 
 networks:
   stoic_network:

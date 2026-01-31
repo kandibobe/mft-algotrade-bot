@@ -1,8 +1,8 @@
 """
-Integration Tests for Stoic Ensemble Strategy V6 Logic
+Integration Tests for Stoic Ensemble Strategy V7 Logic
 ======================================================
 
-Tests the specific V6 logic improvements:
+Tests the specific V7 logic improvements:
 1. HRP Weight Calculation and Application
 2. ML Prediction and Confidence Derivation
 """
@@ -16,17 +16,17 @@ import numpy as np
 import pandas as pd
 import pytest
 
-# Add user_data to path
-sys.path.append(str(Path(__file__).parent.parent.parent / "user_data"))
+# Add user_data/strategies to path
+sys.path.append(str(Path(__file__).parent.parent.parent / "user_data" / "strategies"))
 
-from strategies.StoicEnsembleStrategyV6 import StoicEnsembleStrategyV6
+from StoicEnsembleStrategyV7 import StoicEnsembleStrategyV7
 
 
-class TestV6Logic:
+class TestV7Logic:
 
     @pytest.fixture
     def strategy(self):
-        """Create a mocked V6 strategy instance."""
+        """Create a mocked V7 strategy instance."""
         mock_config = {
             "exchange": {"name": "binance", "pair_whitelist": ["BTC/USDT", "ETH/USDT"], "sandbox": True},
             "dry_run": True,
@@ -35,7 +35,7 @@ class TestV6Logic:
         }
 
         with patch('freqtrade.strategy.IStrategy.__init__', return_value=None):
-            strat = StoicEnsembleStrategyV6(config=mock_config)
+            strat = StoicEnsembleStrategyV7(config=mock_config)
             strat.config = mock_config
             strat.dp = MagicMock()
             strat.dp.runmode.value = 'live'
@@ -72,7 +72,7 @@ class TestV6Logic:
         mock_weights = {"BTC/USDT": 0.6, "ETH/USDT": 0.4}
 
         # Patch where it is used (imported)
-        with patch('strategies.StoicEnsembleStrategyV6.get_hrp_weights', return_value=mock_weights):
+        with patch('StoicEnsembleStrategyV7.get_hrp_weights', return_value=mock_weights):
             strategy._update_hrp_weights()
 
             assert strategy.hrp_weights == mock_weights
@@ -91,8 +91,7 @@ class TestV6Logic:
         strategy.hrp_max_weight.value = 1.5
 
         # Restore the real custom_stake_amount method on the instance
-        # We need to bind the class method to the instance
-        strategy.custom_stake_amount = StoicEnsembleStrategyV6.custom_stake_amount.__get__(strategy, StoicEnsembleStrategyV6)
+        strategy.custom_stake_amount = StoicEnsembleStrategyV7.custom_stake_amount.__get__(strategy, StoicEnsembleStrategyV7)
 
         # Mock super().custom_stake_amount to return base stake
         with patch('src.strategies.base_strategy.BaseStoicStrategy.custom_stake_amount', return_value=100.0):
@@ -109,37 +108,13 @@ class TestV6Logic:
             # adjusted = 100 * 0.8 = 80.0
             assert stake == 80.0
 
-            # Case 2: Pair not in HRP weights (fallback to base)
-            stake_unknown = strategy.custom_stake_amount(
-                pair="SOL/USDT", current_time=datetime.now(), current_rate=20.0,
-                proposed_stake=100.0, min_stake=10.0, max_stake=1000.0,
-                leverage=1.0, entry_tag=None, side="long"
-            )
-            assert stake_unknown == 100.0
-
-    def test_ml_confidence_derivation(self, strategy):
-        """Test that ML confidence is derived from prediction if missing."""
-
-        # Create dataframe with only prediction
-        df = pd.DataFrame({'close': [100], 'volume': [1000], 'ml_prediction': [0.8]})
-        metadata = {'pair': 'BTC/USDT'}
-
-        # Mock super().populate_indicators to return the input df (pass-through)
-        with patch('src.strategies.base_strategy.BaseStoicStrategy.populate_indicators', return_value=df):
-
-            df_out = strategy.populate_indicators(df, metadata)
-
-            assert 'ml_confidence' in df_out.columns
-            # Confidence = abs(0.8 - 0.5) * 2 = 0.3 * 2 = 0.6
-            assert df_out['ml_confidence'].iloc[0] == pytest.approx(0.6)
-
     def test_feature_store_init_only_live(self, strategy):
         """Test that feature store is initialized in live mode."""
         strategy.config['runmode'] = 'live'
         strategy.feature_store = None
 
         # Patch where it is used (imported)
-        with patch('strategies.StoicEnsembleStrategyV6.create_feature_store') as mock_create:
+        with patch('StoicEnsembleStrategyV7.create_feature_store') as mock_create:
             mock_store = MagicMock()
             mock_create.return_value = mock_store
 

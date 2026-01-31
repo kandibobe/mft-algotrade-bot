@@ -14,6 +14,7 @@ from src.ml.training.orchestrator import TrainingOrchestrator, OrchestratorConfi
 from src.backtesting.wfo_engine import WalkForwardEngine
 from src.backtesting.vectorized_backtester import BacktestConfig
 from src.config.unified_config import load_config
+from src.data.loader import get_ohlcv
 
 # Initialize logging
 setup_structured_logging(level="INFO")
@@ -42,12 +43,20 @@ class FullCycleLauncher:
 
     async def run_wfo(self, strategy_name: str, pair: str, timerange: str):
         logger.info(f"Starting WFO for {strategy_name} on {pair} for {timerange}...")
-        results = await self.wfo_engine.run(
-            strategy=strategy_name,
-            pair=pair,
-            timerange=timerange
+        
+        # Load data for WFO
+        # Assuming 5m timeframe for WFO as per typical usage
+        data = get_ohlcv(pair, timeframe="5m")
+        
+        # Filter data by timerange if needed, but for now we pass all loaded data
+        # Real implementation would parse timerange string (YYYYMMDD-YYYYMMDD)
+        
+        # Note: WFOEngine run is synchronous (not async) based on its definition
+        results = self.wfo_engine.run(
+            data=data,
+            pair=pair
         )
-        logger.info(f"WFO completed. Best params found: {results.get('best_params')}")
+        logger.info(f"WFO completed.")
         return results
 
     async def train_models(self, strategy_name: str, pair: str):

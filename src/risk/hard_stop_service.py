@@ -1,37 +1,52 @@
 """
-Hard Stop Loss Service (External Guard)
-======================================
+Nuclear Option Daemon
+=====================
 
-Autonomous service that monitors exchange positions and closes them
-if hard stop loss conditions are met, independent of the main strategy loop.
+Autonomous daemon that monitors total account equity. If a catastrophic
+drawdown is detected, it revokes API keys and terminates the bot process
+as the ultimate failsafe.
 """
 
 import asyncio
 import logging
+import os
+import signal
+import time
+from collections import deque
+from datetime import timedelta
 
-from src.order_manager.exchange_backend import IExchangeBackend
+import ccxt.async_support as ccxt
+
+from src.config.unified_config import load_config
+from src.order_manager.exchange_backend import CCXTBackend
 from src.utils.logger import log
 
 logger = logging.getLogger(__name__)
 
 
-class HardStopLossService:
+class NuclearOptionDaemon:
     """
-    Independent monitor for open positions.
-    Acts as a final safety layer.
+    Monitors account equity and acts as the ultimate circuit breaker.
     """
 
     def __init__(
         self,
-        backend: IExchangeBackend,
-        poll_interval: float = 2.0,
-        max_drawdown_per_trade: float = 0.10,  # 10% hard limit
+        backend: CCXTBackend,
+        pid_to_kill: int,
+        poll_interval: float = 60.0,  # Check every 60 seconds
+        drawdown_threshold: float = 0.10,  # 10%
+        monitoring_window: timedelta = timedelta(hours=1),
     ):
         self.backend = backend
+        self.pid_to_kill = pid_to_kill
         self.poll_interval = poll_interval
-        self.max_drawdown_per_trade = max_drawdown_per_trade
+        self.drawdown_threshold = drawdown_threshold
+        self.monitoring_window_seconds = monitoring_window.total_seconds()
         self._running = False
         self._task: asyncio.Task | None = None
+        self.equity_history = deque(
+            maxlen=int(self.monitoring_window_seconds / poll_interval)
+        )
 
     async def start(self):
         """Start the monitoring task."""
@@ -40,7 +55,7 @@ class HardStopLossService:
 
         self._running = True
         self._task = asyncio.create_task(self._monitor_loop())
-        log.info("🛡️ Hard Stop Loss Service started")
+        log.info("🛡️ Nuclear Option Daemon started. Monitoring account equity.")
 
     async def stop(self):
         """Stop the monitoring task."""
@@ -51,60 +66,129 @@ class HardStopLossService:
                 await self._task
             except asyncio.CancelledError:
                 pass
-        log.info("Hard Stop Loss Service stopped")
+        log.info("Nuclear Option Daemon stopped.")
 
     async def _monitor_loop(self):
         """Main monitoring loop."""
         while self._running:
             try:
-                await self._check_positions()
+                await self._check_account_equity()
                 await asyncio.sleep(self.poll_interval)
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                log.error("Error in Hard Stop Loss Service", error=str(e))
+                log.error("Error in Nuclear Option Daemon", error=str(e))
                 await asyncio.sleep(self.poll_interval * 2)
 
-    async def _check_positions(self):
-        """Fetch and validate all open positions."""
+    async def _check_account_equity(self):
+        """Fetch and evaluate account equity."""
         try:
-            positions = await self.backend.fetch_positions()
-            for pos in positions:
-                symbol = pos["symbol"]
-                entry_price = float(pos["entry_price"])
-                side = pos["side"]
-                amount = float(pos["amount"])
+            # We need to implement a way to fetch total equity
+            # For now, let's assume the backend has a fetch_total_equity method
+            balance = await self.backend.exchange.fetch_balance()
+            # This is a simplification; a real implementation needs to handle
+            # different quote currencies. We'll assume USDT for now.
+            current_equity = balance["total"]["USDT"]
+            
+            if not current_equity:
+                 log.warning("Could not determine account equity.")
+                 return
 
-                # In a real system, we'd fetch current market price
-                # For this service, let's assume we might need another way to get it
-                # or the position data includes current price/pnl.
-                # For now, let's just implement the logic that COULD trigger a close.
+            timestamp = time.time()
+            self.equity_history.append((timestamp, current_equity))
 
-                if "current_price" in pos:
-                    current_price = float(pos["current_price"])
-                    pnl_pct = (current_price - entry_price) / entry_price
-                    if side.lower() == "sell":
-                        pnl_pct = -pnl_pct
+            # Not enough data to make a decision yet
+            if len(self.equity_history) < self.equity_history.maxlen * 0.5:
+                return
 
-                    if pnl_pct < -self.max_drawdown_per_trade:
-                        log.critical(f"HARD STOP TRIGGERED for {symbol}: PnL {pnl_pct:.2%}")
-                        await self.force_close_position(symbol, amount, side)
-        except Exception as e:
-            log.error("Failed to check positions in HardStopLossService", error=str(e))
+            # Find peak equity in the window
+            peak_equity = max(value for _, value in self.equity_history)
 
-    async def force_close_position(self, symbol: str, size: float, side: str):
-        """Emergency close of a position."""
-        log.warning(f"🚨 EMERGENCY CLOSING POSITION: {symbol} {size} {side}")
-        try:
-            if side.lower() == "long":
-                await self.backend.create_limit_sell_order(
-                    symbol, size, 0, params={"reduceOnly": True, "type": "market"}
-                )
+            drawdown = (peak_equity - current_equity) / peak_equity
+
+            if drawdown > self.drawdown_threshold:
+                log.critical(f"NUCLEAR OPTION TRIGGERED! Drawdown: {drawdown:.2%}")
+                await self._nuke_it_all()
             else:
-                await self.backend.create_limit_buy_order(
-                    symbol, size, 0, params={"reduceOnly": True, "type": "market"}
-                )
+                log.info(f"Equity check OK. Current: {current_equity:.2f}, Peak: {peak_equity:.2f}, Drawdown: {drawdown:.2%}")
 
-            log.info(f"✅ Emergency close order sent for {symbol}")
         except Exception as e:
-            log.error(f"❌ FAILED TO EMERGENCY CLOSE {symbol}", error=str(e))
+            log.error("Failed to check account equity", error=str(e))
+
+    async def _nuke_it_all(self):
+        """The final failsafe."""
+        log.warning("🚨 INITIATING NUCLEAR OPTION 🚨")
+
+        # 1. Revoke API Keys (Conceptual - very few exchanges support this)
+        try:
+            log.warning("Attempting to revoke API keys...")
+            # This is a placeholder for a real implementation
+            # success = await self.backend.revoke_api_key()
+            # if success:
+            #     log.info("✅ API keys revoked.")
+            # else:
+            #     log.warning("⚠️  Could not revoke API keys via API.")
+            log.warning("API key revocation is not supported by most exchanges. Please do this manually.")
+        except Exception as e:
+            log.error("Failed to revoke API keys", error=str(e))
+
+        # 2. Kill the main bot process
+        try:
+            log.warning(f"Terminating bot process (PID: {self.pid_to_kill})...")
+            if self.pid_to_kill > 0:
+                os.kill(self.pid_to_kill, signal.SIGTERM)
+                log.info(f"✅ SIGTERM signal sent to PID {self.pid_to_kill}.")
+            else:
+                log.error("Invalid PID to kill.")
+        except ProcessLookupError:
+            log.warning(f"Process with PID {self.pid_to_kill} not found. It might have already stopped.")
+        except Exception as e:
+            log.error("Failed to kill bot process", error=str(e))
+
+        # 3. Stop this daemon
+        await self.stop()
+
+
+async def main():
+    """Entry point for the standalone daemon."""
+    # This should be configured via a lightweight config or env vars
+    pid_file_path = "bot.pid"  # Assume the bot writes its PID here
+    
+    if not os.path.exists(pid_file_path):
+        log.error(f"PID file not found at {pid_file_path}. Exiting.")
+        return
+
+    with open(pid_file_path, "r") as f:
+        pid = int(f.read().strip())
+        
+    config = load_config()
+
+    exchange_config = {
+        "name": config.exchange.name,
+        "key": config.exchange.api_key,
+        "secret": config.exchange.api_secret,
+    }
+
+    backend = CCXTBackend(exchange_config)
+    await backend.initialize()
+    
+    daemon = NuclearOptionDaemon(
+        backend=backend,
+        pid_to_kill=pid,
+    )
+    
+    await daemon.start()
+    
+    # Keep the daemon running
+    while daemon._running:
+        await asyncio.sleep(1)
+        
+    await backend.close()
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        log.info("Daemon stopped by user.")
+

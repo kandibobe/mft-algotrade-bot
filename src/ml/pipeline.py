@@ -10,7 +10,7 @@ from typing import Any
 import pandas as pd
 
 from src.config import config
-from src.ml.feature_store import create_feature_store
+from src.ml.feature_store import get_feature_store
 from src.ml.training.feature_engineering import FeatureEngineer
 from src.ml.training.labeling import LabelGenerator, create_labels_for_training
 from src.ml.training.model_registry import ModelRegistry
@@ -39,8 +39,16 @@ class MLPipeline:
         self.engineer = FeatureEngineer()
         self.labeler = LabelGenerator()
 
-        # <  Unified Feature Store (Task 11)
-        self.feature_store = create_feature_store(use_mock=not quick_mode)
+        # <   Unified Feature Store (Task 11)
+        # Note: get_feature_store doesn't accept use_mock in the factory call in some versions,
+        # but let's check the definition. The definition uses load_config to decide use_mock.
+        # But if we want to override it for quick_mode:
+        # get_feature_store reads config. We might need to adjust config or trust the factory.
+        # The factory signature is: get_feature_store() -> RedisFeatureStore
+        # The Unified Config controls the mock state.
+        self.feature_store = get_feature_store()
+        if quick_mode:
+            self.feature_store.use_mock = True
 
         # Correctly pass a TrainingConfig object
         trainer_config = MLTrainingConfig(models_dir=str(self.models_dir))
@@ -92,7 +100,7 @@ class MLPipeline:
                 study_name=f"opt_{pair_slug}_{timeframe}"
             )
 
-            X = df_clean.drop(columns=["target", "date", "timestamp", "open", "high", "low", "close", "volume"], errors="ignore")
+            X = df_clean.drop(columns=["target", "date", "timestamp", "open", "high", "low", "close", "volume", "symbol", "timeframe"], errors="ignore")
             y = df_clean["target"]
 
             best_params = optimizer.optimize(X, y)
@@ -149,7 +157,7 @@ class MLPipeline:
                 study_name=f"opt_{pair.replace('/', '_')}_wfo"
             )
 
-            X = df_clean.drop(columns=["target", "date", "timestamp", "open", "high", "low", "close", "volume"], errors="ignore")
+            X = df_clean.drop(columns=["target", "date", "timestamp", "open", "high", "low", "close", "volume", "symbol", "timeframe"], errors="ignore")
             y = df_clean["target"]
 
             if optimize:

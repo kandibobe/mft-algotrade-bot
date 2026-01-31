@@ -24,6 +24,9 @@ class SmartOrder(Order):
     submission_timestamp: float | None = None
     fill_timestamp: float | None = None
 
+    # For Meta-Labeling Data Collection
+    signal_features: dict | None = None
+
     def on_ticker_update(self, ticker: dict):
         """Handle ticker update to adjust order parameters."""
         pass

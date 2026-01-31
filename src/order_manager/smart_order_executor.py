@@ -7,13 +7,14 @@ Provides the bridge between high-level smart order logic and low-level exchange 
 """
 
 import asyncio
+import csv
 import logging
 import os
 import time
 from datetime import datetime
 
 from src.notification.telegram import TelegramBot
-from src.order_manager.exchange_backend import CCXTBackend, IExchangeBackend, MockExchangeBackend
+from src.order_manager.exchange_backend import CCXTBackend, IExchangeBackend, MockExchangeBackend, RemoteMockBackend
 from src.order_manager.order_types import IcebergOrder, OrderStatus
 from src.order_manager.smart_order import (
     ChaseLimitOrder,
@@ -23,7 +24,7 @@ from src.order_manager.smart_order import (
     VWAPOrder,
 )
 from src.risk.risk_manager import RiskManager
-from src.utils.logger import log  # Use structured logger
+from src.utils.logger import log, log_metric  # Use structured logger
 from src.websocket.aggregator import AggregatedTicker, DataAggregator
 
 logger = logging.getLogger(__name__)
@@ -82,14 +83,25 @@ class SmartOrderExecutor:
             log.warning(
                 f"STARTING IN {'SHADOW' if self._shadow_mode else 'DRY-RUN'} MODE (Mock Execution)"
             )
-            # In mock mode, we use MockExchangeBackend for all requested exchanges
-            # We initialize one for the primary
-            self.backends[self.primary_exchange] = MockExchangeBackend(aggregator)
+            
+            # Check if we should use Remote Mock Backend (for E2E Docker tests)
+            use_remote_mock = self._exchange_config.get("use_remote_mock", False)
+            
+            if use_remote_mock:
+                log.info("Using RemoteMockBackend for E2E Testing")
+                self.backends[self.primary_exchange] = RemoteMockBackend(self._exchange_config)
+                for ex in self._additional_exchanges:
+                    name = ex.get("name", "unknown")
+                    self.backends[name] = RemoteMockBackend(ex)
+            else:
+                # In standard mock mode, we use MockExchangeBackend (In-Memory)
+                # We initialize one for the primary
+                self.backends[self.primary_exchange] = MockExchangeBackend(aggregator)
 
-            # And one for each secondary
-            for ex in self._additional_exchanges:
-                name = ex.get("name", "unknown")
-                self.backends[name] = MockExchangeBackend(aggregator)
+                # And one for each secondary
+                for ex in self._additional_exchanges:
+                    name = ex.get("name", "unknown")
+                    self.backends[name] = MockExchangeBackend(aggregator)
         else:
             log.warning("🚨 STARTING IN LIVE MODE (Real Execution)")
             # Primary
@@ -166,10 +178,11 @@ class SmartOrderExecutor:
 
         logger.info("Smart Order Executor stopped")
 
-    async def submit_order(self, order: SmartOrder, exchange: str | None = None) -> str:
+    async def submit_order(self, order: SmartOrder, exchange: str | None = None, strict_maker: bool = False) -> str:
         """
         Submit a new smart order for execution.
         """
+        order.strict_maker = strict_maker
         exchange_name = exchange or self._exchange_config.get("name", "default")
 
         # 📊 Slippage Check (MFT Optimization)
@@ -213,6 +226,12 @@ class SmartOrderExecutor:
                 logger.error(f"Order rejected by Risk Manager: {reason}")
                 raise RuntimeError(f"Risk Check Failed: {reason}")
 
+        # Latency Check
+        signal_latency_ms = (time.time() - (order.signal_timestamp or time.time())) * 1000
+        if signal_latency_ms > 200:
+            log.warning(f"High signal latency: {signal_latency_ms:.2f}ms. Rejecting trade.")
+            raise RuntimeError(f"High signal latency: {signal_latency_ms:.2f}ms")
+
         async with self._lock:
             order.update_status(OrderStatus.SUBMITTED)
             order.submission_timestamp = time.time()
@@ -234,6 +253,7 @@ class SmartOrderExecutor:
             # Performance: track submission latency
             sub_latency = (order.submission_timestamp - order.signal_timestamp) * 1000
             log.info(f"Order {order.order_id} submitted. Pipeline Latency: {sub_latency:.2f}ms")
+            log_metric("order_submission_latency_ms", sub_latency, tags={"symbol": order.symbol})
 
             from src.utils.logger import log_order
 
@@ -345,26 +365,12 @@ class SmartOrderExecutor:
         if not order.is_active:
             return
 
-        # 🕒 Passive-Aggressive Config (Task 8)
-        maker_timeout = 30  # seconds to stay as Maker
-        start_time = time.time()
-        is_aggressive = False
-
-        log.debug(f"Starting execution loop for order {order.order_id}")
+        # Strict Maker and Chase-Limit Logic
         while order.is_active and self._running:
-            # 1. Check for Hard Timeout
             if order.check_timeout():
                 log.info(f"Order {order.order_id} timed out.")
+                await self.cancel_order(order.order_id)
                 break
-
-            # 2. Passive-Aggressive Logic: Switch to Taker if needed
-            elapsed = time.time() - start_time
-            if not is_aggressive and elapsed > maker_timeout:
-                log.info(
-                    f"Passive period expired for {order.order_id}. Switching to AGGRESSIVE mode."
-                )
-                is_aggressive = True
-                await self._make_order_aggressive(order)
 
             if self.backend and order.exchange_order_id:
                 try:
@@ -527,9 +533,15 @@ class SmartOrderExecutor:
 
         # Arbitrage requires atomic or near-atomic cross-exchange execution which is complex.
         # Currently we just log the opportunity for analysis.
+        spread_val = ticker.spread_pct
+        if hasattr(spread_val, '__format__'):
+            spread_str = f"{spread_val:.2f}%"
+        else:
+            spread_str = f"{spread_val}%"
+
         log.warning(
             f"Arbitrage opportunity detected but EXECUTION IS DISABLED in current version. "
-            f"Symbol: {ticker.symbol}, Spread: {ticker.spread_pct:.2f}%"
+            f"Symbol: {ticker.symbol}, Spread: {spread_str}"
         )
         # TODO: Implement atomic rollback or compensation logic for Phase 2
         return
@@ -541,6 +553,9 @@ class SmartOrderExecutor:
 
         try:
             params = {}
+            if getattr(order, "strict_maker", False):
+                params["postOnly"] = True
+                
             if order.is_buy:
                 res = await self.backend.create_limit_buy_order(
                     order.symbol, order.quantity, order.price, params
@@ -653,6 +668,17 @@ class SmartOrderExecutor:
             return self._active_orders[order_id].status
         return None
 
+    async def graceful_stop(self):
+        """
+        ⏳ GRACEFUL STOP: Stop opening new trades, allow existing ones to close.
+        """
+        log.warning("⏳ GRACEFUL STOP INITIATED. No new trades will be opened.")
+        await self.telegram.send_message_async("⏳ <b>GRACEFUL STOP INITIATED.</b>\nAllowing existing orders to complete.")
+        
+        # 🛡️ Activate Circuit Breaker to prevent new trades
+        self.risk_manager.circuit_breaker.manual_stop()
+        # Further logic would depend on how the strategy loop checks for 'stop' state
+
     async def emergency_liquidate_all(self):
         """
         🚨 EMERGENCY: Cancel all orders and close all positions immediately.
@@ -689,7 +715,7 @@ class SmartOrderExecutor:
             await self.telegram.send_message_async(f"❌ <b>Emergency liquidation failed:</b> {e}")
 
     async def _log_execution(self, order: SmartOrder):
-        """Log a completed trade in live mode to the database."""
+        """Log a completed trade in live mode and collect data for meta-labeling."""
         try:
             from src.database.db_manager import DatabaseManager
             from src.database.models import ExecutionRecord
@@ -701,36 +727,71 @@ class SmartOrderExecutor:
                 abs(fill_price - target_price) / target_price * 100 if target_price > 0 else 0
             )
 
+            signal_latency_ms = 0
+            if order.signal_timestamp and order.submission_timestamp:
+                signal_latency_ms = (order.submission_timestamp - order.signal_timestamp) * 1000
+
             execution_latency_ms = 0
-            if order.signal_timestamp and order.fill_timestamp:
-                execution_latency_ms = (order.fill_timestamp - order.signal_timestamp) * 1000
+            if order.submission_timestamp and order.fill_timestamp:
+                execution_latency_ms = (order.fill_timestamp - order.submission_timestamp) * 1000
+            
+            # Simplified profit calculation for meta-labeling outcome
+            profit = (fill_price - target_price) if order.is_buy else (target_price - fill_price)
+            outcome = 1 if profit > 0 else 0
 
             db = DatabaseManager()
             async with db.session() as session:
-                # Find corresponding TradeRecord (this logic depends on how trades are linked)
-                # For now, we assume a placeholder link or create a record
                 execution = ExecutionRecord(
-                    trade_id=0,  # Need actual trade ID link
+                    trade_id=0,  # Placeholder
                     symbol=order.symbol,
                     side="buy" if order.is_buy else "sell",
                     target_price=target_price,
                     fill_price=fill_price,
                     slippage_pct=slippage,
-                    latency_ms=execution_latency_ms,
-                    timestamp=datetime.fromtimestamp(order.fill_timestamp)
-                    if order.fill_timestamp
-                    else datetime.utcnow(),
-                    meta_data=order.attribution_metadata,
+                    latency_ms=execution_latency_ms + signal_latency_ms,
+                    timestamp=datetime.fromtimestamp(order.fill_timestamp) if order.fill_timestamp else datetime.utcnow(),
+                    meta_data={
+                        **(order.attribution_metadata or {}),
+                        "signal_latency_ms": signal_latency_ms,
+                        "execution_latency_ms": execution_latency_ms,
+                    },
                 )
                 session.add(execution)
                 await session.commit()
+                await session.refresh(execution) # Get the ID
+                
+                # Collect data for meta-labeling
+                if order.signal_features:
+                    await self._collect_meta_labeling_data(execution.id, outcome, order.signal_features)
+
 
             log.info(
                 f"⚡ MFT Execution Logged: {order.symbol} | Latency: {execution_latency_ms:.2f}ms"
             )
+            log_metric("execution_latency_ms", execution_latency_ms, tags={"symbol": order.symbol})
 
         except Exception as e:
             log.error("Failed to log execution metrics", error=str(e))
+
+    async def _collect_meta_labeling_data(self, trade_id: int, outcome: int, features: dict):
+        """Append features and outcome to a CSV for meta-model training."""
+        filepath = "user_data/meta_labeling_data.csv"
+        
+        # Flatten the features dictionary
+        flat_features = {f"feature_{k}": v for k, v in features.items()}
+        
+        data_row = {"trade_id": trade_id, "outcome": outcome, **flat_features}
+        
+        async with self._lock: # Use the executor's lock to prevent race conditions
+            try:
+                file_exists = os.path.isfile(filepath)
+                with open(filepath, "a", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=data_row.keys())
+                    if not file_exists:
+                        writer.writeheader()
+                    writer.writerow(data_row)
+            except Exception as e:
+                log.error("Failed to write meta-labeling data", error=str(e))
 
     async def _log_shadow_trade(self, order: SmartOrder):
         """Log a completed trade in shadow mode to the database."""
@@ -740,6 +801,9 @@ class SmartOrderExecutor:
         try:
             from src.database.db_manager import DatabaseManager
             from src.database.models import ShadowTradeRecord
+            from src.config.unified_config import load_config
+
+            u_cfg = load_config()
 
             # Calculate metrics
             target_price = order.price  # In this context, what we wanted
@@ -752,6 +816,20 @@ class SmartOrderExecutor:
             latency_ms = 0
             if order.signal_timestamp and order.fill_timestamp:
                 latency_ms = (order.fill_timestamp - order.signal_timestamp) * 1000
+
+            # 📊 Phase 1: MFT Validation Metrics
+            if order.order_type.value == "chase_limit":
+                # Log intended vs actual for Pullback Verification
+                log.info(
+                    "PULLBACK_VERIFICATION",
+                    symbol=order.symbol,
+                    intended_price=order.price,
+                    fill_price=fill_price,
+                    offset_pct=u_cfg.pullback_offset_pct
+                )
+
+            log_metric("mft_fill_rate", 1.0, tags={"symbol": order.symbol, "mode": "shadow"})
+            log_metric("mft_execution_latency_ms", latency_ms, tags={"symbol": order.symbol})
 
             exchange = (
                 order.attribution_metadata.get("exchange", "default")
@@ -779,7 +857,15 @@ class SmartOrderExecutor:
                 strategy_name=order.attribution_metadata.get("strategy_name", "unknown")
                 if order.attribution_metadata
                 else "unknown",
-                meta_data={**(order.attribution_metadata or {}), "exchange": exchange},
+                meta_data={
+                    **(order.attribution_metadata or {}), 
+                    "exchange": exchange,
+                    "mft_metrics": {
+                        "latency_ms": latency_ms,
+                        "slippage_pct": slippage,
+                        "is_pullback": order.order_type.value == "chase_limit"
+                    }
+                },
             )
 
             # Update Risk Manager positions
@@ -796,7 +882,7 @@ class SmartOrderExecutor:
                 session.add(shadow_record)
                 await session.commit()
 
-            log.info(f"📈 Shadow Trade Logged: {order.symbol} @ {fill_price} on {exchange}")
+            log.info(f"📈 Shadow Trade Logged: {order.symbol} @ {fill_price} on {exchange} | Latency: {latency_ms:.2f}ms")
 
         except Exception as e:
             log.error("Failed to log shadow trade", error=str(e))

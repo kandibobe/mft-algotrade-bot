@@ -14,10 +14,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Add user_data to path
-sys.path.append(str(Path(__file__).parent.parent.parent / "user_data"))
+# Add user_data/strategies to path
+sys.path.append(str(Path(__file__).parent.parent.parent / "user_data" / "strategies"))
 
-from strategies.StoicEnsembleStrategyV5 import StoicEnsembleStrategyV5
+from StoicEnsembleStrategyV7 import StoicEnsembleStrategyV7
 
 from src.websocket.aggregator import DataAggregator
 from src.websocket.data_stream import TickerData
@@ -43,7 +43,7 @@ class TestWebsocketIntegration:
 
             # Initialize Strategy
             with patch('freqtrade.strategy.IStrategy.__init__', return_value=None):
-                strat = StoicEnsembleStrategyV5()
+                strat = StoicEnsembleStrategyV7(mock_config)
                 strat.config = mock_config
                 strat.dp = MagicMock()
                 strat.dp.runmode.value = 'live'

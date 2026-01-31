@@ -2,7 +2,7 @@
 Integration Tests for Hybrid Connector Strategy Flow
 ====================================================
 
-Tests the integration of HybridConnector into StoicEnsembleStrategyV5.
+Tests the integration of HybridConnector into StoicEnsembleStrategyV7.
 """
 
 import sys
@@ -12,10 +12,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Add user_data to path so we can import strategies
-sys.path.append(str(Path(__file__).parent.parent.parent / "user_data"))
+# Add user_data/strategies to path so we can import strategies
+sys.path.append(str(Path(__file__).parent.parent.parent / "user_data" / "strategies"))
 
-from strategies.StoicEnsembleStrategyV5 import StoicEnsembleStrategyV5
+from StoicEnsembleStrategyV7 import StoicEnsembleStrategyV7
 
 from src.websocket.aggregator import AggregatedTicker
 
@@ -36,7 +36,7 @@ class TestHybridConnectorIntegration:
             # Initialize Strategy
             # We mock the Freqtrade IStrategy init to avoid deep framework dependencies
             with patch('freqtrade.strategy.IStrategy.__init__', return_value=None):
-                strat = StoicEnsembleStrategyV5()
+                strat = StoicEnsembleStrategyV7(mock_config)
                 strat.config = mock_config # Manually set config
                 strat.dp = MagicMock()
                 strat.dp.runmode.value = 'live' # Simulate live mode

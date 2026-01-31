@@ -15,6 +15,7 @@ from datetime import datetime
 
 import pandas as pd
 import numpy as np
+import pickle
 
 # Add project root to path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
@@ -23,7 +24,7 @@ from src.ml.model_loader import ModelLoader
 from src.ml.explainability import generate_shap_report
 from src.data.loader import DataLoader
 from src.config.unified_config import load_config
-from src.utils.logger import setup_logging
+from src.utils.logger import setup_structured_logging as setup_logging
 
 logger = logging.getLogger("shap_analysis")
 
@@ -39,15 +40,41 @@ def run_weekly_analysis():
         config = load_config()
         model_loader = ModelLoader()
         
-        # Get the latest production model
-        # Assuming we have a way to get 'production' model, otherwise latest
-        model, metadata = model_loader.load_latest_model()
-        if model is None:
-            logger.error("No model found for analysis")
-            return
+        # Get the production model for a representative pair
+        pair = config.pairs[0] if config.pairs else "BTC/USDT"
+        model_name = pair.replace("/", "_")
 
-        model_name = metadata.get('model_type', 'unknown_model')
-        logger.info(f"Loaded model: {model_name} (Trained at: {metadata.get('trained_at')})")
+        model, _, feature_names_from_loader = model_loader.load_model_for_pair(pair)
+        metadata_obj = model_loader.registry.get_production_model(model_name)
+
+        if model is None or metadata_obj is None:
+            logger.warning(f"No production model found for {pair}, falling back to latest version.")
+            all_versions = model_loader.registry.get_all_versions(model_name)
+            if not all_versions:
+                logger.error(f"No models found at all for {pair}")
+                return
+            
+            metadata_obj = all_versions[0] # latest version
+            try:
+                with open(metadata_obj.model_path, "rb") as f:
+                    model = pickle.load(f)
+            except FileNotFoundError:
+                logger.error(f"Model file not found: {metadata_obj.model_path}")
+                return
+            except Exception as e:
+                logger.exception(f"Error loading model file {metadata_obj.model_path}: {e}")
+                return
+
+        metadata = metadata_obj.to_dict()
+        # The metadata from to_dict() is json-serializable, so trained_at is a string.
+        # Let's get the datetime object for logging.
+        trained_at_str = metadata.get('trained_at', 'unknown')
+        if isinstance(metadata_obj.trained_at, datetime):
+            trained_at_str = metadata_obj.trained_at.strftime('%Y-%m-%d %H:%M:%S')
+
+
+        model_name_log = metadata.get('model_type', 'unknown_model')
+        logger.info(f"Loaded model: {model_name_log} (Trained at: {trained_at_str})")
 
         # 2. Load recent data for analysis
         # We use a sample of recent data to calculate SHAP values

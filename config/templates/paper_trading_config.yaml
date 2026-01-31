@@ -1,263 +1,36 @@
-# Paper Trading Configuration
-# ============================
-#
-# SAFE DEFAULTS FOR RETAIL TRADERS
-# DO NOT modify these settings unless you understand the risks!
-#
-# This configuration is designed for:
-# - Paper trading (simulated orders, NO real money)
-# - Conservative risk management
-# - Retail traders with small accounts ($1k - $10k)
-# - Learning and testing strategies
-#
-# Before going LIVE:
-# 1. Run paper trading for AT LEAST 2 weeks
-# 2. Review all trades manually
-# 3. Verify strategy performance matches expectations
-# 4. Start with VERY small position sizes on live
+# Stoic Citadel - Paper Trading Config
+# Optimized for MFT (Mid-Frequency Trading) Validation on Binance/Bybit
 
----
-# ========================================
-# EXCHANGE CONFIGURATION
-# ========================================
+dry_run: true
+stake_currency: USDT
+stake_amount: 1000
+max_open_trades: 5
+leverage: 1.0
+
 exchange:
-  name: "binance"
-
-  # IMPORTANT: Enable sandbox mode for paper trading
-  # This uses Binance testnet - NO REAL MONEY!
+  name: binance
   sandbox: true
-  testnet: true
-
-  # API credentials (testnet keys)
-  # Get testnet keys from: https://testnet.binance.vision/
-  api_key: "${BINANCE_TESTNET_API_KEY}"  # Set in .env file
-  api_secret: "${BINANCE_TESTNET_API_SECRET}"  # Set in .env file
-
-  # Rate limiting (conservative)
   rate_limit: true
-  requests_per_second: 5  # Very conservative
+  timeout_ms: 10000
 
-  # Timeouts
-  timeout_ms: 30000  # 30 second timeout
+# MFT Validation Parameters (Phase 1)
+pullback_offset_pct: 0.001  # 0.1% pullback for limit orders
+fill_rate_threshold: 0.4    # 40% target fill rate
+max_execution_latency_ms: 1500.0
 
-# ========================================
-# RISK MANAGEMENT (CONSERVATIVE)
-# ========================================
-risk:
-  # Account risk
-  risk_per_trade: 0.005  # 0.5% risk per trade (VERY conservative)
-  max_risk_per_day: 0.02  # 2% max daily risk
-  max_drawdown_pct: 10.0  # Stop trading at 10% drawdown
+# Risk Scaling (Phase 2)
+max_daily_drawdown_pct: 0.03
+max_consecutive_losses: 5
 
-  # Position sizing
-  max_position_size_pct: 0.10  # Max 10% of balance per position
-  max_open_positions: 3  # Max 3 simultaneous positions
+regime_multipliers:
+  grind: 1.5
+  pump_dump: 0.8
+  ranging: 1.0
+  crash: 0.5
 
-  # Leverage (DISABLED for safety)
-  max_leverage: 1.0  # No leverage (spot only)
-  allow_margin: false  # Disable margin trading
-  allow_futures: false  # Disable futures trading
-
-  # Circuit breaker
-  max_consecutive_losses: 3  # Stop after 3 losses in a row
-  max_daily_loss_pct: 5.0  # Stop at 5% daily loss
-  cooldown_after_loss_minutes: 60  # Wait 1 hour after hitting limit
-
-# ========================================
-# PRE-TRADE CHECKS (STRICT)
-# ========================================
-pre_trade:
-  # Balance checks
-  min_balance_buffer: 0.10  # Keep 10% balance as reserve
-  max_balance_per_trade: 0.15  # Max 15% of balance per trade
-
-  # Notional limits
-  min_notional_usd: 15.0  # Min $15 order (above exchange minimums)
-  max_notional_usd: 500.0  # Max $500 per order (conservative)
-
-  # Price safety
-  max_price_deviation_pct: 3.0  # Max 3% deviation from market
-
-  # Position limits
-  max_open_positions: 3  # Matches risk.max_open_positions
-  max_daily_trades: 20  # Max 20 trades per day (prevent overtrading)
-
-# ========================================
-# ORDER EXECUTION
-# ========================================
-execution:
-  # Order types
-  default_order_type: "limit"  # Use limit orders by default
-  allow_market_orders: false  # Disable market orders (slippage)
-
-  # Smart limit execution
-  use_smart_limit: true  # Use fee-optimized execution
-  max_chase_duration_sec: 30  # Chase for max 30 seconds
-  max_chase_attempts: 3  # Max 3 price adjustments
-
-  # Timeouts
-  order_timeout_sec: 300  # Cancel orders after 5 minutes
-
-  # Slippage
-  max_slippage_pct: 0.5  # Max 0.5% slippage tolerance
-
-# ========================================
-# TRADING HOURS (OPTIONAL)
-# ========================================
-trading_hours:
-  enabled: false  # Disable time restrictions (24/7 crypto)
-
-  # If enabled, only trade during these hours (UTC)
-  start_hour: 9  # 9 AM UTC
-  end_hour: 17  # 5 PM UTC
-
-  # Days of week (0 = Monday, 6 = Sunday)
-  trading_days: [0, 1, 2, 3, 4]  # Monday - Friday only
-
-# ========================================
-# STRATEGY SETTINGS
-# ========================================
 strategy:
-  # Example strategy config (customize for your strategy)
-  name: "paper_trading_bot"
-
-  # Pairs to trade (start with just 1-2 pairs)
-  pairs:
-    - "BTC/USDT"
-    # - "ETH/USDT"  # Uncomment to add more pairs
-
-  # Timeframes
-  timeframe: "1h"  # Hourly candles
-
-  # Indicators (example)
-  indicators:
-    sma_short: 14
-    sma_long: 50
-    rsi_period: 14
-    rsi_overbought: 70
-    rsi_oversold: 30
-
-# ========================================
-# BACKTESTING (for validation)
-# ========================================
-backtest:
-  # Data
-  start_date: "2024-01-01"
-  end_date: "2024-12-31"
-
-  # Fees and slippage
-  commission_pct: 0.001  # 0.1% maker fee
-  slippage_pct: 0.0005  # 0.05% slippage
-
-  # Initial balance
-  initial_balance: 10000.0  # $10k starting capital
-
-  # Validation
-  min_sharpe_ratio: 1.0  # Require at least 1.0 Sharpe
-  min_win_rate: 0.45  # Require at least 45% win rate
-  max_drawdown_pct: 20.0  # Reject if >20% drawdown
-
-# ========================================
-# MONITORING AND ALERTS
-# ========================================
-monitoring:
-  # Logging
-  log_level: "INFO"  # INFO, DEBUG, WARNING, ERROR
-  log_to_file: true
-  log_file: "logs/paper_trading.log"
-
-  # Alerts (optional - configure in .env)
-  telegram_enabled: false
-  telegram_bot_token: "${TELEGRAM_BOT_TOKEN}"
-  telegram_chat_id: "${TELEGRAM_CHAT_ID}"
-
-  # Email alerts (optional)
-  email_enabled: false
-  email_smtp_server: "smtp.gmail.com"
-  email_from: "${ALERT_EMAIL}"
-  email_to: "${ALERT_EMAIL}"
-
-  # Alert triggers
-  alert_on_trade: true  # Alert on every trade
-  alert_on_error: true  # Alert on errors
-  alert_on_circuit_breaker: true  # Alert when circuit breaker trips
-  alert_on_daily_pnl: true  # Daily PnL summary
-
-# ========================================
-# DATABASE (Order Ledger)
-# ========================================
-database:
-  # SQLite for simplicity (upgrade to PostgreSQL for production)
-  type: "sqlite"
-  path: "data/paper_trading_orders.db"
-
-  # Retention
-  order_retention_days: 365  # Keep orders for 1 year
-
-# ========================================
-# SAFETY LIMITS (HARD LIMITS)
-# ========================================
-safety:
-  # Emergency kill switch
-  kill_switch_file: ".kill_switch"  # Create this file to stop bot
-  check_kill_switch_interval_sec: 10
-
-  # Balance protection
-  min_balance_to_trade: 100.0  # Stop if balance drops below $100
-
-  # Daily limits (hard caps)
-  max_trades_per_day: 20
-  max_loss_per_day_usd: 200.0  # Stop at $200 daily loss
-
-  # Position limits
-  max_position_value_usd: 1000.0  # Max $1k per position
-
-  # API limits
-  max_api_errors_per_minute: 5  # Trip circuit breaker
-
-# ========================================
-# PAPER TRADING SIMULATION
-# ========================================
-paper_trading:
-  # Initial simulated balance
-  initial_balance: 10000.0  # $10k
-
-  # Simulated fees (match real exchange)
-  maker_fee: 0.001  # 0.1%
-  taker_fee: 0.001  # 0.1%
-
-  # Simulated slippage
-  slippage_pct: 0.0005  # 0.05%
-
-  # Order fill simulation
-  fill_probability: 0.95  # 95% of limit orders get filled
-  partial_fill_probability: 0.10  # 10% chance of partial fill
-
-  # Market impact (for large orders)
-  market_impact_pct: 0.0001  # 0.01% per $1k notional
-
-# ========================================
-# IMPORTANT NOTES
-# ========================================
-#
-# 1. NEVER use real API keys in paper trading config
-# 2. ALWAYS verify sandbox: true before starting
-# 3. Test for AT LEAST 2 weeks before going live
-# 4. Start live with 10x smaller position sizes
-# 5. Monitor EVERY trade manually in paper trading
-# 6. Review logs daily for errors/warnings
-# 7. Use kill switch file to emergency stop: touch .kill_switch
-# 8. Keep detailed notes of all parameter changes
-#
-# BEFORE GOING LIVE:
-# [ ] Ran paper trading for 2+ weeks
-# [ ] Reviewed all trades manually
-# [ ] Strategy Sharpe ratio > 1.0
-# [ ] Strategy win rate > 45%
-# [ ] Max drawdown < 20%
-# [ ] No errors in logs
-# [ ] Understand every parameter in this file
-# [ ] Have emergency contact plan
-# [ ] Start with 10% of planned position sizes
-#
-# ========================================
+  name: StoicEnsembleStrategyV7
+  timeframe: 1m
+  max_positions: 5
+  max_slippage_pct: 0.2
+  maker_timeout: 30

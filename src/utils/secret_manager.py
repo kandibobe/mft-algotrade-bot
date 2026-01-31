@@ -29,18 +29,34 @@ class SecretManager:
         The identifier can be a Vault path (e.g., 'exchange/binance') or
         a locally encrypted string ("ENC:...").
         """
+        secret = None
+        source = "local"
+
         if is_vault_available():
             try:
-                path, key = identifier.rsplit("/", 1)
-                secret = VaultClient.get_secret(path, key)
-                if secret:
-                    return secret
+                if "/" in identifier:
+                    path, key = identifier.rsplit("/", 1)
+                    secret = VaultClient.get_secret(path, key)
+                    if secret:
+                        source = "vault"
             except ValueError:
                 logger.warning(
                     f"Identifier '{identifier}' is not in 'path/key' format for Vault. Falling back to local."
                 )
 
-        return cls._decrypt_local(identifier)
+        if not secret:
+            secret = cls._decrypt_local(identifier)
+
+        # Audit Log (Redacted)
+        if secret:
+            # Mask the identifier if it looks sensitive, but keep enough to identify WHICH secret
+            safe_id = identifier
+            if identifier.startswith("ENC:"):
+                safe_id = identifier[:8] + "..." + identifier[-4:]
+            
+            logger.info(f"AUDIT: Secret accessed. Identifier: {safe_id}, Source: {source}")
+        
+        return secret
 
     @classmethod
     def _get_fernet(cls):

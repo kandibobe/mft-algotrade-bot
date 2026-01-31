@@ -7,18 +7,25 @@ services:
     image: stoic_citadel:latest
     container_name: stoic_freqtrade
     restart: unless-stopped
+    user: root
     volumes:
+      # Mount user_data (config, logs, db)
+      - ../user_data:/freqtrade/user_data
       # КРИТИЧНО: Монтируем исходный код src внутрь контейнера
-      - ../src:/freqtrade/user_data/src
+      # Fix: Mount to /freqtrade/src to ensure PYTHONPATH picks up live code, not built-in code
+      - ../src:/freqtrade/src
     ports:
       - "127.0.0.1:8080:8080"
-    # Исправлена команда: config.json -> config_production.json
+      - "127.0.0.1:8000:8000" # Expose metrics port
+    # Исправлена команда: config.json -> config_production.yaml
     command: >
       freqtrade trade 
       --logfile /freqtrade/user_data/logs/freqtrade.log 
       --db-url sqlite:////freqtrade/user_data/tradesv3.sqlite 
-      --config config/config_production.json 
-      --strategy StoicEnsembleStrategyV5
+      --config /freqtrade/user_data/config/config_production.yaml 
+      --strategy StoicEnsembleStrategyV7
+>>>>+++ REPLACE
+
     deploy:
       resources:
         limits:
@@ -88,7 +95,7 @@ services:
     image: redis:7-alpine
     container_name: stoic_redis
     restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes --appendfsync everysec --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --appendfsync everysec --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     ports:
@@ -101,28 +108,114 @@ services:
     networks:
       - stoic_network
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping"]
+      test: ["CMD-SHELL", "redis-cli ping"]
       interval: 10s
       timeout: 3s
       retries: 5
 
-  # Jupyter Lab - Optional: For research and analysis
-  # Uncomment to enable
-  # jupyter:
-  #   image: jupyter/scipy-notebook:latest
-  #   container_name: stoic_jupyter
-  #   restart: unless-stopped
-  #   environment:
-  #     - JUPYTER_ENABLE_LAB=yes
-  #     - JUPYTER_TOKEN=${JUPYTER_TOKEN:?JUPYTER_TOKEN not set in .env}
-  #   volumes:
-  #     - ./research:/home/jovyan/work
-  #     - ./src:/home/jovyan/src
-  #     - ./user_data:/home/jovyan/user_data
-  #   ports:
-  #     - "127.0.0.1:${JUPYTER_PORT:-8888}:8888"
-  #   networks:
-  #     - stoic_network
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: stoic_redis_commander
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "127.0.0.1:8082:8081"
+    networks:
+      - stoic_network
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # MONITORING STACK
+  # ==============================================================================
+
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: stoic_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - stoic_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: stoic_grafana
+    restart: unless-stopped
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+    ports:
+      - "127.0.0.1:3001:3000"
+    networks:
+      - stoic_network
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: stoic_node_exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "127.0.0.1:9100:9100"
+    networks:
+      - stoic_network
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: stoic_cadvisor
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "127.0.0.1:8081:8080"
+    networks:
+      - stoic_network
+    devices:
+      - /dev/kmsg
 
 networks:
   stoic_network:
@@ -132,4 +225,8 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
     driver: local

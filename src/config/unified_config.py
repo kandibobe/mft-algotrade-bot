@@ -43,6 +43,7 @@ from typing import Any, Callable, Literal
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+from src.risk.volatility_scaler import VolatilityScalerConfig
 from src.utils.secret_manager import SecretManager
 
 try:
@@ -214,9 +215,9 @@ class StrategyConfig(BaseModel):
 
     # Entry Parameters
     min_adx: float = Field(default=20.0, ge=0.0, le=100.0, description="Minimum ADX")
-    ml_confidence_base: float = Field(default=0.60, ge=0.1, le=0.95, description="Base ML confidence threshold")
+    ml_confidence_base: float = Field(default=0.70, ge=0.1, le=0.95, description="Base ML confidence threshold")
     ml_confidence_max: float = Field(default=0.90, ge=0.1, le=0.95, description="Max ML confidence threshold in high volatility")
-    hurst_trending_threshold: float = Field(default=0.50, ge=0.0, le=1.0, description="Hurst threshold for trending regime")
+    hurst_trending_threshold: float = Field(default=0.60, ge=0.0, le=1.0, description="Hurst threshold for trending regime")
     rsi_oversold: float = Field(default=30.0, ge=0.0, le=100.0, description="RSI oversold")
     rsi_overbought: float = Field(default=70.0, ge=0.0, le=100.0, description="RSI overbought")
     stoch_oversold: float = Field(default=30.0, ge=0.0, le=100.0, description="Stoch oversold")
@@ -230,10 +231,10 @@ class StrategyConfig(BaseModel):
     exit_stoch_overbought: float = Field(default=80.0, ge=0.0, le=100.0, description="Exit Stoch")
 
     # ROI Table
-    roi_0: float = Field(default=0.15, ge=0.0, description="Immediate ROI")
-    roi_30: float = Field(default=0.08, ge=0.0, description="30-minute ROI")
-    roi_60: float = Field(default=0.05, ge=0.0, description="60-minute ROI")
-    roi_120: float = Field(default=0.03, ge=0.0, description="120-minute ROI")
+    roi_0: float = Field(default=0.04, ge=0.0, description="Immediate ROI")
+    roi_30: float = Field(default=0.02, ge=0.0, description="30-minute ROI")
+    roi_60: float = Field(default=0.01, ge=0.0, description="60-minute ROI")
+    roi_120: float = Field(default=0.005, ge=0.0, description="120-minute ROI")
 
     # Regime Detection
     regime_aware: bool = Field(default=True, description="Enable regime detection")
@@ -352,6 +353,7 @@ class SystemConfig(BaseModel):
 
     log_level: str = Field(default="INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR)")
     db_url: str = Field(default="sqlite:///user_data/stoic_citadel.db", description="Database URL")
+    redis_url: str = Field(default="redis://localhost:6379/0", description="Redis URL for caching and state")
     sentry_dsn: str | None = Field(default=None, description="Sentry DSN for error tracking")
     ws_watchdog_timeout: float = Field(default=5.0, ge=1.0, le=60.0, description="WebSocket watchdog timeout in seconds")
 
@@ -397,7 +399,7 @@ class TradingConfig(BaseSettings):
     pairs: list[str] = Field(default=["BTC/USDT"], min_length=1, description="Trading pairs")
     timeframe: str = Field(default="1h", description="Main trading timeframe")
     stake_currency: str = Field(default="USDT", description="Quote currency for stake")
-    stake_amount: float = Field(default=100.0, ge=1.0, description="Stake amount per trade")
+    stake_amount: float | str = Field(default=100.0, description="Stake amount per trade")
     max_open_trades: int = Field(
         default=3, ge=1, le=20, description="Maximum concurrent open trades"
     )
@@ -426,12 +428,36 @@ class TradingConfig(BaseSettings):
         default=True, description="Use smart limit orders for fee optimization"
     )
 
+    # MFT Live Validation Parameters
+    pullback_offset_pct: float = Field(default=0.001, ge=0.0, le=0.01, description="Pullback offset for limit orders")
+    fill_rate_threshold: float = Field(default=0.4, ge=0.1, le=1.0, description="Minimum acceptable fill rate")
+    max_execution_latency_ms: float = Field(default=1500.0, ge=100.0, le=5000.0, description="Max allowed signal-to-order latency")
+
+    # Risk Scaling Parameters
+    volatility_scaler: VolatilityScalerConfig = Field(
+        default_factory=VolatilityScalerConfig,
+        description="Configuration for the dynamic volatility scaler."
+    )
+    regime_multipliers: dict[str, float] = Field(
+        default={
+            "grind": 1.5,
+            "pump_dump": 0.8,
+            "ranging": 1.0,
+            "crash": 0.5
+        },
+        description="[DEPRECATED] Position size multipliers based on market regime. Use volatility_scaler instead."
+    )
+
+    # Kill-Switch Thresholds
+    max_daily_drawdown_pct: float = Field(default=0.03, ge=0.01, le=0.1, description="Kill-switch daily drawdown threshold")
+    max_consecutive_losses: int = Field(default=5, ge=1, le=10, description="Kill-switch consecutive loss limit")
+
     # Environment variables for API credentials
     api_key: str | None = Field(default=None, validation_alias="BINANCE_API_KEY")
     api_secret: str | None = Field(default=None, validation_alias="BINANCE_API_SECRET")
 
     # Telegram environment variables
-    telegram_token: str | None = Field(default=None, validation_alias="TELEGRAM_TOKEN")
+    telegram_token: str | None = Field(default=None, validation_alias="TELEGRAM_BOT_TOKEN")
     telegram_chat_id: str | None = Field(default=None, validation_alias="TELEGRAM_CHAT_ID")
 
     # Alternative Data Sources (Optional)
@@ -463,6 +489,21 @@ class TradingConfig(BaseSettings):
         """Warn about high leverage."""
         if v > 5.0:
             logger.warning(f"Leverage {v}x is high! Consider lower leverage for safety.")
+        return v
+
+    @field_validator("stake_amount")
+    @classmethod
+    def validate_stake_amount(cls, v: float | str) -> float | str:
+        """Validate stake amount."""
+        if isinstance(v, str):
+            if v.lower() == "unlimited":
+                return "unlimited"
+            try:
+                return float(v)
+            except ValueError:
+                raise ValueError(f"Invalid stake_amount: {v}. Must be a number or 'unlimited'")
+        if v < 1.0:
+            raise ValueError("Stake amount must be at least 1.0")
         return v
 
     @model_validator(mode="after")

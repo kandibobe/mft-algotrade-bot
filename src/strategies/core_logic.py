@@ -69,22 +69,19 @@ class StoicLogic:
         df = dataframe.copy()
 
         # 1. Core Technicals
-        df["ema_50"] = calculate_ema(df["close"], 50)
-        df["ema_100"] = calculate_ema(df["close"], 100)
-        df["ema_200"] = calculate_ema(df["close"], 200)
-        df["rsi"] = calculate_rsi(df["close"], 14)
-        df["atr"] = calculate_atr(df["high"], df["low"], df["close"], 14)
-
-        macd = calculate_macd(df["close"])
-        df["macd"] = macd["macd"]
-        df["macd_signal"] = macd["signal"]
-        df["macd_hist"] = macd["histogram"]
-
-        bb = calculate_bollinger_bands(df["close"], 20, 2.0)
-        df["bb_lower"] = bb["lower"]
-        df["bb_middle"] = bb["middle"]
-        df["bb_upper"] = bb["upper"]
-        df["bb_width"] = bb["width"]
+        df = calculate_ema(df, 50)
+        df = calculate_ema(df, 100)
+        df = calculate_ema(df, 200)
+        df = calculate_rsi(df, 14)
+        df = calculate_atr(df, 14)
+        df = calculate_macd(df)
+        df = calculate_bollinger_bands(df, 20, 2.0)
+        df["bb_lower"] = df["bb_lower"]
+        df["bb_middle"] = df["bb_middle"]
+        df["bb_upper"] = df["bb_upper"]
+        # bb_width might be missing from calculate_bollinger_bands
+        if "bb_upper" in df.columns and "bb_lower" in df.columns:
+            df["bb_width"] = (df["bb_upper"] - df["bb_lower"]) / df["bb_middle"]
 
         # Stochastic (Legacy/Robustness)
         low_min = df["low"].rolling(window=14).min()

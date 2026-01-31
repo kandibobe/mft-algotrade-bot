@@ -17,7 +17,10 @@ from src.risk.risk_manager import RiskManager
 @pytest.fixture
 def risk_manager():
     # Setup mock config
-    os.environ["STOIC_CONFIG_PATH"] = "config/config.json.template" # fallback or use mock
+    # os.environ["STOIC_CONFIG_PATH"] = "config/config.json.template" # fallback or use mock
+    if "STOIC_CONFIG_PATH" in os.environ:
+        del os.environ["STOIC_CONFIG_PATH"]
+        
     # Initialize Config Manager (mocking the singleton)
     ConfigurationManager._instance = None # Reset
     # Create RiskManager with auto-load

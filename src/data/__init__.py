@@ -34,15 +34,6 @@ def __getattr__(name):
             FetcherConfig,
             fetch_ohlcv_async,
         )
-
-__all__ = [
-    "AsyncDataFetcher",
-    "AsyncOrderExecutor",
-    "FetcherConfig",
-    "fetch_ohlcv_async",
-]
-
-    if name in __all__:
         return locals()[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

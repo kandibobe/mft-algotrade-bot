@@ -43,7 +43,7 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Unexpected error sending Telegram message: {e}")
 
-    async def send_message_async(self, message: str):
+    async def send_message_async(self, message: str, reply_markup: dict | None = None):
         """
         Send a message to the configured Telegram chat (Asynchronous).
         Use this in AsyncIO loops to avoid blocking.
@@ -53,6 +53,8 @@ class TelegramBot:
 
         url = f"https://api.telegram.org/bot{self.token}/sendMessage"
         payload = {"chat_id": self.chat_id, "text": message, "parse_mode": "HTML"}
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
 
         try:
             async with aiohttp.ClientSession() as session:

@@ -132,6 +132,21 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
                 try:
                     from src.order_manager.smart_order import ChaseLimitOrder
 
+                    # Get the features that led to this decision
+                    dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+                    features = dataframe.iloc[-1].to_dict()
+
+                    # Clean up for JSON serialization
+                    for key, value in features.items():
+                        if isinstance(value, (np.integer, np.int64)):
+                            features[key] = int(value)
+                        elif isinstance(value, (np.floating, np.float64)):
+                            features[key] = float(value)
+                        elif isinstance(value, (np.bool_)):
+                            features[key] = bool(value)
+                        elif pd.isna(value):
+                            features[key] = None
+                            
                     # Construct Smart Order
                     smart_order = ChaseLimitOrder(
                         symbol=pair,
@@ -142,6 +157,7 @@ class BaseStoicStrategy(HybridConnectorMixin, StoicRiskMixin, IStrategy):
                             "strategy": self.get_strategy_name(),
                             "tag": entry_tag,
                         },
+                        signal_features=features,
                     )
 
                     # Submit to Async Executor

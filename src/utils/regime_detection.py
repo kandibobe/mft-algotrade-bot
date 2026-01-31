@@ -113,7 +113,8 @@ def calculate_regime(
 
     # Masks
     is_high_vol = result["vol_zscore"] > VOL_HIGH_THRESHOLD
-    is_trending = (result["adx"] > TREND_ADX_THRESHOLD) & (result["hurst"] > TREND_HURST_THRESHOLD)
+    # Raise ADX threshold to 30 for stricter trend detection
+    is_trending = (result["adx"] > 30.0) & (result["hurst"] > 0.6)
 
     # Apply Logic
     # 1. QUIET CHOP (Default) -> Low Vol + No Trend

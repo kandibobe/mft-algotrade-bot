@@ -113,6 +113,10 @@ class DataAggregator:
 
         # Background tasks
         self._background_tasks = set()
+        
+        # Watchdog settings
+        self._watchdog_timeout = 10.0  # Seconds before considering a stream dead
+        self._last_update: dict[Exchange, float] = {}
 
     def add_exchange(
         self, exchange: Exchange, symbols: list[str], channels: list[str] | None = None
@@ -158,6 +162,10 @@ class DataAggregator:
         self._background_tasks.add(task2)
         task2.add_done_callback(self._background_tasks.discard)
 
+        task3 = asyncio.create_task(self._watchdog_loop())
+        self._background_tasks.add(task3)
+        task3.add_done_callback(self._background_tasks.discard)
+
         tasks = [asyncio.create_task(stream.start()) for stream in self._streams.values()]
         logger.info(f"Started aggregator with {len(self._streams)} exchanges")
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -171,6 +179,10 @@ class DataAggregator:
 
     async def _process_ticker(self, ticker: TickerData):
         """Process incoming ticker data."""
+        # Update watchdog timestamp
+        exchange_enum = Exchange(ticker.exchange) if isinstance(ticker.exchange, str) else ticker.exchange
+        self._last_update[exchange_enum] = time.time()
+
         symbol = self._normalize_symbol(ticker.symbol)
         if self._is_data_valid(ticker):
             # Check for extreme outliers against current state
@@ -344,6 +356,19 @@ class DataAggregator:
             await asyncio.sleep(self._volume_window_seconds)
             for symbol in self._trade_volumes:
                 self._trade_volumes[symbol] = TradeVolume(symbol=symbol)
+
+    async def _watchdog_loop(self):
+        """Monitor stream health and warn on silence."""
+        while self._running:
+            await asyncio.sleep(1.0)
+            now = time.time()
+            for exchange, last_time in self._last_update.items():
+                if now - last_time > self._watchdog_timeout:
+                    logger.warning(
+                        f"Watchdog Alert: No data from {exchange.value} for {now - last_time:.1f}s"
+                    )
+                    # Future: trigger auto-reconnect here
+                    # await self._streams[exchange].reconnect()
 
     def get_aggregated_ticker(self, symbol: str) -> AggregatedTicker | None:
         symbol = self._normalize_symbol(symbol)

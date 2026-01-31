@@ -423,7 +423,38 @@ class NightlyHyperparameterOptimizer:
         logger.info(f"Final dataset: {len(X)} samples, {X.shape[1]} features")
         logger.info(f"Binary label distribution: {y_binary.value_counts().to_dict()}")
 
+        # 📊 Phase 2: Live/Shadow Data Weighting
+        # We increase the weight of the last 7 days of data if it exists
+        if live_weight > 1.0:
+            last_date = X.index[-1]
+            start_weight_date = last_date - timedelta(days=7)
+            weights = np.ones(len(X))
+            live_mask = X.index >= start_weight_date
+            weights[live_mask] = live_weight
+            logger.info(f"Applied live weight {live_weight} to {live_mask.sum()} samples (last 7 days)")
+            
+            # Note: objective function needs to be updated to use weights if we want to use them during fit
+            # For now we just return them as part of the data if needed, or use them to resample.
+            # Simple approach: oversample recent data
+            recent_X = X[live_mask]
+            recent_y = y_binary[live_mask]
+            recent_close = close_prices[live_mask]
+            
+            # Concatenate recent data again to simulate higher weight
+            X = pd.concat([X, recent_X])
+            y_binary = pd.concat([y_binary, recent_y])
+            close_prices = pd.concat([close_prices, recent_close])
+            
+            # Re-sort by index to maintain time series order
+            X = X.sort_index()
+            y_binary = y_binary.sort_index()
+            close_prices = close_prices.sort_index()
+            
+            logger.info(f"Dataset expanded with oversampled recent data: {len(X)} samples")
+
         return X, y_binary, close_prices
+>>>>+++ REPLACE
+
 
     def optimize(
         self,

@@ -104,6 +104,7 @@ class HealthCheck:
             "circuit_breaker": self.check_circuit_breaker,
             "redis": self.check_redis,
             "system_resources": self.check_system_resources,
+            "model_memory": self.check_model_memory,
         }
 
         # Initialize component clients
@@ -546,6 +547,59 @@ class HealthCheck:
         except Exception as e:
             logger.error(f"Redis health check failed: {e}")
             return {"status": "unhealthy", "details": f"Redis error: {e!s}", "healthy": False}
+
+    async def check_model_memory(self) -> dict[str, Any]:
+        """
+        Check memory usage of ML models and Feature Store.
+        
+        Specifically monitors for OOM risks in Docker environment (limit 4GB).
+        """
+        try:
+            import os
+            import psutil
+            import sys
+            
+            process = psutil.Process(os.getpid())
+            memory_info = process.memory_info()
+            rss_mb = memory_info.rss / (1024 * 1024)
+            
+            # Docker limit is often 4GB. Set thresholds accordingly.
+            # 3.5GB is critical, 2.5GB is warning.
+            danger_threshold_mb = 3500
+            warning_threshold_mb = 2500
+            
+            details = {
+                "process_rss_mb": round(rss_mb, 2),
+                "limit_mb": 4096,  # Assuming 4GB docker limit
+                "utilization_percent": round((rss_mb / 4096) * 100, 1)
+            }
+            
+            status = "healthy"
+            is_healthy = True
+            
+            if rss_mb > danger_threshold_mb:
+                status = "unhealthy"
+                is_healthy = False
+                details["warning"] = "CRITICAL: Memory usage approaching container limit (4GB). OOM Risk!"
+                logger.error(f"High Memory Alert: {rss_mb}MB used. Approaching 4GB limit.")
+            elif rss_mb > warning_threshold_mb:
+                status = "warning"
+                is_healthy = True # Warning but still running
+                details["warning"] = "High memory usage detected (ML Models/Feature Store)"
+                
+            # Try to estimate model count
+            if self.ml_client and hasattr(self.ml_client, "models"):
+                 details["loaded_models_count"] = len(self.ml_client.models)
+
+            return {
+                "status": status,
+                "details": details,
+                "healthy": is_healthy
+            }
+            
+        except Exception as e:
+            logger.error(f"Model memory check failed: {e}")
+            return {"status": "unhealthy", "details": str(e), "healthy": False}
 
     async def check_system_resources(self) -> dict[str, Any]:
         """

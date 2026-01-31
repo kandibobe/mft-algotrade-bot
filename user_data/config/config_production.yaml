@@ -1,0 +1,86 @@
+# Stoic Citadel Production Configuration (Migrated from JSON to Pydantic-compatible YAML)
+
+# 1. Trading Pairs & Timeframe
+pairs:
+  - BTC/USDT
+  - ETH/USDT
+timeframe: "5m"
+stake_currency: "USDT"
+stake_amount: 100.0  # Set a safe default, override via env vars if needed
+max_open_trades: 3
+dry_run: true  # CRITICAL: Always default to dry_run=True in config files. Enable live via ENV.
+
+# 2. Exchange Configuration
+exchange:
+  name: "binance"
+  sandbox: false  # Default to mainnet (but dry_run protects us)
+  rate_limit: true
+  timeout_ms: 30000
+
+# 3. Strategy Settings
+strategy:
+  name: "StoicEnsembleStrategyV7"
+  risk_per_trade: 0.02
+  max_positions: 3
+  max_drawdown: 0.15
+  stoploss: -0.05
+  trailing_stop: true
+  
+  # Execution Parameters (MFT)
+  max_slippage_pct: 0.5
+  fee: 0.001
+  
+  # ML Parameters
+  ml_confidence_base: 0.60
+  ml_confidence_max: 0.90
+  
+  # Regime Detection
+  regime_aware: true
+  regime_adx_threshold: 25.0
+
+# 4. Risk Management (Global Gates)
+risk:
+  max_position_pct: 0.20  # Max 20% of portfolio per trade
+  max_portfolio_risk: 0.05 # Max 5% total risk
+  max_drawdown_pct: 0.20  # Circuit breaker trigger at 20% drawdown
+  max_daily_loss_pct: 0.05 # Stop trading if down 5% in a day
+  stop_loss_pct: 0.05
+  take_profit_pct: 0.08
+  use_atr_sizing: true
+  
+  # Advanced Guards
+  liquidation_buffer: 0.20
+  max_safe_leverage: 3.0
+  max_correlation: 0.70
+
+# 5. Machine Learning Pipeline
+ml:
+  model_type: "lightgbm"
+  feature_selection: true
+  optimize_hyperparams: true
+  cv_folds: 5
+  label_method: "triple_barrier"
+
+# 6. Feature Store
+feature_store:
+  enabled: true
+  use_redis: true
+  redis_url: "redis://redis:6379"
+
+# 7. System Paths
+paths:
+  user_data_dir: "user_data"
+  data_dir: "user_data/data"
+  models_dir: "user_data/models"
+  logs_dir: "user_data/logs"
+  db_url: "sqlite:///user_data/stoic_citadel.db"
+
+# 8. Notifications
+telegram:
+  enabled: true
+  # Token and Chat ID should be injected via ENV vars: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+
+# 9. System
+system:
+  log_level: "INFO"
+  ws_watchdog_timeout: 5.0

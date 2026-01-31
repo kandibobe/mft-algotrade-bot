@@ -40,6 +40,7 @@ from src.telegram_bot.handlers import (
     volatility_handler,
     watchlist_handler,
 )
+from src.telegram_bot.services.notification_service import NotificationService
 from src.telegram_bot.handlers import common as common_main_handlers
 from src.telegram_bot.localization.manager import get_text
 from src.utils.logger import log as logger
@@ -97,6 +98,14 @@ async def post_init(application: Application):
             interval=ONCHAIN_FETCH_INTERVAL,
             first=60,
             name="OnChainDataFetch",
+        )
+        
+        # System Heartbeat (every hour)
+        jq.run_repeating(
+            jobs.system_heartbeat,
+            interval=3600,
+            first=60,
+            name="SystemHeartbeat"
         )
 
         try:
@@ -160,6 +169,15 @@ def create_bot_application() -> Application:
     application.add_handler(alert_handler.edit_alert_conv_handler)
     application.add_handler(analytics_chat_handler.analytics_chat_conv_handler)
 
+    # Initialize Notification Service
+    notification_service = NotificationService(application)
+    application.bot_data["notification_service"] = notification_service
+
+    # Add Job to update live dashboard
+    jq = application.job_queue
+    if jq:
+        jq.run_repeating(jobs.update_live_dashboard, interval=30, first=10, name="LiveDashboard")
+
     # Commands
     application.add_handler(CommandHandler(constants.CMD_START, common_main_handlers.start))
     application.add_handler(CommandHandler(constants.CMD_HELP, common_main_handlers.help_command))
@@ -185,6 +203,9 @@ def create_bot_application() -> Application:
     application.add_handler(CommandHandler("balance", mft_control_handler.balance_command))
     application.add_handler(CommandHandler("positions", mft_control_handler.positions_command))
     application.add_handler(CommandHandler("stop_panic", mft_control_handler.stop_panic_command))
+    application.add_handler(CommandHandler("logs", mft_control_handler.logs_command))
+    application.add_handler(CommandHandler("features", mft_control_handler.features_command))
+    application.add_handler(CommandHandler("whitelist", mft_control_handler.whitelist_command))
 
     # Message Handlers for Menus
     application.add_handler(
@@ -227,3 +248,6 @@ def run_bot():
     if app:
         logger.info("Starting Telegram Bot Polling...")
         app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+
+if __name__ == "__main__":
+    run_bot()

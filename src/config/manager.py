@@ -25,11 +25,16 @@ class ConfigurationManager:
         if cls._instance is not None:
             logger.warning("Configuration already initialized, reloading...")
 
-        # Priority: Argument > Environment Variable > Default
+        # Priority: Argument > Environment Variable > Hardcoded Docker Path > Default
         path = config_path or os.getenv("STOIC_CONFIG_PATH")
+        
+        # Fallback for Docker deployment if no env var is set
+        if not path and os.path.exists("/freqtrade/user_data/config/config_production.yaml"):
+             path = "/freqtrade/user_data/config/config_production.yaml"
 
         try:
             cls._instance = load_config(path)
+
             cls._config_path = path
 
             # Run safety checks

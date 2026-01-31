@@ -1,9 +1,9 @@
 """
-Integration Tests for Stoic Ensemble Strategy V6
+Integration Tests for Stoic Ensemble Strategy V7
 ===============================================
 
 Tests the integration of HybridConnector, RiskManager, and ML components 
-into the V6 strategy implementation.
+into the V7 strategy implementation.
 """
 
 import sys
@@ -14,19 +14,19 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-# Add user_data to path so we can import strategies
-sys.path.append(str(Path(__file__).parent.parent.parent / "user_data"))
+# Add user_data/strategies to path so we can import strategies
+sys.path.append(str(Path(__file__).parent.parent.parent / "user_data" / "strategies"))
 
-from strategies.StoicEnsembleStrategyV6 import StoicEnsembleStrategyV6
+from StoicEnsembleStrategyV7 import StoicEnsembleStrategyV7
 
 from src.websocket.aggregator import AggregatedTicker
 
 
-class TestStoicV6Integration:
+class TestStoicV7Integration:
 
     @pytest.fixture
     def strategy(self):
-        """Create a mocked V6 strategy instance."""
+        """Create a mocked V7 strategy instance."""
         # Mock Config
         mock_config = {
             "exchange": {
@@ -40,17 +40,15 @@ class TestStoicV6Integration:
 
         # Mock Freqtrade Strategy Init
         with patch('freqtrade.strategy.IStrategy.__init__', return_value=None):
-            strat = StoicEnsembleStrategyV6(config=mock_config)
+            strat = StoicEnsembleStrategyV7(config=mock_config)
             strat.config = mock_config
             strat.dp = MagicMock()
             strat.dp.runmode.value = 'live'
 
-            # Manually trigger bot_start behavior if needed
-            # In V6, base_strategy handles some of this
             return strat
 
-    def test_v6_initialization(self, strategy):
-        """Test that V6 initializes with expected parameters."""
+    def test_v7_initialization(self, strategy):
+        """Test that V7 initializes with expected parameters."""
         assert strategy.INTERFACE_VERSION >= 3
         assert hasattr(strategy, 'ml_confidence_threshold')
         assert strategy.trailing_stop is True
@@ -68,15 +66,12 @@ class TestStoicV6Integration:
             'prediction_confidence': [0.9]
         })
 
-        with patch('user_data.strategies.StoicEnsembleStrategyV6.create_feature_store', return_value=mock_fs):
+        with patch('StoicEnsembleStrategyV7.create_feature_store', return_value=mock_fs):
             # We need to ensure populate_indicators is called
             # and it handles the feature store initialization
             df_out = strategy.populate_indicators(df, metadata)
 
-            assert 'ml_prediction' in df_out.columns or 'ml_prediction' in strategy.feature_store_data_if_any # V6 implementation detail dependent
-            # Based on the code I read:
-            # dataframe.iloc[-1, dataframe.columns.get_loc('ml_prediction')] = latest_pred
-            # Wait, V6.py uses dataframe.columns.get_loc('ml_prediction'), so it must exist first.
+            assert 'ml_prediction' in df_out.columns
 
     def test_market_safety_gate(self, strategy):
         """Test the HybridConnector safety gate integration."""
@@ -118,18 +113,12 @@ class TestStoicV6Integration:
 
         if hasattr(strategy, 'custom_entry_price'):
             with patch.object(strategy, 'get_realtime_metrics', return_value=mock_ticker):
-                # Check signature - Freqtrade often changes this.
-                # We'll use kwargs to be safe if it's not present in the public version yet.
-                try:
-                    price = strategy.custom_entry_price(
-                        pair="BTC/USDT",
-                        trade=mock_trade,
-                        current_time=datetime.now(),
-                        proposed_rate=50000.0,
-                        entry_tag="test",
-                        side="long"
-                    )
-                    assert price == 49950.0
-                except TypeError:
-                    # Fallback for older/different signature if needed
-                    pass
+                price = strategy.custom_entry_price(
+                    pair="BTC/USDT",
+                    trade=mock_trade,
+                    current_time=datetime.now(),
+                    proposed_rate=50000.0,
+                    entry_tag="test",
+                    side="long"
+                )
+                assert price == 49950.0

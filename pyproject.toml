@@ -74,7 +74,8 @@ dependencies = [
     
     # Monitoring
     "prometheus-client>=0.19.0",
-    
+    "watchdog>=4.0.0",
+
     # Performance
     "numba>=0.58.0",
     
@@ -234,6 +235,8 @@ python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+disallow_untyped_defs = true
+check_untyped_defs = true
 exclude = [
     "tests",
     "user_data/data",

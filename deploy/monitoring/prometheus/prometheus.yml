@@ -5,5 +5,5 @@ global:
 scrape_configs:
   - job_name: 'stoic_citadel'
     static_configs:
-      - targets: ['localhost:8000'] # Exporter host and port
+      - targets: ['freqtrade:8000'] # Exporter host and port (container name)
     metrics_path: '/metrics'

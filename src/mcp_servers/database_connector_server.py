@@ -29,9 +29,12 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+from sqlalchemy import text, inspect
 from config.database import get_db_config
 
 # Logging
+>>>>+++ REPLACE
+
 logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
 logger = logging.getLogger("mcp-database-connector")
 
@@ -116,10 +119,30 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
         elif name == "list_tables":
             query = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
             with db_config.get_session() as session:
-                rows = session.execute(query).fetchall()
+                rows = session.execute(text(query)).fetchall()
                 tables = [row[0] for row in rows]
             return [
                 types.TextContent(type="text", text=json.dumps({"success": True, "tables": tables}))
+            ]
+
+        elif name == "get_db_schema":
+            engine = db_config.get_engine()
+            inspector = inspect(engine)
+            schema_info = {}
+            
+            for table_name in inspector.get_table_names():
+                columns = []
+                for col in inspector.get_columns(table_name):
+                    columns.append({
+                        "name": col["name"],
+                        "type": str(col["type"]),
+                        "nullable": col["nullable"],
+                        "default": str(col["default"]) if col["default"] else None
+                    })
+                schema_info[table_name] = columns
+                
+            return [
+                types.TextContent(type="text", text=json.dumps({"success": True, "schema": schema_info}, indent=2))
             ]
 
     except Exception as e:

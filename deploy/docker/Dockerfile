@@ -8,6 +8,9 @@
 # Stage 1: Builder - install dependencies and build wheels
 FROM python:3.12-slim AS builder
 
+# Install uv for fast package management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
 # Install system dependencies for building Python packages
 RUN apt-get update && apt-get install -y \
     wget \
@@ -30,16 +33,18 @@ WORKDIR /app
 # Copy dependency specification
 COPY pyproject.toml .
 
-# Create virtual environment and install dependencies
-RUN python -m venv /opt/venv
+# Create virtual environment and install dependencies using uv
+ENV VIRTUAL_ENV=/opt/venv
+RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install build dependencies and the package
-RUN pip install --upgrade pip && \
-    pip install wheel && \
-    pip install freqtrade>=2024.11 && \
-    pip install TA-Lib>=0.4.28 && \
-    pip install -e .
+# uv pip install is significantly faster than standard pip
+RUN uv pip install --upgrade pip && \
+    uv pip install wheel && \
+    uv pip install freqtrade>=2024.11 && \
+    uv pip install TA-Lib>=0.4.28 && \
+    uv pip install -e .
 
 # Stage 2: Runner - minimal production image
 FROM python:3.12-slim AS runner
@@ -73,7 +78,9 @@ COPY manage.py /freqtrade/
 RUN mkdir -p /freqtrade/user_data/{logs,data,strategies,config,backtest_results}
 
 # Copy production config
-COPY user_data/config/config_production.json /freqtrade/user_data/config/config_production.json
+COPY user_data/config/config_production.yaml /freqtrade/user_data/config/config_production.yaml
+>>>>+++ REPLACE
+
 
 RUN ls -la /freqtrade/user_data/config
 

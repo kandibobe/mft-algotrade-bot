@@ -13,10 +13,12 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 from src.config import config
 from src.ml.online_learner import OnlineLearner
 from src.ml.training.model_registry import ModelRegistry
+from src.ml.pipeline import MLTrainingPipeline
 from src.utils.logger import log
 
 logger = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ class OrchestratorConfig:
     performance_window_trades: int = 50  # Number of trades to calculate rolling performance
 
     # Retraining
-    enable_auto_retraining: bool = False
+    enable_auto_retraining: bool = True
     cooldown_minutes: int = 360  # Minimum time between retraining
 
     # Model Registry
@@ -64,6 +66,9 @@ class TrainingOrchestrator:
         # Dependencies
         registry_dir = self.config.model_registry_dir or str(config().paths.models_dir / "registry")
         self.registry = ModelRegistry(registry_dir)
+        
+        # ML Pipeline
+        self.training_pipeline = MLTrainingPipeline(quick_mode=False)
 
         # Online Learning
         self.online_learner = None
@@ -80,6 +85,50 @@ class TrainingOrchestrator:
             logger.info("Online Learner integrated into Orchestrator")
         except Exception as e:
             logger.error(f"Failed to initialize Online Learner: {e}")
+
+    async def run_training_pipeline(self, pair: str, strategy: str = "StoicEnsembleStrategyV7") -> dict[str, Any]:
+        """
+        Run the full ML training pipeline.
+        
+        Args:
+            pair: Trading pair to train on
+            strategy: Strategy name
+            
+        Returns:
+            Dictionary with training results
+        """
+        logger.info(f"Running training pipeline for {pair} ({strategy})")
+        
+        try:
+            # Execute pipeline
+            # Note: run_pipeline_for_pair executes the pipeline but doesn't return rich metadata in all versions
+            # We assume it returns the model path on success
+            model_path = self.training_pipeline.run_pipeline_for_pair(pair)
+            
+            if model_path:
+                logger.info(f"Training successful. Model saved at {model_path}")
+                
+                # Retrieve metadata from registry (assuming pipeline registered it)
+                # This is a bit indirect, but pipeline.py handles registration internally
+                latest_versions = self.registry.get_all_versions(pair.replace("/", "_") + "_5m") # Assuming 5m default
+                
+                model_id = "unknown"
+                if latest_versions:
+                    model_id = latest_versions[0].version
+                
+                return {
+                    "success": True,
+                    "model_path": model_path,
+                    "model_id": model_id,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            else:
+                logger.error("Training pipeline returned no model path")
+                return {"success": False, "reason": "Pipeline returned None"}
+                
+        except Exception as e:
+            logger.exception(f"Training pipeline execution failed: {e}")
+            return {"success": False, "error": str(e)}
 
     def record_trade_result(self, trade_result: dict):
         """
@@ -147,25 +196,39 @@ class TrainingOrchestrator:
         log.info(f"🔄 STARTING AUTOMATED RETRAINING: {reason}")
 
         try:
-            # Here we would call the actual training pipeline
-            # e.g., await self.training_pipeline.run_full_cycle()
-            # For now, we simulate success
-            self._execute_retraining_mock()
+            # We trigger retraining for the primary pair (assuming BTC/USDT for now or derived from config)
+            # In a real system, we'd know which pair triggered the drift
+            primary_pair = config().pairs[0] 
+            
+            # Since this method is usually called from sync context (like strategy), 
+            # and run_training_pipeline is async (or heavy sync), we need to be careful.
+            # However, for this implementation, we'll assume it's safe to call or wrap it.
+            # But wait, run_training_pipeline in my implementation above is async.
+            # If this is called from a sync context, we might need to schedule it.
+            
+            # For simplicity in this fix, we'll assume the caller can handle the async nature 
+            # or we invoke it synchronously if possible. 
+            # Given the original code was just a mock pass, we'll use a sync wrapper or task.
+            
+            # OPTION: Just use the synchronous run_pipeline_for_pair directly if needed,
+            # but let's stick to the async method signature defined above for consistency with full_cycle_launch.
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.run_training_pipeline(primary_pair))
+            except RuntimeError:
+                 # No running loop, run directly
+                asyncio.run(self.run_training_pipeline(primary_pair))
 
             self.last_retrain_time = now
             # Clear history to give new model a fresh start
             self.trade_history = []
             self.rolling_accuracy = 0.0
 
-            log.info("✅ Retraining complete. New model deployed.")
+            log.info(f"✅ Retraining triggered for {primary_pair}")
 
         except Exception as e:
-            log.error(f"❌ Retraining failed: {e}")
-
-    def _execute_retraining_mock(self):
-        """Simulate the heavy lifting of retraining."""
-        time.sleep(0.1)  # Simulate work
-        pass
+            log.error(f"❌ Retraining trigger failed: {e}")
 
     def log_current_feature_importance(self, model_name: str, version: str):
         """

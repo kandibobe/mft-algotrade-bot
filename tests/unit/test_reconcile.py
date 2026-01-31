@@ -76,7 +76,7 @@ class TestReconciler(unittest.TestCase):
 
         rm = RiskManager(db_path=db_path)
         rm._account_balance = Decimal("1000.0")
-        rm.record_entry("BTC/USDT", 50000.0, 0.1, 49000.0)
+        rm.record_entry("BTC/USDT", 50000.0, 0.1, 49000.0, side="long")
 
         # New instance should load state
         rm2 = RiskManager(db_path=db_path)

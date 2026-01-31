@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 
 from src.risk.hrp import get_hrp_weights
+from src.risk.volatility_scaler import VolatilityScaler
 from src.utils.logger import log
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,9 @@ class PositionSizer:
         self.config = config or PositionSizingConfig()
         self._correlation_matrix: pd.DataFrame | None = None
         self._current_positions: dict[str, float] = {}
+        from src.config.unified_config import load_config
+        u_cfg = load_config()
+        self._volatility_scaler = VolatilityScaler(u_cfg.volatility_scaler)
 
     def calculate_position_size(
         self,
@@ -113,6 +117,22 @@ class PositionSizer:
             **kwargs,
         )
 
+        # Phase 2: Dynamic Volatility Scaling
+        returns = kwargs.get("returns")
+        if returns is not None and not returns.empty:
+            # Calculate annualized volatility from returns
+            # Assuming daily returns, 252 trading days
+            # If returns are hourly, this would be different.
+            # The calling context must provide appropriate returns series.
+            current_volatility = float(returns.std() * np.sqrt(252)) # Annualized
+            
+            volatility_multiplier = self._volatility_scaler.calculate_multiplier(current_volatility)
+
+            result["position_size"] *= volatility_multiplier
+            result["position_value"] *= volatility_multiplier
+            result["volatility_multiplier"] = volatility_multiplier
+            result["current_volatility"] = current_volatility
+
         # Apply max position limit
         max_position_value = account_balance * self.config.max_position_pct
         if result["position_value"] > max_position_value:
@@ -122,6 +142,7 @@ class PositionSizer:
             result["limited_by"] = "max_position_pct"
 
         return result
+
 
     def _fixed_risk_size(
         self,
@@ -546,17 +567,24 @@ class PositionSizer:
         """
         results = {}
 
-        # 1. Calculate volatility-adjusted size
+        # 1. Calculate volatility-adjusted size using the new VolatilityScaler
         returns = dataframe["close"].pct_change().dropna()
         if len(returns) >= 20:
-            current_vol = returns.std() * np.sqrt(252 * 24)  # Annualized hourly
-            vol_result = self._volatility_adjusted_size(
-                account_balance=account_balance,
-                entry_price=entry_price,
-                stop_loss_price=entry_price * 0.98,  # Placeholder
-                current_volatility=current_vol,
-            )
-            results["volatility"] = vol_result["position_value"]
+            # Annualize volatility based on the timeframe of the data
+            # This is a placeholder, a more robust solution would analyze the dataframe's timeframe
+            time_diff = (dataframe["date"].iloc[1] - dataframe["date"].iloc[0]).total_seconds()
+            candles_per_day = 86400 / time_diff
+            annualization_factor = np.sqrt(252 * candles_per_day)
+            current_vol = returns.std() * annualization_factor
+            
+            volatility_multiplier = self._volatility_scaler.calculate_multiplier(current_vol)
+
+            # Get a base size from fixed risk
+            base_size = self._fixed_risk_size(
+                account_balance, entry_price, entry_price * 0.98 # Placeholder SL
+            )["position_value"]
+            
+            results["volatility"] = base_size * volatility_multiplier
 
         # 2. Calculate ATR-based size
         atr_result = self.calculate_atr_based_size(

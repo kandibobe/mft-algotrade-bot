@@ -48,7 +48,7 @@ class FeatureConfig:
 
     # Feature selection
     remove_correlated: bool = True
-    correlation_threshold: float = 0.85  # Reduced from 0.95 to 0.85 per roadmap
+    correlation_threshold: float = 0.75  # Reduced from 0.85 to 0.75 for noise reduction
 
     # Time features
     include_time_features: bool = True
@@ -854,6 +854,19 @@ class FeatureEngineer:
 
     def _add_trend_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add trend indicators."""
+        # 0. Volatility Expansion Features (Step 2.1)
+        # Helps predict when a big move is coming
+        df["vol_expansion"] = df["atr"] / df["atr"].rolling(100).mean()
+        df["vol_shock"] = (df["atr"] - df["atr"].rolling(20).mean()) / (
+            df["atr"].rolling(20).std() + 1e-10
+        )
+
+        # 1. Orderbook/Spread magnitude features (Step 2.1)
+        df["spread_magnitude"] = (df["high"] - df["low"]) / df["close"]
+        df["spread_zscore"] = (df["spread_magnitude"] - df["spread_magnitude"].rolling(100).mean()) / (
+            df["spread_magnitude"].rolling(100).std() + 1e-10
+        )
+
         # Moving averages
         df["sma_short"] = df["close"].rolling(self.config.short_period).mean()
         df["sma_medium"] = df["close"].rolling(self.config.medium_period).mean()

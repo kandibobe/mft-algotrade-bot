@@ -51,7 +51,7 @@ class ExecutionRecord(Base):
     __tablename__ = "executions"
 
     id = Column(Integer, primary_key=True)
-    trade_id = Column(Integer, ForeignKey("trades.id"), nullable=False)
+    trade_id = Column(Integer, ForeignKey("trades.id"), nullable=True)
 
     timestamp = Column(DateTime, default=datetime.utcnow)
     symbol = Column(String(20))
